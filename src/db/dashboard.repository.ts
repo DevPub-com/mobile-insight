@@ -1,0 +1,210 @@
+import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
+
+import type { DashboardData } from "@/domain/types";
+import { publicSyncError } from "@/services/sync/sync-errors";
+
+import { getDb } from "./index";
+import {
+  apps,
+  dailyMetrics,
+  metricObservations,
+  ratingSnapshots,
+  releases,
+  reviews,
+  syncRuns,
+} from "./schema";
+
+export async function getActiveApps() {
+  const rows = await getDb().select().from(apps).where(eq(apps.isActive, true)).orderBy(asc(apps.name));
+  return rows.map((app) => ({
+    id: app.id,
+    code: app.code,
+    name: app.name,
+    androidPackageName: app.androidPackageName,
+    iosAppId: app.iosAppId,
+    iosBundleId: app.iosBundleId,
+  }));
+}
+
+export async function getDashboardData(appCode: string): Promise<DashboardData | null> {
+  const db = getDb();
+  const activeApps = await db.select().from(apps).where(eq(apps.isActive, true)).orderBy(asc(apps.name));
+  const selected = activeApps.find((app) => app.code === appCode);
+  if (!selected) return null;
+  const observationCutoff = new Date();
+  observationCutoff.setUTCDate(observationCutoff.getUTCDate() - 400);
+  const observationCutoffDate = observationCutoff.toISOString().slice(0, 10);
+  const reviewPageLimit = 5_001;
+
+  const [
+    metricRows,
+    observationRows,
+    snapshotRows,
+    reviewRows,
+    releaseRows,
+    syncRows,
+  ] = await Promise.all([
+    db
+      .select()
+      .from(dailyMetrics)
+      .where(eq(dailyMetrics.appId, selected.id))
+      .orderBy(asc(dailyMetrics.date)),
+    db
+      .select()
+      .from(metricObservations)
+      .where(
+        and(
+          eq(metricObservations.appId, selected.id),
+          gte(metricObservations.date, observationCutoffDate),
+        ),
+      )
+      .orderBy(asc(metricObservations.date)),
+    db
+      .select()
+      .from(ratingSnapshots)
+      .where(
+        and(
+          eq(ratingSnapshots.appId, selected.id),
+          gte(ratingSnapshots.date, observationCutoffDate),
+        ),
+      )
+      .orderBy(asc(ratingSnapshots.date)),
+    db
+      .select()
+      .from(reviews)
+      .where(eq(reviews.appId, selected.id))
+      .orderBy(desc(reviews.reviewedAt))
+      .limit(reviewPageLimit),
+    db
+      .select()
+      .from(releases)
+      .where(eq(releases.appId, selected.id))
+      .orderBy(desc(releases.releasedAt)),
+    db
+      .select()
+      .from(syncRuns)
+      .where(eq(syncRuns.appId, selected.id))
+      .orderBy(desc(syncRuns.startedAt))
+      .limit(20),
+  ]);
+
+  return {
+    apps: activeApps.map((app) => ({
+      id: app.id,
+      code: app.code,
+      name: app.name,
+      androidPackageName: app.androidPackageName,
+      iosAppId: app.iosAppId,
+      iosBundleId: app.iosBundleId,
+    })),
+    app: {
+      id: selected.id,
+      code: selected.code,
+      name: selected.name,
+      androidPackageName: selected.androidPackageName,
+      iosAppId: selected.iosAppId,
+      iosBundleId: selected.iosBundleId,
+    },
+    metrics: metricRows.map((metric) => ({
+      appId: metric.appId,
+      platform: metric.platform,
+      date: metric.date,
+      downloads: metric.downloads,
+      installs: metric.installs,
+      uninstalls: metric.uninstalls,
+      crashes: metric.crashes,
+      anrs: metric.anrs,
+      rating: metric.rating,
+      ratingCount: metric.ratingCount,
+      reviewCount: metric.reviewCount,
+      active1DayUsers: metric.active1DayUsers,
+      active7DayUsers: metric.active7DayUsers,
+      active28DayUsers: metric.active28DayUsers,
+      sessions: metric.sessions,
+      newUsers: metric.newUsers,
+      engagedSessions: metric.engagedSessions,
+      averageSessionDuration: metric.averageSessionDuration,
+      screenPageViews: metric.screenPageViews,
+    })),
+    reviews: reviewRows.slice(0, reviewPageLimit - 1).map((review) => ({
+      id: review.id,
+      appId: review.appId,
+      platform: review.platform,
+      externalId: review.externalId,
+      rating: review.rating,
+      title: review.title,
+      content: review.content,
+      author: review.author,
+      version: review.version,
+      territory: review.territory,
+      source: review.source,
+      quality: review.quality,
+      observedAt: review.observedAt.toISOString(),
+      description: review.description,
+      reviewedAt: review.reviewedAt.toISOString(),
+    })),
+    reviewDataTruncated: reviewRows.length === reviewPageLimit,
+    releases: releaseRows.map((release) => ({
+      id: release.id,
+      appId: release.appId,
+      platform: release.platform,
+      version: release.version,
+      releasedAt: release.releasedAt.toISOString(),
+      releaseDateSource: release.releaseDateSource as
+        | "store_release_date"
+        | "version_created_at"
+        | "first_observed_at",
+      releaseDateEstimated: release.releaseDateEstimated,
+      status: release.status,
+      track: release.track,
+      buildNumber: release.buildNumber,
+      releaseNotes: release.releaseNotes,
+      rolloutFraction: release.rolloutFraction,
+      phasedReleaseState: release.phasedReleaseState,
+      phasedReleaseDay: release.phasedReleaseDay,
+    })),
+    metricObservations: observationRows.map((item) => ({
+      appId: item.appId,
+      platform: item.platform,
+      date: item.date,
+      metricKey: item.metricKey,
+      value: item.value,
+      source: item.source,
+      quality: item.quality,
+      observedAt: item.observedAt.toISOString(),
+      description: item.description,
+    })),
+    ratingSnapshots: snapshotRows.map((item) => ({
+      appId: item.appId,
+      platform: item.platform,
+      territory: item.territory,
+      date: item.date,
+      averageRating: item.averageRating,
+      ratingCount: item.ratingCount,
+      source: item.source,
+      quality: item.quality,
+      observedAt: item.observedAt.toISOString(),
+      description: item.description,
+    })),
+    syncRuns: syncRows.map((run) => ({
+      platform: run.platform,
+      status: run.status,
+      syncType: run.syncType,
+      startedAt: run.startedAt.toISOString(),
+      finishedAt: run.finishedAt?.toISOString() ?? null,
+      recordsCount: run.recordsCount,
+      errorMessage: publicSyncError(run.errorMessage),
+    })),
+    source: "database",
+  };
+}
+
+export async function getMetricsForWindow(appId: string, from: string, to: string) {
+  return getDb()
+    .select()
+    .from(dailyMetrics)
+    .where(
+      and(eq(dailyMetrics.appId, appId), gte(dailyMetrics.date, from), lte(dailyMetrics.date, to)),
+    )
+    .orderBy(asc(dailyMetrics.date));
+}

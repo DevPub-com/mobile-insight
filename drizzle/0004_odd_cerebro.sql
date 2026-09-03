@@ -1,0 +1,1 @@
+ALTER TYPE "public"."sync_type" ADD VALUE 'installs' BEFORE 'ratings';

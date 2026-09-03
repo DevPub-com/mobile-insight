@@ -1,0 +1,273 @@
+import { calculateNegativeReviewRate } from "@/domain/reviews/review.service";
+import type { DailyMetric, DashboardData, Platform } from "@/domain/types";
+import {
+  combineConnectedDownloads,
+  downloadValue,
+  latestDate,
+  latestRatingBetween,
+  percentChange,
+  periodStart,
+  ratingChangeForPeriod,
+  ratingPoints,
+  shiftDate,
+  sumDownloads,
+  type Period,
+} from "../common/metrics-calculator";
+
+export function buildDownloadTrend(data: DashboardData, period: Period) {
+  const endDate = latestDate(data);
+  const start = periodStart(period, endDate);
+  const byDate = new Map<
+    string,
+    { date: string; android: number | null; ios: number | null }
+  >();
+
+  for (let cursor = start; cursor <= endDate; cursor = shiftDate(cursor, 1)) {
+    byDate.set(cursor, {
+      date: cursor,
+      android: null,
+      ios: null,
+    });
+  }
+
+  for (const metric of data.metrics.filter(
+    (item) => item.date >= start && item.date <= endDate,
+  )) {
+    const row = byDate.get(metric.date);
+    if (row) {
+      row[metric.platform] = downloadValue(data, metric);
+    }
+  }
+
+  return [...byDate.values()].map((row) => {
+    const android = row.android ?? 0;
+    const ios = row.ios ?? 0;
+    const total = android + ios;
+    return {
+      date: row.date,
+      android,
+      ios,
+      total,
+    };
+  });
+}
+
+export function buildDownloadPeriodChange(
+  data: DashboardData,
+  period: Period,
+): number | null {
+  const endDate = latestDate(data);
+  const currentStart = periodStart(period, endDate);
+  const previousEnd = shiftDate(currentStart, -1);
+  const previousStart = periodStart(period, previousEnd);
+  const current = sumDownloads(
+    data,
+    data.metrics.filter(
+      (metric) => metric.date >= currentStart && metric.date <= endDate,
+    ),
+  );
+  const previous = sumDownloads(
+    data,
+    data.metrics.filter(
+      (metric) => metric.date >= previousStart && metric.date <= previousEnd,
+    ),
+  );
+  return percentChange(current, previous);
+}
+
+export function buildInstallLifecycle(data: DashboardData, period: Period) {
+  const endDate = latestDate(data);
+  const startDate = periodStart(period, endDate);
+  const rows = data.metrics.filter(
+    (metric) => metric.date >= startDate && metric.date <= endDate,
+  );
+  const hasMeasure = (metric: DailyMetric) =>
+    metric.installs != null || metric.uninstalls != null;
+  const coverage = {
+    android: rows.some(
+      (metric) => metric.platform === "android" && hasMeasure(metric),
+    ),
+    ios: rows.some((metric) => metric.platform === "ios" && hasMeasure(metric)),
+  };
+  const byDate = new Map<
+    string,
+    {
+      installs: number;
+      uninstalls: number;
+      hasInstalls: boolean;
+      hasUninstalls: boolean;
+    }
+  >();
+  for (const metric of rows) {
+    if (!hasMeasure(metric)) continue;
+    const point = byDate.get(metric.date) ?? {
+      installs: 0,
+      uninstalls: 0,
+      hasInstalls: false,
+      hasUninstalls: false,
+    };
+    if (metric.installs != null) {
+      point.installs += metric.installs;
+      point.hasInstalls = true;
+    }
+    if (metric.uninstalls != null) {
+      point.uninstalls += metric.uninstalls;
+      point.hasUninstalls = true;
+    }
+    byDate.set(metric.date, point);
+  }
+  const trend = [...byDate]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, point]) => ({
+      date,
+      installs: point.hasInstalls ? point.installs : null,
+      uninstalls: point.hasUninstalls ? point.uninstalls : null,
+      net:
+        point.hasInstalls && point.hasUninstalls
+          ? point.installs - point.uninstalls
+          : null,
+    }));
+  const sum = (key: "installs" | "uninstalls") => {
+    const values = trend.flatMap((point) =>
+      point[key] == null ? [] : [point[key]],
+    );
+    return values.length
+      ? values.reduce((total, value) => total + value, 0)
+      : null;
+  };
+  const installs = sum("installs");
+  const uninstalls = sum("uninstalls");
+  return {
+    totals: {
+      installs,
+      uninstalls,
+      net:
+        installs === null || uninstalls === null
+          ? null
+          : installs - uninstalls,
+    },
+    coverage,
+    trend,
+  };
+}
+
+export function buildPeriodSummary(data: DashboardData, period: Period) {
+  const endDate = latestDate(data);
+  const currentStart = periodStart(period, endDate);
+  const previousEnd = shiftDate(currentStart, -1);
+  const previousStart = periodStart(period, previousEnd);
+  const currentMetrics = data.metrics.filter(
+    (metric) => metric.date >= currentStart && metric.date <= endDate,
+  );
+  const previousMetrics = data.metrics.filter(
+    (metric) => metric.date >= previousStart && metric.date <= previousEnd,
+  );
+  const currentReviews = data.reviews.filter((review) => {
+    const reviewedAt = review.reviewedAt.slice(0, 10);
+    return reviewedAt >= currentStart && reviewedAt <= endDate;
+  });
+  const previousReviews = data.reviews.filter((review) => {
+    const reviewedAt = review.reviewedAt.slice(0, 10);
+    return reviewedAt >= previousStart && reviewedAt <= previousEnd;
+  });
+  const platformDownloads = (rows: DailyMetric[], platform: Platform) =>
+    sumDownloads(
+      data,
+      rows.filter((metric) => metric.platform === platform),
+    );
+  const androidDownloads = platformDownloads(currentMetrics, "android");
+  const previousAndroidDownloads = platformDownloads(
+    previousMetrics,
+    "android",
+  );
+  const iosDownloads = platformDownloads(currentMetrics, "ios");
+  const previousIosDownloads = platformDownloads(previousMetrics, "ios");
+  const downloads = combineConnectedDownloads(
+    data,
+    androidDownloads,
+    iosDownloads,
+  );
+  const previousDownloads = combineConnectedDownloads(
+    data,
+    previousAndroidDownloads,
+    previousIosDownloads,
+  );
+  const androidRating = latestRatingBetween(
+    data,
+    "android",
+    currentStart,
+    endDate,
+  );
+  const iosRating = latestRatingBetween(data, "ios", currentStart, endDate);
+  const previousAndroidRating = latestRatingBetween(
+    data,
+    "android",
+    previousStart,
+    previousEnd,
+  );
+  const previousIosRating = latestRatingBetween(
+    data,
+    "ios",
+    previousStart,
+    previousEnd,
+  );
+  const negativeReviewRate = calculateNegativeReviewRate(
+    currentReviews.map((review) => review.rating),
+  );
+  const previousNegativeReviewRate = calculateNegativeReviewRate(
+    previousReviews.map((review) => review.rating),
+  );
+
+  return {
+    downloads,
+    downloadChangePercent:
+      percentChange(downloads, previousDownloads) === null
+        ? null
+        : Number(percentChange(downloads, previousDownloads)?.toFixed(1)),
+    androidDownloads,
+    androidDownloadChangePercent:
+      percentChange(androidDownloads, previousAndroidDownloads) === null
+        ? null
+        : Number(
+            percentChange(
+              androidDownloads,
+              previousAndroidDownloads,
+            )!.toFixed(1),
+          ),
+    iosDownloads,
+    iosDownloadChangePercent:
+      percentChange(iosDownloads, previousIosDownloads) === null
+        ? null
+        : Number(
+            percentChange(iosDownloads, previousIosDownloads)!.toFixed(1),
+          ),
+    androidRating,
+    androidRatingChange: ratingChangeForPeriod(
+      ratingPoints(data).filter(
+        (item) => item.date >= currentStart && item.date <= endDate,
+      ),
+      "android",
+      androidRating,
+      previousAndroidRating,
+    ),
+    iosRating,
+    iosRatingChange: ratingChangeForPeriod(
+      ratingPoints(data).filter(
+        (item) => item.date >= currentStart && item.date <= endDate,
+      ),
+      "ios",
+      iosRating,
+      previousIosRating,
+    ),
+    negativeReviewRate:
+      negativeReviewRate === null
+        ? null
+        : Number(negativeReviewRate.toFixed(1)),
+    negativeReviewRateChangePoints:
+      negativeReviewRate === null || previousNegativeReviewRate === null
+        ? null
+        : Number((negativeReviewRate - previousNegativeReviewRate).toFixed(1)),
+    reviewCount: currentReviews.length,
+    reviewCountChange: currentReviews.length - previousReviews.length,
+  };
+}

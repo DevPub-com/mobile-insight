@@ -1,0 +1,97 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1787915762370,
+      "tag": "0000_woozy_morlocks",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788051137160,
+      "tag": "0001_foamy_doctor_doom",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788100117543,
+      "tag": "0002_ga4_active_users",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788180685351,
+      "tag": "0003_magical_nightshade",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788181139428,
+      "tag": "0004_odd_cerebro",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788183386346,
+      "tag": "0005_certain_scarlet_witch",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788184773647,
+      "tag": "0006_awesome_the_spike",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788271337008,
+      "tag": "0007_data_quality_observations",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788271782928,
+      "tag": "0008_review_provenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788275188538,
+      "tag": "0009_review_device_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788280000000,
+      "tag": "0010_unify_release_build_number",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788285000000,
+      "tag": "0011_expanded_analytics_and_distributions",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788372000000,
+      "tag": "0012_plain_table_names",
+      "breakpoints": true
+    }
+  ]
+}

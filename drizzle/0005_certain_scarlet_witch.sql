@@ -1,0 +1,2 @@
+ALTER TABLE "releases" ADD COLUMN "release_date_source" text DEFAULT 'store_release_date' NOT NULL;--> statement-breakpoint
+ALTER TABLE "releases" ADD COLUMN "release_date_estimated" boolean DEFAULT false NOT NULL;
