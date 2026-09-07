@@ -39,8 +39,24 @@ const metrics: DailyMetric[] = Array.from({ length: 15 }, (_, index) => {
     appId: app.id,
     platform,
     date: day(offset),
-    downloads: offset < 0 ? (platform === "android" ? 20 : 10) : offset > 0 ? (platform === "android" ? 40 : 20) : 35,
-    rating: offset < 0 ? (platform === "android" ? 4 : 4.2) : platform === "android" ? 4.4 : 4.5,
+    downloads:
+      offset < 0
+        ? platform === "android"
+          ? 20
+          : 10
+        : offset > 0
+          ? platform === "android"
+            ? 40
+            : 20
+          : 35,
+    rating:
+      offset < 0
+        ? platform === "android"
+          ? 4
+          : 4.2
+        : platform === "android"
+          ? 4.4
+          : 4.5,
     ratingCount: 10,
     reviewCount: 1,
     active1DayUsers: null,
@@ -76,6 +92,78 @@ const data: DashboardData = {
   metrics,
   reviews,
   releases: [release],
+  metricObservations: [
+    {
+      appId: app.id,
+      platform: "android",
+      date: day(-2),
+      metricKey: "user_perceived_crash_rate_28d",
+      value: 0.31,
+      source: "google_play_api",
+      quality: "exact",
+      observedAt: "2026-01-16T00:00:00.000Z",
+    },
+    {
+      appId: app.id,
+      platform: "android",
+      date: day(-1),
+      metricKey: "user_perceived_crash_rate_28d",
+      value: 0.3,
+      source: "google_play_api",
+      quality: "exact",
+      observedAt: "2026-01-16T00:00:00.000Z",
+    },
+    {
+      appId: app.id,
+      platform: "android",
+      date: day(1),
+      metricKey: "user_perceived_crash_rate_28d",
+      value: 0.28,
+      source: "google_play_api",
+      quality: "exact",
+      observedAt: "2026-01-16T00:00:00.000Z",
+    },
+    {
+      appId: app.id,
+      platform: "android",
+      date: day(2),
+      metricKey: "user_perceived_crash_rate_28d",
+      value: 0.27,
+      source: "google_play_api",
+      quality: "exact",
+      observedAt: "2026-01-16T00:00:00.000Z",
+    },
+    {
+      appId: app.id,
+      platform: "android",
+      date: day(-1),
+      metricKey: "user_perceived_anr_rate_28d",
+      value: 0.08,
+      source: "google_play_api",
+      quality: "exact",
+      observedAt: "2026-01-16T00:00:00.000Z",
+    },
+    {
+      appId: app.id,
+      platform: "android",
+      date: day(1),
+      metricKey: "user_perceived_anr_rate_28d",
+      value: 0.09,
+      source: "google_play_api",
+      quality: "exact",
+      observedAt: "2026-01-16T00:00:00.000Z",
+    },
+    {
+      appId: app.id,
+      platform: "android",
+      date: day(2),
+      metricKey: "user_perceived_anr_rate_28d",
+      value: 0.1,
+      source: "google_play_api",
+      quality: "exact",
+      observedAt: "2026-01-16T00:00:00.000Z",
+    },
+  ],
   syncRuns: [],
   source: "demo",
 };
@@ -88,12 +176,54 @@ describe("buildReleaseImpactWorkspace", () => {
       before: { from: "2026-01-01", to: "2026-01-07" },
       after: { from: "2026-01-09", to: "2026-01-15" },
     });
-    expect(view.downloads).toMatchObject({ before: 210, after: 420, change: 210, changePercent: 100 });
-    expect(view.ratings.android).toMatchObject({ before: 4, after: 4.4, change: 0.4 });
-    expect(view.ratings.ios).toMatchObject({ before: 4.2, after: 4.5, change: 0.3 });
-    expect(view.negativeReviews).toMatchObject({ before: 50, after: 25, change: -25 });
-    expect(view.newReviews).toMatchObject({ before: 2, after: 4, change: 2, changePercent: 100 });
-    expect(view.voc.find((item) => item.label === "로그인")).toMatchObject({ before: 1, after: 3, changePercent: 200 });
+    expect(view.downloads).toMatchObject({
+      before: 210,
+      after: 420,
+      change: 210,
+      changePercent: 100,
+    });
+    expect(view.ratings.android).toMatchObject({
+      before: 4,
+      after: 4.4,
+      change: 0.4,
+    });
+    expect(view.ratings.ios).toMatchObject({
+      before: 4.2,
+      after: 4.5,
+      change: 0.3,
+    });
+    expect(view.negativeReviews).toMatchObject({
+      before: 50,
+      after: 25,
+      change: -25,
+    });
+    expect(view.newReviews).toMatchObject({
+      before: 2,
+      after: 4,
+      change: 2,
+      changePercent: 100,
+    });
+    expect(view.voc.find((item) => item.label === "로그인")).toMatchObject({
+      before: 1,
+      after: 3,
+      changePercent: 200,
+    });
+    expect(view.stability.crashRate).toEqual({
+      before: 0.3,
+      after: 0.27,
+      changePoints: -0.03,
+      beforeAsOfDate: day(-1),
+      afterAsOfDate: day(2),
+      coverage: { before: 2, after: 2, expected: 7 },
+    });
+    expect(view.stability.anrRate).toEqual({
+      before: 0.08,
+      after: 0.1,
+      changePoints: 0.02,
+      beforeAsOfDate: day(-1),
+      afterAsOfDate: day(2),
+      coverage: { before: 1, after: 2, expected: 7 },
+    });
     expect(view.daily).toHaveLength(15);
   });
 

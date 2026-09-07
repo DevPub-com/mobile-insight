@@ -52,7 +52,7 @@ export default function DashboardLoading() {
 
         <div className="mi-loading-content">
           <section className="mi-loading-kpis">
-            {Array.from({ length: 4 }, (_, index) => (
+            {Array.from({ length: 5 }, (_, index) => (
               <article className="mi-loading-card" key={index}>
                 <div className="mi-loading-copy">
                   <div className="mi-loading-block" />

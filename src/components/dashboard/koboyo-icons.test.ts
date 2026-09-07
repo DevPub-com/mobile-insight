@@ -29,7 +29,7 @@ describe("Koboyo dashboard icons", () => {
       "shield-alert",
       "calendar",
     ]) {
-      expect(`${shell}\n${picker}`).toContain(`name="${name}"`);
+      expect(`${shell}\n${picker}\n${impact}`).toContain(`name="${name}"`);
     }
   });
 

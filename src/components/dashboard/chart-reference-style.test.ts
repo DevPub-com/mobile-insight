@@ -141,6 +141,12 @@ describe("reference dashboard chart style", () => {
     );
   });
 
+  it("keeps the four dashboard KPI cards on one row", () => {
+    expect(globalStyles).toMatch(
+      /\.mi-dashboard-kpi-grid\s*\{[^}]*grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\);/s,
+    );
+  });
+
   it("uses neutral gray before and brand blue after in release impact charts", () => {
     expect(impactTrendSource).toContain(
       'lineStyle: { color: "#8993A7", width: 2 }',

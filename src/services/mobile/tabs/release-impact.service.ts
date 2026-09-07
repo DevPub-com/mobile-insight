@@ -16,6 +16,11 @@ const percentChange = (before: number | null, after: number | null) =>
     ? null
     : Number((((after - before) / before) * 100).toFixed(1));
 
+const rateDifference = (before: number | null, after: number | null) =>
+  before === null || after === null
+    ? null
+    : Number((after - before).toFixed(3));
+
 const inWindow = (date: string, from: string, to: string) =>
   date >= from && date <= to;
 
@@ -186,6 +191,46 @@ export function buildReleaseImpactWorkspace(
   );
   const newReviews = comparison(beforeReviews.length, afterReviews.length);
 
+  const stabilityRate = (metricKey: string) => {
+    const observations =
+      release.platform === "android"
+        ? (data.metricObservations ?? [])
+            .filter(
+              (item) =>
+                item.platform === "android" &&
+                item.metricKey === metricKey &&
+                item.value !== null,
+            )
+            .sort((left, right) => left.date.localeCompare(right.date))
+        : [];
+    const before = observations.filter((item) =>
+      inWindow(item.date, windows.before.from, windows.before.to),
+    );
+    const after = observations.filter((item) =>
+      inWindow(item.date, windows.after.from, windows.after.to),
+    );
+    const beforeLatest = before.at(-1) ?? null;
+    const afterLatest = after.at(-1) ?? null;
+    const beforeValue = beforeLatest?.value ?? null;
+    const afterValue = afterLatest?.value ?? null;
+    return {
+      before: beforeValue,
+      after: afterValue,
+      changePoints: rateDifference(beforeValue, afterValue),
+      beforeAsOfDate: beforeLatest?.date ?? null,
+      afterAsOfDate: afterLatest?.date ?? null,
+      coverage: {
+        before: new Set(before.map((item) => item.date)).size,
+        after: new Set(after.map((item) => item.date)).size,
+        expected: WINDOW_DAYS,
+      },
+    };
+  };
+  const stability = {
+    crashRate: stabilityRate("user_perceived_crash_rate_28d"),
+    anrRate: stabilityRate("user_perceived_anr_rate_28d"),
+  };
+
   const daily = Array.from({ length: WINDOW_DAYS * 2 + 1 }, (_, index) => {
     const offset = index - WINDOW_DAYS;
     const date = addDays(releasedAt, offset);
@@ -195,11 +240,13 @@ export function buildReleaseImpactWorkspace(
 
   const voc = VOC_GROUPS.map(({ label, terms }) => {
     const before = beforeReviews.reduce(
-      (total, item) => total + (contentMatchesTerms(item.content, terms) ? 1 : 0),
+      (total, item) =>
+        total + (contentMatchesTerms(item.content, terms) ? 1 : 0),
       0,
     );
     const after = afterReviews.reduce(
-      (total, item) => total + (contentMatchesTerms(item.content, terms) ? 1 : 0),
+      (total, item) =>
+        total + (contentMatchesTerms(item.content, terms) ? 1 : 0),
       0,
     );
     return {
@@ -218,16 +265,14 @@ export function buildReleaseImpactWorkspace(
         downloads.change >= 0
           ? "good"
           : "warn",
-      title:
-        !hasCompleteMetricWindows
-          ? "다운로드 비교 기간 미완료"
-          : downloads.change === null
+      title: !hasCompleteMetricWindows
+        ? "다운로드 비교 기간 미완료"
+        : downloads.change === null
           ? "다운로드 비교 데이터 부족"
           : `다운로드 ${downloads.change >= 0 ? "증가" : "감소"}`,
-      detail:
-        !hasCompleteMetricWindows
-          ? `배포 후 데이터가 ${coverage.afterDays}/${coverage.expectedDays}일 수집되어 증감률 판단을 보류합니다.`
-          : downloads.change === null
+      detail: !hasCompleteMetricWindows
+        ? `배포 후 데이터가 ${coverage.afterDays}/${coverage.expectedDays}일 수집되어 증감률 판단을 보류합니다.`
+        : downloads.change === null
           ? "스토어 다운로드 데이터가 충분히 쌓인 뒤 비교할 수 있습니다."
           : `배포 전후 합계가 ${Math.abs(downloads.change).toLocaleString("ko-KR")}건 변했습니다.`,
     },
@@ -262,6 +307,7 @@ export function buildReleaseImpactWorkspace(
     ratings,
     negativeReviews,
     newReviews,
+    stability,
     daily,
     voc,
     insights,

@@ -51,7 +51,8 @@ describe("Mobile Insight dashboard shell layout", () => {
 
   it("matches the final dashboard reference information architecture", () => {
     expect(source).toContain('className="mi-dashboard-kpi-grid"');
-    expect(source).toContain("Android 안정성");
+    expect(source).not.toContain("Android 안정성");
+    expect(source).not.toContain("function StabilityMetric");
     expect(source).not.toContain("최근 버전 신규 Crash Issue");
     expect(source).toContain("부정 리뷰 비율");
     expect(source).not.toContain("부정 평가 비율");
@@ -94,9 +95,8 @@ describe("Mobile Insight dashboard shell layout", () => {
 
   it("formats KPI deltas like the reference cards", () => {
     expect(source).toContain("KoboyoIcon");
-    expect(source).toContain('name="a-arrow-up"');
+    expect(source).toContain('name="arrow-up"');
     expect(source).toContain('name="minus"');
-    expect(source).toContain("size={8}");
     expect(source).toContain('className={value < 0 ? "is-down" : undefined}');
     expect(source).toContain('name="minus" size={9}');
     expect(source).not.toContain('value > 0 ? "▲" : value < 0 ? "▼" : "—"');
@@ -145,13 +145,16 @@ describe("Mobile Insight dashboard shell layout", () => {
   });
 
   it("labels latest-release impact from the platform release date through the latest data date", () => {
-    expect(source).toContain("{releaseDate(releaseImpact.release)} ~ {date(latestDate)}");
+    expect(source).toMatch(
+      /\{releaseDate\(releaseImpact\.release\)\}\s*~\s*\{" "\}\s*\{date\(latestDate\)\}/s,
+    );
   });
 
   it("keeps the reference dashboard compact", () => {
     expect(source).toContain("월간 활성 사용자");
-    expect(source).toContain("비정상 종료 발생률");
-    expect(source).toContain("ANR 발생률");
+    expect(releaseImpactSource).toContain("배포 후 비정상 종료율");
+    expect(releaseImpactSource).toContain("배포 후 ANR 발생률");
+    expect(releaseImpactSource).not.toContain("Firebase · Sentry 데이터 없음");
     expect(source).not.toContain("ActiveUserChart");
   });
 
@@ -247,7 +250,9 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toMatch(
       /\["all",\s*"positive",\s*"neutral",\s*"negative"\]/s,
     );
-    expect(source).not.toContain("<DpBadge>{filteredReviews.length}건</DpBadge>");
+    expect(source).not.toContain(
+      "<DpBadge>{filteredReviews.length}건</DpBadge>",
+    );
     expect(source).toContain("new IntersectionObserver");
     expect(source).toContain("reviewLoadMoreRef");
     expect(source).toContain("filteredReviews.slice(0, reviewPage * pageSize)");
@@ -348,7 +353,11 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(workspace).toContain("평점 변화 (iOS)");
     expect(workspace).toContain("부정 리뷰 비율");
     expect(workspace).toContain("신규 리뷰");
-    expect(workspace).toContain("크래시율");
+    expect(workspace).toContain("배포 후 비정상 종료율");
+    expect(workspace).toContain("배포 후 ANR 발생률");
+    expect(workspace).toContain(
+      'value === null ? "—" : `${formatNumber(value, decimals)}%`',
+    );
     expect(workspace).toContain("배포 전후 추이");
     expect(workspace).toContain("핵심 인사이트");
     expect(workspace).toContain("릴리즈 요약");

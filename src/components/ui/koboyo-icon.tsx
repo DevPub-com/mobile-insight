@@ -2,7 +2,9 @@ import type { CSSProperties } from "react";
 
 export type KoboyoIconName =
   | "a-arrow-up"
+  | "arrow-down"
   | "arrow-right"
+  | "arrow-up"
   | "bar-chart"
   | "bug"
   | "calendar"

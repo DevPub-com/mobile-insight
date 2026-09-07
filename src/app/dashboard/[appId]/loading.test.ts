@@ -15,7 +15,7 @@ describe("dashboard loading UI", () => {
     expect(source).toContain('className="mi-loading-header"');
     expect(source).toContain('className="mi-loading-kpis"');
     expect(source).toContain('className="mi-loading-panels"');
-    expect(source).toContain("length: 4");
+    expect(source).toContain("length: 5");
     expect(source).toContain('aria-busy="true"');
     expect(source).toContain('aria-label="대시보드 데이터를 불러오는 중"');
     expect(source).not.toContain('className="loading-bar"');

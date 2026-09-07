@@ -147,8 +147,8 @@ function Change({
           <KoboyoIcon name="minus" size={9} />
         ) : (
           <KoboyoIcon
-            name="a-arrow-up"
-            size={8}
+            name="arrow-up"
+            size={9}
             className={value < 0 ? "is-down" : undefined}
           />
         )}
@@ -267,39 +267,6 @@ function PlatformMetric({
         values={sparkline}
         color={platform === "android" ? "#22A447" : "#8B5CF6"}
       />
-    </DpLayout>
-  );
-}
-
-function StabilityMetric({
-  label,
-  value,
-  change,
-  sparkline,
-  asOfDate,
-}: {
-  label: string;
-  value: number | null;
-  change: number | null;
-  sparkline: number[];
-  asOfDate: string | null;
-}) {
-  return (
-    <DpLayout className="mi-platform-metric">
-      <DpText as="span" className="mi-platform-metric-label">{label}</DpText>
-      <DpText as="strong">{percent(value)}</DpText>
-      <DpText
-        as="span"
-        className={`mi-platform-delta ${metricTrendTone(change)}`}
-      >
-        {change === null
-          ? "비교 불가"
-          : `${change > 0 ? "▲" : change < 0 ? "▼" : "—"} ${Math.abs(change).toFixed(3)}%p`}
-      </DpText>
-      <MetricSparkline values={sparkline} color="#E04C5A" />
-      <DpText as="span" className="mi-platform-metric-label">
-        {asOfDate ? `${asOfDate} 기준` : "기준일 없음"}
-      </DpText>
     </DpLayout>
   );
 }
@@ -518,11 +485,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
 
   useEffect(() => {
     const loadMoreTarget = reviewLoadMoreRef.current;
-    if (
-      view !== "reviews" ||
-      reviewPage >= totalPages ||
-      !loadMoreTarget
-    ) {
+    if (view !== "reviews" || reviewPage >= totalPages || !loadMoreTarget) {
       return;
     }
 
@@ -574,11 +537,31 @@ export function DashboardShell({ data }: { data: DashboardData }) {
   );
 
   const nav: Array<[View, string, ReactNode]> = [
-    ["dashboard", "대시보드", <KoboyoIcon name="dashboard" size={17} key="dashboard" />],
-    ["downloads", "다운로드", <KoboyoIcon name="download" size={17} key="download" />],
-    ["reviews", "평점 & 리뷰", <KoboyoIcon name="star" size={17} key="review" />],
-    ["releases", "릴리즈", <KoboyoIcon name="rocket" size={17} key="release" />],
-    ["impact", "릴리즈 임팩트", <KoboyoIcon name="bar-chart" size={17} key="impact" />],
+    [
+      "dashboard",
+      "대시보드",
+      <KoboyoIcon name="dashboard" size={17} key="dashboard" />,
+    ],
+    [
+      "downloads",
+      "다운로드",
+      <KoboyoIcon name="download" size={17} key="download" />,
+    ],
+    [
+      "reviews",
+      "평점 & 리뷰",
+      <KoboyoIcon name="star" size={17} key="review" />,
+    ],
+    [
+      "releases",
+      "릴리즈",
+      <KoboyoIcon name="rocket" size={17} key="release" />,
+    ],
+    [
+      "impact",
+      "릴리즈 임팩트",
+      <KoboyoIcon name="bar-chart" size={17} key="impact" />,
+    ],
     ["apps", "앱 관리", <KoboyoIcon name="settings" size={17} key="apps" />],
   ];
   const appRows = data.apps.map((app) => {
@@ -1140,8 +1123,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                   current: releaseImpact?.negativeReviews.after ?? null,
                   currentSuffix: "%",
                   currentDecimals: 1,
-                  change:
-                    releaseImpact?.negativeReviews.changePoints ?? null,
+                  change: releaseImpact?.negativeReviews.changePoints ?? null,
                   changeSuffix: "%p",
                   changeDecimals: 1,
                   sparkline: releaseImpact
@@ -1213,7 +1195,8 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                             v{releaseImpact.release.version.replace(/^v/, "")}
                           </DpText>
                           <DpText as="span">
-                            {releaseDate(releaseImpact.release)} ~ {date(latestDate)}
+                            {releaseDate(releaseImpact.release)} ~{" "}
+                            {date(latestDate)}
                           </DpText>
                         </>
                       ) : (
@@ -1250,11 +1233,13 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                             as="span"
                             className={metricTrendTone(row.change)}
                           >
-                            ({signedDelta(
+                            (
+                            {signedDelta(
                               row.change,
                               row.changeDecimals,
                               row.changeSuffix,
-                            )})
+                            )}
+                            )
                           </DpText>
                         </DpLayout>
                         <MetricSparkline
@@ -1471,7 +1456,9 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                 >
                   <PlatformMetric
                     platform="android"
-                    value={number(dashboardSummary.kpis.monthlyActiveUsers.android)}
+                    value={number(
+                      dashboardSummary.kpis.monthlyActiveUsers.android,
+                    )}
                     change={null}
                     sparkline={activeUserSparkline("android")}
                   />
@@ -1480,34 +1467,6 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                     value={number(dashboardSummary.kpis.monthlyActiveUsers.ios)}
                     change={null}
                     sparkline={activeUserSparkline("ios")}
-                  />
-                </DpLayout>
-              </DpCard>
-              <DpCard className="mi-dashboard-kpi-card">
-                <DashboardCardTitle
-                  icon={<KoboyoIcon name="shield-alert" size={18} />}
-                  tone="red"
-                  tooltip="Google Play 사용자 인지 발생률의 28일 사용자 가중 평균"
-                >
-                  Android 안정성
-                </DashboardCardTitle>
-                <DpLayout
-                  direction="row"
-                  className="mi-dashboard-platform-split"
-                >
-                  <StabilityMetric
-                    label="비정상 종료 발생률"
-                    value={dashboardSummary.kpis.stability.crashRate.value}
-                    change={dashboardSummary.kpis.stability.crashRate.changePoints}
-                    sparkline={dashboardSummary.kpis.stability.crashRate.sparkline}
-                    asOfDate={dashboardSummary.kpis.stability.crashRate.asOfDate}
-                  />
-                  <StabilityMetric
-                    label="ANR 발생률"
-                    value={dashboardSummary.kpis.stability.anrRate.value}
-                    change={dashboardSummary.kpis.stability.anrRate.changePoints}
-                    sparkline={dashboardSummary.kpis.stability.anrRate.sparkline}
-                    asOfDate={dashboardSummary.kpis.stability.anrRate.asOfDate}
                   />
                 </DpLayout>
               </DpCard>
