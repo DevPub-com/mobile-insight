@@ -36,6 +36,8 @@ jobs:
           TARGET_URL: ${{ secrets.APPLICATION_URL || secrets.APP_URL }}
           BEARER_TOKEN: ${{ secrets.SYNCHRONIZATION_SECRET || secrets.SYNC_SECRET }}
         run: |
+          CLEAN_TARGET_URL="${TARGET_URL%/}"
+          echo "Target Endpoint: ${CLEAN_TARGET_URL}/api/sync?type=${{ steps.determine-scope.outputs.scope }}"
           curl --fail --show-error --silent --location \
-            --request POST "${TARGET_URL}/api/sync?type=${{ steps.determine-scope.outputs.scope }}" \
+            --request POST "${CLEAN_TARGET_URL}/api/sync?type=${{ steps.determine-scope.outputs.scope }}" \
             --header "Authorization: Bearer ${BEARER_TOKEN}"
