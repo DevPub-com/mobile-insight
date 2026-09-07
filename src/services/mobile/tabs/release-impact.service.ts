@@ -26,12 +26,32 @@ const comparison = (before: number | null, after: number | null) => ({
   changePercent: percentChange(before, after),
 });
 
+function newDownloadValue(
+  data: DashboardData,
+  platform: Platform,
+  date: string,
+  fallback: number | null,
+) {
+  if (data.metricObservations === undefined) return fallback;
+  const metricKey =
+    platform === "android" ? "daily_user_installs" : "first_time_downloads";
+  return (
+    data.metricObservations.find(
+      (observation) =>
+        observation.platform === platform &&
+        observation.date === date &&
+        observation.metricKey === metricKey,
+    )?.value ?? null
+  );
+}
+
 export function buildReleaseImpact(
   data: DashboardData,
   version: string,
   platform: Platform,
   beforeDays = 7,
   afterDays = 7,
+  includeReleaseDay = false,
 ) {
   const matching = data.releases.filter(
     (release) => release.version === version && release.platform === platform,
@@ -50,8 +70,14 @@ export function buildReleaseImpact(
       ratings: [],
       hasDownloads: false,
     };
-    if (metric.downloads !== null) {
-      point.downloads += metric.downloads;
+    const downloads = newDownloadValue(
+      data,
+      platform,
+      metric.date,
+      metric.downloads,
+    );
+    if (downloads !== null) {
+      point.downloads += downloads;
       point.hasDownloads = true;
     }
     if (metric.rating !== null) point.ratings.push(metric.rating);
@@ -62,6 +88,7 @@ export function buildReleaseImpact(
     releasedAt,
     beforeDays,
     afterDays,
+    includeReleaseDay,
     metrics: [...byDate].map(([date, point]) => ({
       date,
       downloads: point.hasDownloads ? point.downloads : null,

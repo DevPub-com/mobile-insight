@@ -4,11 +4,38 @@ import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import * as schema from "./schema";
 import {
   dailyMetrics,
+  androidDistributionSnapshots,
   metricObservations,
   ratingSnapshots,
   releases,
   reviews,
 } from "./schema";
+
+export async function upsertAndroidDistribution<
+  TQueryResult extends PgQueryResultHKT,
+>(
+  db: Database<TQueryResult>,
+  value: typeof androidDistributionSnapshots.$inferInsert,
+) {
+  await db
+    .insert(androidDistributionSnapshots)
+    .values(value)
+    .onConflictDoUpdate({
+      target: [
+        androidDistributionSnapshots.appId,
+        androidDistributionSnapshots.platform,
+      ],
+      set: {
+        countryCodes: sql`excluded.country_codes`,
+        restOfWorld: sql`excluded.rest_of_world`,
+        deviceTypes: sql`excluded.device_types`,
+        source: sql`excluded.source`,
+        quality: sql`excluded.quality`,
+        observedAt: sql`excluded.observed_at`,
+        updatedAt: new Date(),
+      },
+    });
+}
 
 type Database<TQueryResult extends PgQueryResultHKT> = PgDatabase<
   TQueryResult,

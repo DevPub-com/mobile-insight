@@ -9,6 +9,14 @@ const platformIconSource = readFileSync(
   new URL("./platform-icon.tsx", import.meta.url),
   "utf8",
 );
+const dateRangePickerSource = readFileSync(
+  new URL("./date-range-picker.tsx", import.meta.url),
+  "utf8",
+);
+const releaseImpactSource = readFileSync(
+  new URL("./release-impact-workspace.tsx", import.meta.url),
+  "utf8",
+);
 const globalStyles = readFileSync(
   new URL("../../app/globals.css", import.meta.url),
   "utf8",
@@ -25,26 +33,51 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("앱 관리");
     expect(source).toContain("일별 다운로드");
     expect(source).toContain("수집 리뷰 별점 분포");
-    expect(source).toContain("주요 지표 변화");
+    expect(source).toContain("최근 업데이트 후 달라진 점");
     expect(source).toContain("앱 목록");
   });
 
   it("keeps the real dashboard view builders connected to the redesigned UI", () => {
-    expect(source).toContain("buildPeriodSummary(data, period)");
-    expect(source).toContain("buildDownloadTrend(data, period)");
-    expect(source).toContain("buildRatingTrend(data, period)");
-    expect(source).toContain("buildReleaseImpact(");
-    expect(source).toContain('className="mi-kpi-grid"');
+    expect(source).toContain("buildDashboardSummaryForRange(data, dateRange)");
+    expect(source).toContain("buildDateRangeSummary(data, dateRange)");
+    expect(source).toContain("dashboardSummary.charts.downloads");
+    expect(source).toContain("dashboardSummary.charts.ratings");
+    expect(source).toContain("dashboardSummary.latestReleaseImpact.platforms");
+    expect(source).toContain('className="mi-dashboard-kpi-grid"');
     expect(source).toContain('className="mi-chart-grid"');
+    expect(source).toContain("disabled={!availableDateRange}");
+    expect(dateRangePickerSource).toContain("disabled?: boolean");
+  });
+
+  it("matches the final dashboard reference information architecture", () => {
+    expect(source).toContain('className="mi-dashboard-kpi-grid"');
+    expect(source).toContain("Android 안정성");
+    expect(source).not.toContain("최근 버전 신규 Crash Issue");
+    expect(source).toContain("부정 리뷰 비율");
+    expect(source).not.toContain("부정 평가 비율");
+    expect(source).toContain('className="mi-dashboard-bottom-grid"');
+    expect(source).toContain("부정 리뷰 Top 10");
+    expect(source).toContain("최근 업데이트 후 달라진 점");
+    expect(source).toContain("전체보기");
+    expect(source).toContain("상세보기");
+    expect(source).toContain("title={item.content}");
+    expect(source).toContain('setView("impact")');
+  });
+
+  it("does not expose internal metric-quality badges in the UI", () => {
+    expect(source).not.toContain("QualityBadge");
+    expect(source).not.toContain("mi-quality-badge");
+    expect(globalStyles).not.toContain(".mi-quality-badge");
+    expect(releaseImpactSource).not.toContain("<DpBadge>추정</DpBadge>");
   });
 
   it("renders KPI changes from the selected real-data period instead of placeholders", () => {
-    expect(source).toContain('title="다운로드"');
-    expect(source).toContain('useState<Period>("28d")');
-    expect(source).not.toContain('buildPeriodSummary(data, "28d")');
-    expect(source).not.toContain('buildDownloadTrend(data, "28d")');
-    expect(source).not.toContain('buildRatingTrend(data, "28d")');
-    expect(source).not.toContain('buildReviewRateTrend(data, "28d")');
+    expect(source).toContain("최근 {periodLabel} 다운로드");
+    expect(source).toContain("const [dateRange, setDateRange] = useState");
+    expect(source).not.toContain('buildPeriodSummary(data, "30d")');
+    expect(source).not.toContain('buildDownloadTrend(data, "30d")');
+    expect(source).not.toContain('buildRatingTrend(data, "30d")');
+    expect(source).not.toContain('buildReviewRateTrend(data, "30d")');
     expect(source).toContain("periodSummary.downloads");
     expect(source).toContain("periodSummary.downloadChangePercent");
     expect(source).toContain("periodSummary.androidRatingChange");
@@ -60,18 +93,18 @@ describe("Mobile Insight dashboard shell layout", () => {
   });
 
   it("formats KPI deltas like the reference cards", () => {
-    expect(source).toContain("Triangle");
-    expect(source).toContain("Minus");
-    expect(source).toContain("<Triangle");
+    expect(source).toContain("KoboyoIcon");
+    expect(source).toContain('name="a-arrow-up"');
+    expect(source).toContain('name="minus"');
     expect(source).toContain("size={8}");
-    expect(source).toContain('fill="currentColor"');
-    expect(source).toContain('color="currentColor"');
     expect(source).toContain('className={value < 0 ? "is-down" : undefined}');
-    expect(source).toContain("<Minus size={9}");
+    expect(source).toContain('name="minus" size={9}');
     expect(source).not.toContain('value > 0 ? "▲" : value < 0 ? "▼" : "—"');
-    expect(source).toContain('comparisonLabel={`이전 ${periodLabel} 대비`}');
+    expect(source).toContain("(vs. 이전 {periodLabel})");
     expect(source).toMatch(/value\s*>\s*0\s*\?\s*"mi-change--increase"/s);
-    expect(source).toMatch(/value\s*<\s*0\s*\?\s*"mi-change--decrease"\s*:\s*"mi-change--flat"/s);
+    expect(source).toMatch(
+      /value\s*<\s*0\s*\?\s*"mi-change--decrease"\s*:\s*"mi-change--flat"/s,
+    );
     expect(source).not.toContain("lowerIsBetter");
     expect(source).not.toContain("ArrowUpRight");
     expect(source).not.toContain("ArrowDownRight");
@@ -92,23 +125,33 @@ describe("Mobile Insight dashboard shell layout", () => {
   });
 
   it("uses one global performance period control instead of per-chart controls", () => {
-    expect(source.match(/<PeriodTabs/g)).toHaveLength(1);
-    expect(source).toContain('className="mi-global-period"');
+    expect(source).not.toContain("<PeriodTabs");
+    expect(source).toContain("<DashboardDateRangePicker");
+    expect(source).toContain("buildDashboardSummaryForRange(data, dateRange)");
+    expect(dateRangePickerSource).toContain('className="mi-global-date-range"');
     expect(source).toContain("performancePeriodViews.has(view)");
-    expect(source).toContain("({periodLabel})");
-    expect(source).toContain("const firstDate = periodStart(period, latestDate)");
+    expect(source).toContain("reviewedAt >= dateRange.startDate");
     expect(source).not.toContain("const firstDate = trend.at(0)?.date");
     expect(source).not.toContain("(최근 28일)");
 
     const dashboardCharts = source.slice(
-      source.indexOf('{view === "dashboard" && (', source.indexOf("mi-kpi-grid")),
+      source.indexOf(
+        '{view === "dashboard" && (',
+        source.indexOf("mi-kpi-grid"),
+      ),
       source.indexOf('{view === "downloads" && ('),
     );
-    expect(dashboardCharts).not.toContain("<PeriodTabs");
+    expect(dashboardCharts).not.toContain("DashboardDateRangePicker");
+  });
+
+  it("labels latest-release impact from the platform release date through the latest data date", () => {
+    expect(source).toContain("{releaseDate(releaseImpact.release)} ~ {date(latestDate)}");
   });
 
   it("keeps the reference dashboard compact", () => {
-    expect(source).not.toContain("28일 활성 사용자");
+    expect(source).toContain("월간 활성 사용자");
+    expect(source).toContain("비정상 종료 발생률");
+    expect(source).toContain("ANR 발생률");
     expect(source).not.toContain("ActiveUserChart");
   });
 
@@ -140,7 +183,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(selector).toBeLessThan(navigation);
     expect(source.match(/<AppSelector/g)).toHaveLength(1);
     expect(source).not.toContain('className="mi-header-app"');
-    expect(source).toContain("({periodLabel})");
+    expect(source).toContain("<DashboardDateRangePicker");
   });
 
   it("matches the download reference information architecture", () => {
@@ -156,10 +199,12 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("전체 부정 리뷰 수");
   });
 
-  it("shows the latest five negative reviews on the dashboard and links to the review tab", () => {
-    expect(source.match(/mi-panel-head--compact/g)).toHaveLength(3);
+  it("shows up to ten negative reviews on the dashboard and links to the review tab", () => {
+    expect(source.match(/mi-panel-head--compact/g)).toHaveLength(1);
     expect(source).not.toContain('<DpText as="b">{item.rating}점</DpText>');
     expect(source).toContain("latestNegativeReviews(data.reviews)");
+    expect(source).not.toContain("latestNegativeReviews(data.reviews, 10)");
+    expect(source).toContain("dashboardSummary.negativeReviewsTop10");
     expect(source).toContain('"부정 리뷰" : "최근 리뷰"');
     expect(source).not.toContain("최근 부정 리뷰");
     expect(source).not.toContain("평점 1~2점의 최신 의견입니다.");
@@ -171,14 +216,14 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain('className="mi-review-author"');
     expect(source).toContain('className="mi-review-version"');
     expect(source).toContain("reviewTimeLabel(item.reviewedAt)");
-    expect(source.indexOf('className="mi-review-author"')).toBeLessThan(
-      source.indexOf('className="mi-review-stars"'),
-    );
-    expect(source.indexOf('className="mi-review-stars"')).toBeLessThan(
-      source.indexOf('className="mi-review-version"'),
-    );
+    expect(source).not.toContain('<DpText as="span">순위</DpText>');
+    expect(source).toContain("<ReviewStars rating={item.rating} />");
+    expect(source).toContain("Array.from({ length: 5 }");
     expect(globalStyles).toMatch(
       /\.mi-review-copy\s*\{[^}]*display:\s*-webkit-box;[^}]*-webkit-line-clamp:\s*2;/s,
+    );
+    expect(globalStyles).toMatch(
+      /\.mi-dashboard-review-copy\s*\{[^}]*display:\s*-webkit-box;[^}]*-webkit-line-clamp:\s*2;/s,
     );
     expect(globalStyles).toMatch(
       /\.mi-review-more\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;/s,
@@ -186,9 +231,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(globalStyles).toMatch(
       /\.mi-review-more\s*\{[^}]*font-weight:\s*500;/s,
     );
-    expect(globalStyles).toMatch(
-      /\.mi-review-list\s*\{[^}]*flex:\s*1;/s,
-    );
+    expect(globalStyles).toMatch(/\.mi-review-list\s*\{[^}]*flex:\s*1;/s);
     expect(globalStyles).toMatch(
       /\.mi-empty\s*\{[^}]*display:\s*flex;[^}]*flex:\s*1;[^}]*text-align:\s*center;/s,
     );
@@ -198,6 +241,20 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(globalStyles).toMatch(
       /\.mi-panel-head--compact p\s*\{[^}]*display:\s*none;/s,
     );
+  });
+
+  it("orders rating filters from high to low and progressively reveals reviews on scroll", () => {
+    expect(source).toMatch(
+      /\["all",\s*"positive",\s*"neutral",\s*"negative"\]/s,
+    );
+    expect(source).not.toContain("<DpBadge>{filteredReviews.length}건</DpBadge>");
+    expect(source).toContain("new IntersectionObserver");
+    expect(source).toContain("reviewLoadMoreRef");
+    expect(source).toContain("filteredReviews.slice(0, reviewPage * pageSize)");
+    expect(source).not.toContain('className="mi-pagination"');
+    expect(source).toContain('aria-hidden="true"');
+    expect(source).not.toContain('role="status"');
+    expect(source).not.toContain("리뷰 더 불러오는 중");
   });
 
   it("matches the app management reference information architecture", () => {
@@ -233,18 +290,45 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("releaseType");
   });
 
-  it("shows the latest mature release impact without platform or version selectors", () => {
-    expect(source).toContain("const selectedRelease = selectLatestMatureRelease(data)");
+  it("shows the latest platform release impacts without dashboard selectors", () => {
+    expect(source).toContain("const platformImpacts = Object.fromEntries");
     expect(source).not.toContain("impactPlatform");
     expect(source).not.toContain("releaseKey");
     expect(source).not.toContain('className="mi-impact-platform-tabs"');
     expect(source).not.toContain("릴리즈 선택");
-    expect(source).toContain("배포 전 7일");
-    expect(source).toContain("배포 후 7일");
-    expect(source).toContain("변화량");
-    expect(source).toContain("변화율");
-    expect(source).toContain("impact.windows.before.from");
-    expect(source).toContain("impact.windows.after.to");
+    expect(source).toContain("최근 업데이트 후 달라진 점");
+    expect(source).toContain('label: "새 크래시"');
+    expect(source).not.toContain("새 충돌 문제");
+    expect(source).toContain("releaseImpact.release.version");
+    expect(source).toContain("releaseDate(releaseImpact.release)");
+    expect(source).toContain("platformImpacts[platform]");
+    expect(source).toContain("crashIssueFor(platform)");
+  });
+
+  it("shows current platform impact values together with their absolute changes", () => {
+    expect(source).toContain("releaseImpact.rating.after");
+    expect(source).toContain("releaseImpact.negativeReviews.after");
+    expect(source).toContain('label: "리뷰 건수"');
+    expect(source).toContain("releaseImpact.reviewCount.after");
+    expect(source).toContain('label: "배포 후 신규 다운로드"');
+    expect(source).toContain("releaseImpact.downloads.after");
+    expect(source).toContain("current: crashIssue.current");
+    expect(source).toContain("change: crashIssue.change");
+    expect(source).toContain('className="mi-dashboard-impact-values"');
+    expect(source).toContain('className="mi-dashboard-impact-current"');
+    expect(source).toMatch(/signedDelta\(\s*row\.change,/s);
+  });
+
+  it("separates platform release impacts with a center divider instead of nested cards", () => {
+    expect(globalStyles).toMatch(
+      /\.mi-dashboard-impact-platform\s*\{[^}]*border:\s*0;[^}]*border-radius:\s*0;[^}]*background:\s*transparent;/s,
+    );
+    expect(globalStyles).toMatch(
+      /\.mi-dashboard-impact-platform\s*\+\s*\.mi-dashboard-impact-platform\s*\{[^}]*border-left:\s*1px solid #e5eaf1;/s,
+    );
+    expect(globalStyles).toMatch(
+      /@media \(max-width:\s*760px\)[\s\S]*\.mi-dashboard-impact-platform\s*\+\s*\.mi-dashboard-impact-platform\s*\{[^}]*border-left:\s*0;[^}]*border-top:\s*1px solid #e5eaf1;/s,
+    );
   });
 
   it("formats signed impact deltas for scanning", () => {

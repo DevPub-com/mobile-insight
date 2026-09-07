@@ -112,7 +112,8 @@ export type AppRelease = {
   platform: Platform;
   version: string;
   releasedAt: string;
-  releaseDateSource?: "store_release_date" | "version_created_at" | "first_observed_at";
+  releaseDateSource?:
+    "store_release_date" | "version_created_at" | "first_observed_at";
   releaseDateEstimated?: boolean;
   status?: string | null;
   track?: string | null;
@@ -123,10 +124,43 @@ export type AppRelease = {
   phasedReleaseDay?: number | null;
 };
 
+export type AndroidDeviceType =
+  | "phone_tablet"
+  | "wear"
+  | "tv"
+  | "automotive"
+  | "android_xr"
+  | "google_play_games_pc";
+
+export type AndroidDistribution = {
+  appId: string;
+  platform: "android";
+  countryCodes: string[];
+  restOfWorld: boolean;
+  deviceTypes: AndroidDeviceType[];
+  source: MetricSource;
+  quality: MetricQuality;
+  observedAt: string;
+};
+
+export type ReleaseVersionMapping = {
+  platform: Platform;
+  appVersionCode: number;
+  version: string;
+};
+
 export type SyncStatus = {
   platform: Platform;
   status: "running" | "success" | "failed" | "partial";
-  syncType: "downloads" | "installs" | "ratings" | "reviews" | "releases" | "all";
+  syncType:
+    | "downloads"
+    | "installs"
+    | "ratings"
+    | "reviews"
+    | "releases"
+    | "stability"
+    | "distribution"
+    | "all";
   startedAt: string;
   finishedAt: string | null;
   recordsCount: number;
@@ -140,8 +174,21 @@ export type DashboardData = {
   reviews: AppReview[];
   reviewDataTruncated?: boolean;
   releases: AppRelease[];
+  releaseVersionMappings?: ReleaseVersionMapping[];
   metricObservations?: MetricObservation[];
   ratingSnapshots?: RatingSnapshot[];
   syncRuns: SyncStatus[];
+  crashIssues?: Array<{
+    platform: Platform;
+    current: number | null;
+    change: number | null;
+    changePercent: number | null;
+    sparkline: number[];
+    quality?: MetricQuality;
+    source?: MetricSource;
+    version?: string | null;
+    asOfDate?: string | null;
+  }>;
+  androidDistribution?: AndroidDistribution | null;
   source: "database" | "demo";
 };

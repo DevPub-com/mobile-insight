@@ -304,6 +304,54 @@ describe("buildReleaseImpact", () => {
       changePercent: 0,
     });
   });
+
+  it("uses first-time iOS downloads for the new-download release metric", () => {
+    const metrics = platformMetrics("ios", "2026-08-12", 100);
+    const data: DashboardData = {
+      apps: [app],
+      app,
+      metrics,
+      metricObservations: metrics.flatMap((metric) => [
+        {
+          appId: app.id,
+          platform: "ios" as const,
+          date: metric.date,
+          metricKey: "total_downloads",
+          value: 100,
+          source: "app_store_analytics" as const,
+          quality: "exact" as const,
+          observedAt: `${metric.date}T23:00:00.000Z`,
+        },
+        {
+          appId: app.id,
+          platform: "ios" as const,
+          date: metric.date,
+          metricKey: "first_time_downloads",
+          value: 40,
+          source: "app_store_analytics" as const,
+          quality: "exact" as const,
+          observedAt: `${metric.date}T23:00:00.000Z`,
+        },
+      ]),
+      reviews: [],
+      releases: [
+        {
+          id: "i",
+          appId: app.id,
+          platform: "ios",
+          version: "1.0.0",
+          releasedAt: "2026-08-12T00:00:00.000Z",
+        },
+      ],
+      syncRuns: [],
+      source: "database",
+    };
+
+    expect(buildReleaseImpact(data, "1.0.0", "ios")?.downloads).toMatchObject({
+      before: 280,
+      after: 280,
+    });
+  });
 });
 
 describe("active user dashboard views", () => {

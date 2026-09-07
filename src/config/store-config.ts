@@ -27,6 +27,10 @@ const profiles: Record<string, StoreCredentialProfile> = {
       privateKeyEnv: "APPLE_KIS_PRIVATE_KEY",
       vendorNumberEnv: "APPLE_KIS_VENDOR_NUMBER",
     },
+    googleAnalytics: {
+      propertyIdEnv: "GA4_KIS_PROPERTY_ID",
+      serviceAccountJsonEnv: "GOOGLE_KIS_SERVICE_ACCOUNT_JSON",
+    },
   },
   wtc: {
     google: {

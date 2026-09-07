@@ -22,6 +22,8 @@ export const syncTypeEnum = pgEnum("sync_type", [
   "ratings",
   "reviews",
   "releases",
+  "stability",
+  "distribution",
   "all",
 ]);
 export const syncStatusEnum = pgEnum("sync_status", [
@@ -334,5 +336,29 @@ export const deviceDailyRecords = pgTable(
       table.deviceModel,
     ),
     index("device_daily_records_app_date_idx").on(table.appId, table.date),
+  ],
+);
+
+export const androidDistributionSnapshots = pgTable(
+  "android_distribution_snapshots",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    appId: uuid("app_id")
+      .references(() => apps.id, { onDelete: "cascade" })
+      .notNull(),
+    platform: platformEnum("platform").default("android").notNull(),
+    countryCodes: jsonb("country_codes").$type<string[]>().default([]).notNull(),
+    restOfWorld: boolean("rest_of_world").default(false).notNull(),
+    deviceTypes: jsonb("device_types").$type<string[]>().default([]).notNull(),
+    source: metricSourceEnum("source").notNull(),
+    quality: metricQualityEnum("quality").notNull(),
+    observedAt: timestamp("observed_at", timestampConfig).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("android_distribution_snapshots_app_platform_uidx").on(
+      table.appId,
+      table.platform,
+    ),
   ],
 );

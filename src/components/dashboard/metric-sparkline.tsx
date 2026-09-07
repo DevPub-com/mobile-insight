@@ -5,6 +5,30 @@ import { useMemo } from "react";
 
 import { EChart } from "@/components/dashboard/echart";
 
+export function resolveSparklineColor(seriesColor: string) {
+  return seriesColor;
+}
+
+export function releaseImpactSparklineColor(value: number | null) {
+  return value === null
+    ? "#8993A7"
+    : value > 0
+      ? "#22A447"
+      : value < 0
+        ? "#EF4444"
+        : "#F59E0B";
+}
+
+export function metricTrendTone(value: number | null) {
+  return value === null
+    ? "is-muted"
+    : value > 0
+      ? "is-increase"
+      : value < 0
+        ? "is-decrease"
+        : "is-flat";
+}
+
 export function MetricSparkline({
   values,
   color,
@@ -18,6 +42,7 @@ export function MetricSparkline({
         values.length > 0 &&
         values.every((value) => value === values[0]);
       const chartValues = isFlat ? [values[0], values[0]] : values;
+      const chartColor = resolveSparklineColor(color);
       const flatPadding = 1;
       return {
         animationDuration: 300,
@@ -25,6 +50,7 @@ export function MetricSparkline({
         xAxis: {
           type: "category",
           show: false,
+          boundaryGap: false,
           data: chartValues.map((_, index) => index),
         },
         yAxis: isFlat
@@ -43,7 +69,7 @@ export function MetricSparkline({
             smooth: 0.4,
             symbol: "none",
             showSymbol: false,
-            lineStyle: { color, width: 1 },
+            lineStyle: { color: chartColor, width: 1 },
             areaStyle: {
               origin: "start",
               color: {
@@ -53,8 +79,8 @@ export function MetricSparkline({
                 x2: 0,
                 y2: 1,
                 colorStops: [
-                  { offset: 0, color: `${color}77` },
-                  { offset: 1, color: `${color}03` },
+                  { offset: 0, color: `${chartColor}77` },
+                  { offset: 1, color: `${chartColor}03` },
                 ],
               },
             },

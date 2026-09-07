@@ -6,23 +6,36 @@ import {
   latestDate,
   latestRatingBetween,
   percentChange,
+  periodDateRange,
   periodStart,
+  previousDateRange,
   ratingChangeForPeriod,
   ratingPoints,
   shiftDate,
   sumDownloads,
   type Period,
+  type MetricDateRange,
 } from "../common/metrics-calculator";
 
 export function buildDownloadTrend(data: DashboardData, period: Period) {
   const endDate = latestDate(data);
-  const start = periodStart(period, endDate);
+  return buildDownloadTrendForRange(data, periodDateRange(period, endDate));
+}
+
+export function buildDownloadTrendForRange(
+  data: DashboardData,
+  range: MetricDateRange,
+) {
   const byDate = new Map<
     string,
     { date: string; android: number | null; ios: number | null }
   >();
 
-  for (let cursor = start; cursor <= endDate; cursor = shiftDate(cursor, 1)) {
+  for (
+    let cursor = range.startDate;
+    cursor <= range.endDate;
+    cursor = shiftDate(cursor, 1)
+  ) {
     byDate.set(cursor, {
       date: cursor,
       android: null,
@@ -31,7 +44,7 @@ export function buildDownloadTrend(data: DashboardData, period: Period) {
   }
 
   for (const metric of data.metrics.filter(
-    (item) => item.date >= start && item.date <= endDate,
+    (item) => item.date >= range.startDate && item.date <= range.endDate,
   )) {
     const row = byDate.get(metric.date);
     if (row) {
@@ -77,9 +90,15 @@ export function buildDownloadPeriodChange(
 
 export function buildInstallLifecycle(data: DashboardData, period: Period) {
   const endDate = latestDate(data);
-  const startDate = periodStart(period, endDate);
+  return buildInstallLifecycleForRange(data, periodDateRange(period, endDate));
+}
+
+export function buildInstallLifecycleForRange(
+  data: DashboardData,
+  range: MetricDateRange,
+) {
   const rows = data.metrics.filter(
-    (metric) => metric.date >= startDate && metric.date <= endDate,
+    (metric) => metric.date >= range.startDate && metric.date <= range.endDate,
   );
   const hasMeasure = (metric: DailyMetric) =>
     metric.installs != null || metric.uninstalls != null;
@@ -142,9 +161,7 @@ export function buildInstallLifecycle(data: DashboardData, period: Period) {
       installs,
       uninstalls,
       net:
-        installs === null || uninstalls === null
-          ? null
-          : installs - uninstalls,
+        installs === null || uninstalls === null ? null : installs - uninstalls,
     },
     coverage,
     trend,
@@ -153,9 +170,18 @@ export function buildInstallLifecycle(data: DashboardData, period: Period) {
 
 export function buildPeriodSummary(data: DashboardData, period: Period) {
   const endDate = latestDate(data);
-  const currentStart = periodStart(period, endDate);
-  const previousEnd = shiftDate(currentStart, -1);
-  const previousStart = periodStart(period, previousEnd);
+  return buildDateRangeSummary(data, periodDateRange(period, endDate));
+}
+
+export function buildDateRangeSummary(
+  data: DashboardData,
+  range: MetricDateRange,
+) {
+  const previous = previousDateRange(range);
+  const currentStart = range.startDate;
+  const endDate = range.endDate;
+  const previousStart = previous.startDate;
+  const previousEnd = previous.endDate;
   const currentMetrics = data.metrics.filter(
     (metric) => metric.date >= currentStart && metric.date <= endDate,
   );
@@ -229,18 +255,15 @@ export function buildPeriodSummary(data: DashboardData, period: Period) {
       percentChange(androidDownloads, previousAndroidDownloads) === null
         ? null
         : Number(
-            percentChange(
-              androidDownloads,
-              previousAndroidDownloads,
-            )!.toFixed(1),
+            percentChange(androidDownloads, previousAndroidDownloads)!.toFixed(
+              1,
+            ),
           ),
     iosDownloads,
     iosDownloadChangePercent:
       percentChange(iosDownloads, previousIosDownloads) === null
         ? null
-        : Number(
-            percentChange(iosDownloads, previousIosDownloads)!.toFixed(1),
-          ),
+        : Number(percentChange(iosDownloads, previousIosDownloads)!.toFixed(1)),
     androidRating,
     androidRatingChange: ratingChangeForPeriod(
       ratingPoints(data).filter(

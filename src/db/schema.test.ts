@@ -26,6 +26,7 @@ describe("table naming policy", () => {
       appVersionDailyRecords: "app_version_daily_records",
       osVersionDailyRecords: "os_version_daily_records",
       deviceDailyRecords: "device_daily_records",
+      androidDistributionSnapshots: "android_distribution_snapshots",
     } as const;
 
     for (const [exportName, tableName] of Object.entries(expectedNames)) {
@@ -84,6 +85,8 @@ describe("timestamp schema precision", () => {
     expect(tables.metricObservations.quality.name).toBe("quality");
     expect(tables.metricObservations.source.name).toBe("source");
     expect(tables.metricObservations.observedAt.name).toBe("observed_at");
+    expect(tables.androidDistributionSnapshots.countryCodes.name).toBe("country_codes");
+    expect(tables.androidDistributionSnapshots.deviceTypes.name).toBe("device_types");
     expect(tables.reviews.territory.name).toBe("territory");
     expect(tables.reviews.device.name).toBe("device");
     expect(tables.reviews.deviceMetadata.name).toBe("device_metadata");

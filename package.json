@@ -17,11 +17,13 @@
     "db:backfill": "tsx scripts/backfill.ts",
     "data:sync": "tsx scripts/sync.ts",
     "data:diagnose": "tsx scripts/diagnose-sync.ts",
+    "data:inspect-google": "tsx scripts/inspect-google-integrations.ts",
     "sync": "tsx scripts/sync.ts",
     "backfill": "tsx scripts/backfill.ts",
     "db:up": "docker compose up -d db"
   },
   "dependencies": {
+    "@daypicker/react": "^10.0.1",
     "@google-cloud/storage": "^7.22.0",
     "@next/env": "16.3.3",
     "@radix-ui/react-select": "latest",

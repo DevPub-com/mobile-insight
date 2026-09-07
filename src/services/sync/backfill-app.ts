@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { apps } from "@/db/schema";
 import {
   pruneNonProductionAndroidReleases,
+  upsertAndroidDistribution,
   upsertDailyMetrics,
   upsertMetricObservations,
   upsertRatingSnapshots,
@@ -51,6 +52,12 @@ async function persistPayload(payload: StoreSyncPayload) {
         observedAt: new Date(item.observedAt),
       })),
     );
+  }
+  if (payload.androidDistribution) {
+    await upsertAndroidDistribution(db, {
+      ...payload.androidDistribution,
+      observedAt: new Date(payload.androidDistribution.observedAt),
+    });
   }
   const reviewValues = payload.reviews.map((review) => ({
     appId: review.appId,
@@ -100,12 +107,30 @@ async function persistPayload(payload: StoreSyncPayload) {
 
 export type BackfillProgress = {
   app: string;
-  platform: "android" | "ios";
+  platform: "android" | "ios" | "analytics";
   batches: number;
   records: number;
   done: boolean;
   error?: string;
 };
+
+export function backfillPayloadRecordCount(payload: StoreSyncPayload) {
+  return (
+    payload.metrics.length +
+    payload.reviews.length +
+    payload.releases.length +
+    (payload.observations?.length ?? 0) +
+    (payload.ratingSnapshots?.length ?? 0) +
+    (payload.androidDistribution ? 1 : 0)
+  );
+}
+
+export function mergeBackfillErrors(
+  target: Set<string>,
+  payload: StoreSyncPayload,
+) {
+  for (const error of payload.errors) target.add(error);
+}
 
 export async function backfillAllApps(
   onProgress: (progress: BackfillProgress) => void = () => undefined,
@@ -132,6 +157,7 @@ export async function backfillAllApps(
       iosAppId: app.iosAppId,
       iosBundleId: app.iosBundleId,
     };
+    let analyticsResult: BackfillProgress;
     try {
       const analyticsMetrics = await ga4Adapter.fetch(appInfo, 365);
       const filteredMetrics = analyticsMetrics.filter(
@@ -144,27 +170,56 @@ export async function backfillAllApps(
         app: app.code,
         records: filteredMetrics.length,
       });
+      analyticsResult = {
+        app: app.code,
+        platform: "analytics",
+        batches: filteredMetrics.length ? 1 : 0,
+        records: filteredMetrics.length,
+        done: true,
+      };
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown GA4 backfill error";
       logger.error("ga4_backfill_failed", {
         app: app.code,
-        error:
-          error instanceof Error ? error.message : "Unknown GA4 backfill error",
+        error: message,
       });
+      analyticsResult = {
+        app: app.code,
+        platform: "analytics",
+        batches: 0,
+        records: 0,
+        done: true,
+        error: message,
+      };
     }
+    results.push(analyticsResult);
+    onProgress(analyticsResult);
 
     for (const adapter of adapters.filter(
       (candidate) => !options.platform || candidate.platform === options.platform,
     )) {
       let batches = 0;
       let records = 0;
+      const partialErrors = new Set<string>();
       try {
         for await (const payload of adapter.backfill(appInfo)) {
           await persistPayload(payload);
           batches += 1;
-          records += payload.metrics.length + payload.reviews.length + payload.releases.length;
+          records += backfillPayloadRecordCount(payload);
+          mergeBackfillErrors(partialErrors, payload);
           onProgress({ app: app.code, platform: adapter.platform, batches, records, done: false });
         }
-        const result = { app: app.code, platform: adapter.platform, batches, records, done: true };
+        const result: BackfillProgress = {
+          app: app.code,
+          platform: adapter.platform,
+          batches,
+          records,
+          done: true,
+          ...(partialErrors.size
+            ? { error: [...partialErrors].join(" | ") }
+            : {}),
+        };
         results.push(result);
         onProgress(result);
       } catch (error) {
@@ -175,7 +230,7 @@ export async function backfillAllApps(
           batches,
           records,
           done: true,
-          error: message,
+          error: [...partialErrors, message].join(" | "),
         };
         results.push(result);
         onProgress(result);

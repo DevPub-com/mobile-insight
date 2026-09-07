@@ -5,9 +5,10 @@
 ## Architecture
 
 ```text
-Google Play reports / Reviews API ─┐
-App Store Connect API ─────────────┼─ Normalize → Drizzle UPSERT
-GA4 Data API ──────────────────────┘                  │
+Google Play reports / Reviews API ───────┐
+Play Developer Reporting / Publishing API ─┤
+App Store Connect API ───────────────────┼─ Normalize → Drizzle UPSERT
+GA4 Data API ────────────────────────────┘                  │
                                                              ▼
 Dashboard / Route Handlers ← Query service ← PostgreSQL (DATABASE_URL)
 ```
@@ -22,12 +23,12 @@ Dashboard / Route Handlers ← Query service ← PostgreSQL (DATABASE_URL)
 
 테이블 이름은 역할을 나타내는 고정 접미사를 사용합니다.
 
-| 접미사 | 역할 | 현재 테이블 |
-| --- | --- | --- |
-| `_master` | 관리 기준정보 | `app_master` |
-| `_summary` | 화면이 읽는 요약 | `overview_daily_summary`, `release_summary` |
+| 접미사     | 역할                              | 현재 테이블                                                                                                                                      |
+| ---------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `_master`  | 관리 기준정보                     | `app_master`                                                                                                                                     |
+| `_summary` | 화면이 읽는 요약                  | `overview_daily_summary`, `release_summary`                                                                                                      |
 | `_records` | 출처 또는 분석 기준을 보존한 기록 | `usage_daily_records`, `rating_daily_records`, `review_records`, `app_version_daily_records`, `os_version_daily_records`, `device_daily_records` |
-| `_runs` | 작업 실행 결과 | `sync_runs` |
+| `_runs`    | 작업 실행 결과                    | `sync_runs`                                                                                                                                      |
 
 앱 버전·OS 버전·기기별 GA4 일별 분포는 향후 분석을 위해 `_daily_records`로 유지합니다. 현재 사용 계획이 없는 지역별 GA4 분포와 릴리즈 상태 관측 이력은 저장하지 않습니다.
 
@@ -72,13 +73,17 @@ npm run db:seed
 2. 다운로드 보고서의 Cloud Storage URI에서 bucket 이름(`pubsite_prod_rev_...`)을 확인합니다.
 3. 서비스 계정에 보고서 bucket 읽기 권한과 Google Play Developer API 리뷰 조회 권한을 부여합니다.
 4. JSON 전체와 bucket 이름을 환경변수로 설정합니다.
+5. 같은 Google Cloud 프로젝트에서 **Google Play Developer Reporting API**를 활성화합니다.
+6. Play Console의 **사용자 및 권한**에서 서비스 계정에 대상 앱의 **앱 정보 보기(읽기 전용)** 권한을 부여합니다.
 
 ```text
 GOOGLE_KIS_SERVICE_ACCOUNT_JSON={...}
 GOOGLE_KIS_BUCKET_NAME=pubsite_prod_rev_...
 ```
 
-일반 동기화에서 Android 어댑터는 최신 월간 GCS 설치/평점 CSV와 Reviews API를 읽습니다. `db:backfill`은 버킷에 남아 있는 설치/평점 파일 전체와 `reviews/reviews_[package_name]_YYYYMM.csv` 리뷰 파일 전체를 읽습니다. 과거 리뷰 CSV에는 작성자 이름이 없으므로 Dashboard에는 `이름 미제공`으로 표시합니다. 국가별 평점은 rating count가 없어 가중 재집계할 수 없으므로 모든 국가 행의 누적 평균이 동일한 날짜만 저장하며, 나머지는 `null`로 둡니다. GCS 보고서는 보통 3~7일 지연될 수 있으므로 “실시간” 수치로 해석하면 안 됩니다.
+일반 동기화에서 Android 어댑터는 최신 월간 GCS 설치/평점 CSV, Reviews API, Production 국가 가용성 및 폼팩터 트랙, Play Developer Reporting API의 사용자 인지 비정상 종료·ANR 28일 가중 발생률을 읽습니다. 발생률은 `usage_daily_records`에 퍼센트 포인트로 저장하며, 값이 없거나 권한이 거부된 경우 0으로 대체하지 않습니다. 기기 유형은 Production 트랙 이름에서 파악한 배포 폼팩터이며 Play Device Catalog의 전체 호환 기기 판정과는 다릅니다. 국가 가용성은 기본 `production` 트랙(휴대전화·태블릿)의 범위이며 다른 폼팩터 트랙의 국가 범위로 확대 해석하지 않습니다.
+
+`db:backfill`은 버킷에 남아 있는 설치/평점 파일 전체와 `reviews/reviews_[package_name]_YYYYMM.csv` 리뷰 파일 전체를 읽습니다. 과거 리뷰 CSV에는 작성자 이름이 없으므로 Dashboard에는 `이름 미제공`으로 표시합니다. 국가별 평점은 rating count가 없어 가중 재집계할 수 없으므로 모든 국가 행의 누적 평균이 동일한 날짜만 저장하며, 나머지는 `null`로 둡니다. GCS 보고서는 보통 3~7일 지연될 수 있으므로 “실시간” 수치로 해석하면 안 됩니다.
 
 ### App Store Connect
 
@@ -96,11 +101,13 @@ iOS 어댑터는 Sales report, 한국 App Store의 현재 누적 평점, Custome
 
 ### Firebase Analytics / GA4
 
-WTC는 Google Play에 사용하는 서비스 계정 JSON을 GA4 조회에도 재사용합니다. 서비스 계정 이메일을 GA4 속성의 Viewer로 추가하고, 해당 Google Cloud 프로젝트에서 Google Analytics Data API를 활성화한 뒤 숫자형 Property ID를 설정합니다.
+KIS와 WTC는 각 Google Play 서비스 계정 JSON을 GA4 조회에도 재사용합니다. 각 서비스 계정 이메일을 해당 GA4 속성의 Viewer로 추가하고, 해당 Google Cloud 프로젝트에서 Google Analytics Data API를 활성화한 뒤 숫자형 Property ID를 설정합니다.
 
 ```text
 GOOGLE_WTC_SERVICE_ACCOUNT_JSON={...}
 GA4_WTC_PROPERTY_ID=123456789
+GOOGLE_KIS_SERVICE_ACCOUNT_JSON={...}
+GA4_KIS_PROPERTY_ID=987654321
 ```
 
 `G-...` 형태의 Measurement ID가 아니라 숫자형 GA4 Property ID를 사용합니다. 일반 동기화는 최근 35일의 `active1DayUsers`, `active7DayUsers`, `active28DayUsers`, `sessions`를 다시 조회해 지연·보정 데이터를 반영합니다. `db:backfill`은 최근 365일을 조회합니다. Android와 iOS는 GA4의 `platform` 차원으로 분리하며 Web 행은 저장하지 않습니다. GA4 설정이 없는 앱은 분석 수집만 건너뛰고 Store 동기화는 계속합니다.
@@ -144,6 +151,8 @@ curl -X POST https://mobile-insight.company.internal/api/sync \
 
 ## Access control
 
+대시보드 한 화면에 필요한 집계 데이터는 `GET /api/dashboard/{appId}/summary?period=30d`에서 제공합니다. 기본 기간은 `7d`, `30d`, `3m`이며, 커스텀 기간은 `?from=2025-04-20&to=2025-04-24`처럼 시작일과 종료일을 함께 전달합니다(양끝 날짜 포함, 최대 366일). `from/to`를 지정하면 `period`보다 우선합니다. 응답의 `availableDateRange`가 실제 선택 가능한 최초일·최종일과 포함 일수를 제공하며, 데이터보다 긴 프리셋이나 이 범위를 벗어난 커스텀 요청은 `422`와 함께 가능한 범위를 반환합니다. 상세 계약은 [`docs/api/dashboard-summary.openapi.yaml`](docs/api/dashboard-summary.openapi.yaml)을 기준으로 하며, 값이 수집되지 않은 지표는 필드를 생략하지 않고 `null`과 `unavailable` 품질 상태를 반환합니다.
+
 회사 SSO 또는 사내 reverse proxy가 있으면 그 계층을 우선 사용합니다. 없는 MVP 배포에서는 아래 두 값을 모두 설정하면 브라우저 Basic Auth가 `/dashboard`, 앱 목록과 Dashboard API를 보호합니다.
 
 ```text
@@ -167,33 +176,40 @@ DASHBOARD_BASIC_PASSWORD=
 
 ## Scripts
 
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | 로컬 개발 서버 |
-| `npm test` | 핵심 도메인 테스트 |
-| `npm run typecheck` | TypeScript 검사 |
-| `npm run lint` | ESLint 검사 |
-| `npm run build` | production build |
-| `npm run db:up` | 로컬 PostgreSQL 시작 |
-| `npm run db:generate` | Drizzle migration 생성 |
-| `npm run db:migrate` | migration 적용 |
-| `npm run db:seed` | 한국투자 seed 데이터 생성 |
+| Command               | Purpose                          |
+| --------------------- | -------------------------------- |
+| `npm run dev`         | 로컬 개발 서버                   |
+| `npm test`            | 핵심 도메인 테스트               |
+| `npm run typecheck`   | TypeScript 검사                  |
+| `npm run lint`        | ESLint 검사                      |
+| `npm run build`       | production build                 |
+| `npm run db:up`       | 로컬 PostgreSQL 시작             |
+| `npm run db:generate` | Drizzle migration 생성           |
+| `npm run db:migrate`  | migration 적용                   |
+| `npm run db:seed`     | 한국투자 seed 데이터 생성        |
 | `npm run db:backfill` | 활성 앱의 Store 과거 데이터 적재 |
+| `npm run data:inspect-google` | Android 안정성·배포 상태 동기화 진단 |
 
 ## Troubleshooting
 
 - `DATABASE_URL is not configured`: `.env.local`을 만들고 서버를 다시 시작합니다.
 - Dashboard에 데이터가 없음: `app_master.is_active`, migration, seed/sync 실행과 `sync_runs`를 확인합니다.
 - Google 403: 서비스 계정이 Play Console 앱과 GCS 보고서 bucket 양쪽에 접근 가능한지 확인합니다.
+- Play Reporting 403: Google Cloud에서 Google Play Developer Reporting API가 활성화됐는지, Play Console에서 서비스 계정에 앱 정보 보기(읽기 전용) 권한이 있는지 확인합니다.
 - Apple 401/403: Team key인지, issuer/key ID와 줄바꿈이 보존된 private key인지 확인합니다.
 - GA4 403: 서비스 계정 이메일이 GA4 속성 Viewer인지, Google Analytics Data API가 활성화됐는지 확인합니다.
-- GA4 데이터 없음: `GA4_WTC_PROPERTY_ID`가 숫자형 Property ID인지, 속성의 데이터 스트림에 Android/iOS 앱이 모두 연결됐는지 확인합니다.
+- GA4 데이터 없음: `GA4_WTC_PROPERTY_ID` 또는 `GA4_KIS_PROPERTY_ID`가 숫자형 Property ID인지, 속성의 데이터 스트림에 Android/iOS 앱이 모두 연결됐는지 확인합니다.
 - Partial Data: 플랫폼별 최신 `sync_runs.error_message`는 운영자용 DB/API 로그에서 확인합니다. 일반 Dashboard에는 credential 상세 오류를 표시하지 않습니다.
 
 ## Primary API references
 
 - [Google Play report exports](https://support.google.com/googleplay/android-developer/answer/6135870)
 - [Google Play reviews.list](https://developers.google.com/android-publisher/api-ref/rest/v3/reviews/list)
+- [Google Play Developer Reporting API setup](https://developers.google.com/play/developer/reporting/overview)
+- [Google Play crash-rate query](https://developers.google.com/play/developer/reporting/reference/rest/v1beta1/vitals.crashrate/query)
+- [Google Play ANR-rate query](https://developers.google.com/play/developer/reporting/reference/rest/v1beta1/vitals.anrrate/query)
+- [Google Play country availability](https://developers.google.com/android-publisher/api-ref/rest/v3/edits.countryavailability/get)
+- [Google Play form-factor tracks](https://developers.google.com/android-publisher/tracks)
 - [Google Analytics Data API](https://developers.google.com/analytics/devguides/reporting/data/v1)
 - [App Store Connect API](https://developer.apple.com/documentation/appstoreconnectapi/)
 - [App Store Connect sales reports](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-salesreports)

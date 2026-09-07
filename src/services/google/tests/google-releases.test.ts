@@ -98,6 +98,14 @@ describe("normalizeGoogleReleases", () => {
       calls.push({ method, url });
       if (method === "POST") return { data: { id: "edit-1" } as T };
       if (method === "DELETE") return { data: {} as T };
+      if (url.includes("/countryAvailability/production")) {
+        return {
+          data: {
+            countries: [{ countryCode: "KR" }, { countryCode: "US" }],
+            restOfWorld: false,
+          } as T,
+        };
+      }
       if (url.includes("/tracks/production/releases")) {
         return { data: { releases: [{
           releaseName: "1.5.0",
@@ -117,6 +125,14 @@ describe("normalizeGoogleReleases", () => {
               track: "internal",
               releases: [{ name: "1.7.0-internal", versionCodes: ["17000"], status: "completed" }],
             },
+            {
+              track: "wear:production",
+              releases: [{ name: "1.2.0", versionCodes: ["12000"], status: "completed" }],
+            },
+            {
+              track: "tv:production",
+              releases: [{ name: "2.0.0", versionCodes: ["20000"], status: "completed" }],
+            },
           ],
         } as T,
       };
@@ -129,9 +145,51 @@ describe("normalizeGoogleReleases", () => {
     );
 
     expect(result.releases.map((release) => release.version)).toEqual(["1.5.0", "1.6.1"]);
+    expect(result.distribution).toEqual({
+      appId: "app-1",
+      platform: "android",
+      countryCodes: ["KR", "US"],
+      restOfWorld: false,
+      deviceTypes: ["phone_tablet", "wear", "tv"],
+      source: "google_play_api",
+      quality: "exact",
+      observedAt: "2026-08-31T13:00:00.000Z",
+    });
     expect(result).not.toHaveProperty("observedReleases");
     expect(calls.some((call) => call.url.includes("/tracks/production/releases"))).toBe(true);
     expect(calls.some((call) => call.url.includes("/tracks/internal/releases"))).toBe(false);
+    expect(calls.some((call) => call.url.includes("/countryAvailability/production"))).toBe(true);
     expect(calls.at(-1)?.method).toBe("DELETE");
+  });
+
+  it("keeps release data when country availability is unavailable", async () => {
+    const request = async <T>({ method, url }: { method?: string; url: string }) => {
+      if (method === "POST") return { data: { id: "edit-1" } as T };
+      if (method === "DELETE") return { data: {} as T };
+      if (url.includes("/countryAvailability/production")) {
+        throw new Error("country endpoint denied");
+      }
+      if (url.includes("/tracks/production/releases")) {
+        return { data: { releases: [] } as T };
+      }
+      return {
+        data: {
+          tracks: [{
+            track: "production",
+            releases: [{ name: "1.6.1", versionCodes: ["16100"] }],
+          }],
+        } as T,
+      };
+    };
+
+    const result = await fetchGoogleReleaseData(
+      { id: "app-1", packageName: "com.example.app" },
+      request,
+      new Date("2026-08-31T13:00:00Z"),
+    );
+
+    expect(result.releases).toHaveLength(1);
+    expect(result.distribution).toBeNull();
+    expect(result.distributionError).toContain("country endpoint denied");
   });
 });

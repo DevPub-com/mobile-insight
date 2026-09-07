@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, lte } from "drizzle-orm";
 
 import type { DashboardData } from "@/domain/types";
 import { publicSyncError } from "@/services/sync/sync-errors";
@@ -6,6 +6,7 @@ import { publicSyncError } from "@/services/sync/sync-errors";
 import { getDb } from "./index";
 import {
   apps,
+  androidDistributionSnapshots,
   dailyMetrics,
   metricObservations,
   ratingSnapshots,
@@ -41,8 +42,10 @@ export async function getDashboardData(appCode: string): Promise<DashboardData |
     observationRows,
     snapshotRows,
     reviewRows,
+    releaseVersionRows,
     releaseRows,
     syncRows,
+    distributionRows,
   ] = await Promise.all([
     db
       .select()
@@ -76,6 +79,21 @@ export async function getDashboardData(appCode: string): Promise<DashboardData |
       .orderBy(desc(reviews.reviewedAt))
       .limit(reviewPageLimit),
     db
+      .select({
+        appVersionCode: reviews.appVersionCode,
+        version: reviews.version,
+      })
+      .from(reviews)
+      .where(
+        and(
+          eq(reviews.appId, selected.id),
+          eq(reviews.platform, "android"),
+          isNotNull(reviews.appVersionCode),
+          isNotNull(reviews.version),
+        ),
+      )
+      .groupBy(reviews.appVersionCode, reviews.version),
+    db
       .select()
       .from(releases)
       .where(eq(releases.appId, selected.id))
@@ -86,6 +104,16 @@ export async function getDashboardData(appCode: string): Promise<DashboardData |
       .where(eq(syncRuns.appId, selected.id))
       .orderBy(desc(syncRuns.startedAt))
       .limit(20),
+    db
+      .select()
+      .from(androidDistributionSnapshots)
+      .where(
+        and(
+          eq(androidDistributionSnapshots.appId, selected.id),
+          eq(androidDistributionSnapshots.platform, "android"),
+        ),
+      )
+      .limit(1),
   ]);
 
   return {
@@ -144,6 +172,12 @@ export async function getDashboardData(appCode: string): Promise<DashboardData |
       reviewedAt: review.reviewedAt.toISOString(),
     })),
     reviewDataTruncated: reviewRows.length === reviewPageLimit,
+    releaseVersionMappings: releaseVersionRows.flatMap((row) => {
+      const version = row.version?.trim();
+      return row.appVersionCode == null || !version
+        ? []
+        : [{ platform: "android" as const, appVersionCode: row.appVersionCode, version }];
+    }),
     releases: releaseRows.map((release) => ({
       id: release.id,
       appId: release.appId,
@@ -195,6 +229,20 @@ export async function getDashboardData(appCode: string): Promise<DashboardData |
       recordsCount: run.recordsCount,
       errorMessage: publicSyncError(run.errorMessage),
     })),
+    androidDistribution: distributionRows[0]
+      ? {
+          appId: distributionRows[0].appId,
+          platform: "android",
+          countryCodes: distributionRows[0].countryCodes,
+          restOfWorld: distributionRows[0].restOfWorld,
+          deviceTypes: distributionRows[0].deviceTypes as NonNullable<
+            DashboardData["androidDistribution"]
+          >["deviceTypes"],
+          source: distributionRows[0].source,
+          quality: distributionRows[0].quality,
+          observedAt: distributionRows[0].observedAt.toISOString(),
+        }
+      : null,
     source: "database",
   };
 }

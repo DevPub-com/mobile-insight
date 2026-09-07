@@ -21,10 +21,7 @@ export function latestNegativeReviews(
     .slice(0, limit);
 }
 
-export function reviewTimeLabel(
-  reviewedAt: string,
-  now = new Date(),
-): string {
+export function reviewTimeLabel(reviewedAt: string, now = new Date()): string {
   const reviewedTime = new Date(reviewedAt).getTime();
   const elapsed = now.getTime() - reviewedTime;
   const absoluteDate = reviewedAt.slice(0, 10).replaceAll("-", ".");
@@ -38,6 +35,5 @@ export function reviewTimeLabel(
   const hours = Math.floor(elapsed / 3_600_000);
   if (hours < 24) return `${hours}시간 전`;
 
-  const days = Math.floor(elapsed / 86_400_000);
-  return days <= 2 ? `${days}일 전` : absoluteDate;
+  return absoluteDate;
 }

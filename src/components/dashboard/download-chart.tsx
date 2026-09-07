@@ -4,7 +4,11 @@ import type { EChartsCoreOption } from "echarts/core";
 import { useMemo } from "react";
 
 import { EChart } from "@/components/dashboard/echart";
-import type { AppRelease } from "@/domain/types";
+import type {
+  AppRelease,
+  Platform,
+  ReleaseVersionMapping,
+} from "@/domain/types";
 
 type ChartRow = {
   date: string;
@@ -21,26 +25,113 @@ const formatAxisNumber = (value: number) => {
   return formatNumber(value);
 };
 
+type ReleaseMarker = {
+  xAxis: number;
+  label: string;
+};
+
+const platformLabel: Record<Platform, string> = {
+  android: "Android",
+  ios: "iOS",
+};
+
+function canonicalSemanticVersion(value: string): string | null {
+  const trimmed = value.trim();
+  const match = trimmed.match(
+    /^v?(\d+(?:\.\d+)+(?:[-+][0-9A-Za-z.-]+)?)$/i,
+  );
+  return match?.[1] ?? null;
+}
+
+function semanticVersionForRelease(
+  release: AppRelease,
+  versionMappings: ReleaseVersionMapping[],
+): string | null {
+  const rawVersion = release.version.trim();
+  const semanticVersion = canonicalSemanticVersion(rawVersion);
+  if (semanticVersion) return semanticVersion;
+  if (!/^\d+$/.test(rawVersion)) return null;
+  if (release.platform !== "android") return null;
+
+  const buildNumbers = new Set(
+    (release.buildNumber ?? rawVersion)
+      .split(",")
+      .map((value) => Number(value.trim()))
+      .filter(Number.isFinite),
+  );
+  const matchedVersions = new Set(
+    versionMappings.flatMap((mapping) => {
+      if (
+        mapping.platform !== "android" ||
+        !buildNumbers.has(mapping.appVersionCode)
+      ) {
+        return [];
+      }
+      const mappedVersion = canonicalSemanticVersion(mapping.version);
+      return mappedVersion ? [mappedVersion] : [];
+    }),
+  );
+  return matchedVersions.size === 1 ? [...matchedVersions][0] : null;
+}
+
+function releaseMarkerLabel(
+  release: AppRelease,
+  versionMappings: ReleaseVersionMapping[],
+) {
+  const rawVersion = release.version.trim();
+  const semanticVersion = semanticVersionForRelease(release, versionMappings);
+  const versionLabel = semanticVersion
+    ? `v${semanticVersion.replace(/^v/i, "")}`
+    : /^\d+$/.test(rawVersion)
+      ? `build ${rawVersion}`
+      : rawVersion;
+  return `${platformLabel[release.platform]} · ${versionLabel}`;
+}
+
+export function buildReleaseMarkers(
+  dates: string[],
+  releases: AppRelease[],
+  versionMappings: ReleaseVersionMapping[],
+): ReleaseMarker[] {
+  const visibleDates = new Set(dates);
+  const labelsByDate = new Map<string, string[]>();
+
+  for (const release of releases) {
+    const releasedAt = release.releasedAt.slice(0, 10);
+    if (!visibleDates.has(releasedAt)) continue;
+    const labels = labelsByDate.get(releasedAt) ?? [];
+    const label = releaseMarkerLabel(release, versionMappings);
+    if (!labels.includes(label)) labels.push(label);
+    labelsByDate.set(releasedAt, labels);
+  }
+
+  return [...labelsByDate]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([releasedAt, labels]) => ({
+      xAxis: dates.indexOf(releasedAt),
+      label: labels.sort((left, right) => {
+        const leftOrder = left.startsWith("Android") ? 0 : 1;
+        const rightOrder = right.startsWith("Android") ? 0 : 1;
+        return leftOrder - rightOrder || left.localeCompare(right);
+      }).join("\n"),
+    }));
+}
+
 export function DownloadChart({
   data,
   releases,
+  versionMappings = [],
 }: {
   data: ChartRow[];
   releases: AppRelease[];
+  versionMappings?: ReleaseVersionMapping[];
 }) {
   const option = useMemo<EChartsCoreOption>(() => {
-    const visibleDates = new Set(data.map((item) => item.date));
-    const visibleReleases = releases
-      .filter((release) => visibleDates.has(release.releasedAt.slice(0, 10)))
-      .filter(
-        (release, index, all) =>
-          all.findIndex(
-            (candidate) =>
-              candidate.version === release.version &&
-              candidate.releasedAt.slice(0, 10) ===
-                release.releasedAt.slice(0, 10),
-          ) === index,
-      );
+    const releaseMarkers = buildReleaseMarkers(
+      data.map((item) => item.date),
+      releases,
+      versionMappings,
+    );
     const xAxisLabelInterval = Math.max(0, Math.ceil(data.length / 8) - 1);
     const series = (
       [
@@ -60,7 +151,7 @@ export function DownloadChart({
       lineStyle: { color, width: 2.25, type: "solid" as const },
       itemStyle: { color, borderColor: color, borderWidth: 0 },
       markLine:
-        name === "전체" && visibleReleases.length
+        name === "전체" && releaseMarkers.length
           ? {
               silent: true,
               symbol: "none",
@@ -69,12 +160,17 @@ export function DownloadChart({
                 type: "dashed" as const,
                 width: 1,
               },
-              label: { color: "#667085", fontSize: 9 },
-              data: visibleReleases.map((release) => ({
-                name: release.version,
-                xAxis: data.findIndex(
-                  (point) => point.date === release.releasedAt.slice(0, 10),
-                ),
+              label: {
+                color: "#465267",
+                fontSize: 9,
+                fontWeight: 600,
+                lineHeight: 13,
+                formatter: (params: { data?: { label?: string } }) =>
+                  params.data?.label ?? "",
+              },
+              data: releaseMarkers.map((marker) => ({
+                xAxis: marker.xAxis,
+                label: marker.label,
               })),
             }
           : undefined,
@@ -130,7 +226,7 @@ export function DownloadChart({
       },
       series,
     };
-  }, [data, releases]);
+  }, [data, releases, versionMappings]);
 
   if (!data.length)
     return (

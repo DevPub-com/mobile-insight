@@ -42,13 +42,13 @@ export function RatingChart({ data }: { data: RatingPoint[] }) {
       },
       yAxis: {
         type: "value",
-        min: 3,
+        min: 1,
         max: 5,
-        interval: 0.5,
+        interval: 1,
         axisLabel: {
           color: "#7b8798",
           fontSize: 10,
-          formatter: (value: number) => value.toFixed(1),
+          formatter: (value: number) => `${Math.round(value)}`,
         },
         splitLine: { lineStyle: { color: "#e8edf5", type: "dashed" } },
       },
@@ -61,7 +61,10 @@ export function RatingChart({ data }: { data: RatingPoint[] }) {
         name,
         type: "line",
         smooth: 0.2,
-        data: data.map((row) => row[key]),
+        data: data.map((row) => {
+          const value = row[key];
+          return value === null || value <= 0 ? null : value;
+        }),
         connectNulls: true,
         symbol: "circle",
         symbolSize: 5,

@@ -228,5 +228,21 @@ export const demoDashboardData: DashboardData = {
   reviews: demoReviews,
   releases: demoReleases,
   syncRuns: demoSyncRuns,
+  crashIssues: [
+    {
+      platform: "android",
+      current: 24,
+      change: -42,
+      changePercent: -33.3,
+      sparkline: [36, 39, 37, 31, 34, 29, 27, 30, 26, 24],
+    },
+    {
+      platform: "ios",
+      current: 18,
+      change: -28,
+      changePercent: -40,
+      sparkline: [31, 29, 27, 30, 24, 22, 23, 20, 21, 18],
+    },
+  ],
   source: "demo",
 };

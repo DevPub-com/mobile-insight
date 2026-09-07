@@ -24,6 +24,7 @@ import {
 } from "../google-reviews";
 import { parseGoogleInstallReport } from "../google-installs";
 import { fetchGoogleReleaseData } from "../google-releases";
+import { fetchGoogleVitals } from "../google-vitals";
 
 function decodeReport(buffer: Buffer): string {
   if (buffer[0] === 0xff && buffer[1] === 0xfe) {
@@ -71,6 +72,8 @@ export class GooglePlayAdapter implements StoreAdapter {
     "ratings",
     "reviews",
     "releases",
+    "stability",
+    "distribution",
   ] as const;
 
   private connectionFor(app: AppInfo) {
@@ -106,7 +109,7 @@ export class GooglePlayAdapter implements StoreAdapter {
     const shouldSync = (type: StoreSyncType) =>
       !syncTypes || syncTypes.includes(type);
 
-    const [installResult, ratingResult, reviewResult, releaseResult] =
+    const [installResult, ratingResult, reviewResult, releaseResult, vitalsResult] =
       await Promise.allSettled([
         shouldSync("downloads") || shouldSync("installs")
           ? downloadCsvRows(
@@ -129,9 +132,16 @@ export class GooglePlayAdapter implements StoreAdapter {
         shouldSync("reviews")
           ? this.fetchReviews(app, credentials)
           : Promise.resolve([]),
-        shouldSync("releases")
-          ? this.fetchReleases(app, credentials)
-          : Promise.resolve({ releases: [] }),
+        shouldSync("releases") || shouldSync("distribution")
+          ? this.fetchReleases(app, credentials, shouldSync("distribution"))
+          : Promise.resolve({
+              releases: [],
+              distribution: null,
+              distributionError: null,
+            }),
+        shouldSync("stability")
+          ? this.fetchVitals(app, credentials)
+          : Promise.resolve([]),
       ]);
 
     if (installResult.status === "rejected") {
@@ -145,7 +155,13 @@ export class GooglePlayAdapter implements StoreAdapter {
       errors.push(`reviews: ${reviewResult.reason}`);
     }
     if (releaseResult.status === "rejected") {
-      errors.push(`releases: ${releaseResult.reason}`);
+      if (shouldSync("releases")) errors.push(`releases: ${releaseResult.reason}`);
+      if (shouldSync("distribution")) {
+        errors.push(`distribution: ${releaseResult.reason}`);
+      }
+    }
+    if (vitalsResult.status === "rejected") {
+      errors.push(`stability: ${vitalsResult.reason}`);
     }
 
     const normalized = this.normalizeReports(
@@ -159,27 +175,51 @@ export class GooglePlayAdapter implements StoreAdapter {
       reviewResult.status === "fulfilled" ? reviewResult.value : [];
     const releaseData = releaseResult.status === "fulfilled"
       ? releaseResult.value
-      : { releases: [] };
+      : { releases: [], distribution: null, distributionError: null };
+    if (releaseData.distributionError) {
+      errors.push(`distribution: ${releaseData.distributionError}`);
+    }
     const releases = releaseData.releases;
+    const vitals = vitalsResult.status === "fulfilled" ? vitalsResult.value : [];
     return {
       metrics: normalized.metrics,
       reviews,
       releases,
       errors,
-      observations: normalized.observations,
+      observations: [...normalized.observations, ...vitals],
       ratingSnapshots: normalized.ratingSnapshots,
+      androidDistribution: releaseData.distribution,
     };
   }
 
   async *backfill(app: AppInfo): AsyncGenerator<StoreSyncPayload> {
     const { credentials, bucketName, storage } = this.connectionFor(app);
-    const releaseData = await this.fetchReleases(app, credentials);
-    const releases = releaseData.releases;
+    const [releaseResult, vitalsResult] = await Promise.allSettled([
+      this.fetchReleases(app, credentials),
+      this.fetchVitals(app, credentials, 400),
+    ]);
+    const releaseData =
+      releaseResult.status === "fulfilled"
+        ? releaseResult.value
+        : { releases: [], distribution: null, distributionError: null };
+    const vitals = vitalsResult.status === "fulfilled" ? vitalsResult.value : [];
+    const errors = [
+      ...(releaseResult.status === "rejected"
+        ? [`releases: ${releaseResult.reason}`, `distribution: ${releaseResult.reason}`]
+        : releaseData.distributionError
+          ? [`distribution: ${releaseData.distributionError}`]
+          : []),
+      ...(vitalsResult.status === "rejected"
+        ? [`stability: ${vitalsResult.reason}`]
+        : []),
+    ];
     yield {
       metrics: [],
       reviews: [],
-      releases,
-      errors: [],
+      releases: releaseData.releases,
+      errors,
+      observations: vitals,
+      androidDistribution: releaseData.distribution,
     };
     const [installRows, ratingRows, reviewRows] = await Promise.all([
       downloadCsvRows(
@@ -270,14 +310,39 @@ export class GooglePlayAdapter implements StoreAdapter {
     });
   }
 
+  private reportingAuth(credentials: GoogleServiceAccountCredentials): JWT {
+    return new JWT({
+      email: credentials.client_email,
+      key: credentials.private_key,
+      scopes: ["https://www.googleapis.com/auth/playdeveloperreporting"],
+    });
+  }
+
+  private async fetchVitals(
+    app: AppInfo,
+    credentials: GoogleServiceAccountCredentials,
+    days = 90,
+  ) {
+    const auth = this.reportingAuth(credentials);
+    return fetchGoogleVitals(
+      { id: app.id, packageName: app.androidPackageName! },
+      (options) => auth.request(options),
+      new Date(),
+      days,
+    );
+  }
+
   private async fetchReleases(
     app: AppInfo,
     credentials: GoogleServiceAccountCredentials,
+    includeDistribution = true,
   ) {
     const auth = this.reviewAuth(credentials);
     return fetchGoogleReleaseData(
       { id: app.id, packageName: app.androidPackageName! },
       (options) => auth.request(options),
+      new Date(),
+      { includeDistribution },
     );
   }
 

@@ -2,7 +2,11 @@ import type {
   GoogleReleaseSummary,
   GoogleTrack,
 } from "@/domain/models/google.model";
-import type { AppRelease } from "@/domain/types";
+import type {
+  AndroidDeviceType,
+  AndroidDistribution,
+  AppRelease,
+} from "@/domain/types";
 
 export type {
   GoogleReleaseSummary,
@@ -14,6 +18,59 @@ type PublisherRequest = <T>(options: {
   method?: "GET" | "POST" | "DELETE";
   url: string;
 }) => Promise<{ data: T }>;
+
+type TrackCountryAvailability = {
+  countries?: Array<{ countryCode?: string }>;
+  restOfWorld?: boolean;
+};
+
+const FORM_FACTOR_PREFIXES: Record<string, AndroidDeviceType> = {
+  wear: "wear",
+  tv: "tv",
+  automotive: "automotive",
+  android_xr: "android_xr",
+  google_play_games_pc: "google_play_games_pc",
+};
+
+export function normalizeAndroidDistribution(
+  appId: string,
+  tracks: GoogleTrack[],
+  availability: TrackCountryAvailability,
+  observedAt: Date,
+): AndroidDistribution {
+  const productionTracks = tracks.filter(
+    (track) =>
+      (track.track === "production" || track.track?.endsWith(":production")) &&
+      Boolean(track.releases?.length),
+  );
+  const deviceTypes = new Set<AndroidDeviceType>();
+  for (const track of productionTracks) {
+    if (track.track === "production") {
+      deviceTypes.add("phone_tablet");
+      continue;
+    }
+    const prefix = track.track?.split(":", 1)[0];
+    if (prefix && FORM_FACTOR_PREFIXES[prefix]) {
+      deviceTypes.add(FORM_FACTOR_PREFIXES[prefix]);
+    }
+  }
+  const countryCodes = [...new Set(
+    (availability.countries ?? []).flatMap((item) => {
+      const code = item.countryCode?.trim().toUpperCase();
+      return code ? [code] : [];
+    }),
+  )].sort();
+  return {
+    appId,
+    platform: "android",
+    countryCodes,
+    restOfWorld: availability.restOfWorld ?? false,
+    deviceTypes: [...deviceTypes],
+    source: "google_play_api",
+    quality: "exact",
+    observedAt: observedAt.toISOString(),
+  };
+}
 
 export function normalizeGoogleReleases(
   appId: string,
@@ -120,7 +177,12 @@ export async function fetchGoogleReleaseData(
   app: { id: string; packageName: string },
   request: PublisherRequest,
   observedAt = new Date(),
-): Promise<{ releases: AppRelease[] }> {
+  options: { includeDistribution?: boolean } = {},
+): Promise<{
+  releases: AppRelease[];
+  distribution: AndroidDistribution | null;
+  distributionError: string | null;
+}> {
   const packageName = encodeURIComponent(app.packageName);
   const edit = await request<{ id?: string }>({
     method: "POST",
@@ -134,7 +196,16 @@ export async function fetchGoogleReleaseData(
     const response = await request<{ tracks?: GoogleTrack[] }>({
       url: `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/edits/${editId}/tracks`,
     });
-    const tracks = (response.data.tracks ?? []).filter(
+    const availabilityResult = options.includeDistribution === false
+      ? null
+      : await request<TrackCountryAvailability>({
+        url: `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/edits/${editId}/countryAvailability/production`,
+      }).then(
+        (value) => ({ status: "fulfilled" as const, value }),
+        (reason: unknown) => ({ status: "rejected" as const, reason }),
+      );
+    const allTracks = response.data.tracks ?? [];
+    const tracks = allTracks.filter(
       (track) => track.track === "production",
     );
     const historyResults = await Promise.allSettled(
@@ -159,7 +230,24 @@ export async function fetchGoogleReleaseData(
       mergedReleases.map((release) => [release.version, release]),
     );
     const productionReleases = [...productionByVersion.values()];
-    return { releases: productionReleases };
+    return {
+      releases: productionReleases,
+      distribution:
+        availabilityResult?.status === "fulfilled"
+          ? normalizeAndroidDistribution(
+              app.id,
+              allTracks,
+              availabilityResult.value.data,
+              observedAt,
+            )
+          : null,
+      distributionError:
+        availabilityResult?.status === "rejected"
+          ? availabilityResult.reason instanceof Error
+            ? availabilityResult.reason.message
+            : String(availabilityResult.reason)
+          : null,
+    };
   } finally {
     await request<unknown>({
       method: "DELETE",
@@ -173,5 +261,9 @@ export async function fetchGoogleReleases(
   request: PublisherRequest,
   observedAt = new Date(),
 ): Promise<AppRelease[]> {
-  return (await fetchGoogleReleaseData(app, request, observedAt)).releases;
+  return (
+    await fetchGoogleReleaseData(app, request, observedAt, {
+      includeDistribution: false,
+    })
+  ).releases;
 }

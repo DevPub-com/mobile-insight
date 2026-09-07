@@ -9,11 +9,7 @@ import {
   reviewTimeLabel,
 } from "./review.service";
 
-const review = (
-  id: string,
-  rating: number,
-  reviewedAt: string,
-): AppReview => ({
+const review = (id: string, rating: number, reviewedAt: string): AppReview => ({
   id,
   appId: "app",
   platform: "android",
@@ -61,14 +57,15 @@ describe("calculateNegativeReviewRate", () => {
     expect(reviews[0]?.id).toBe("oldest");
   });
 
-  it("uses relative time through two days and an absolute date afterward", () => {
+  it("uses minute and hour relative time for less than one day", () => {
     const now = new Date("2026-08-31T12:00:00Z");
 
     expect(reviewTimeLabel("2026-08-31T11:59:40Z", now)).toBe("방금 전");
     expect(reviewTimeLabel("2026-08-31T11:42:00Z", now)).toBe("18분 전");
     expect(reviewTimeLabel("2026-08-31T10:30:00Z", now)).toBe("1시간 전");
-    expect(reviewTimeLabel("2026-08-30T11:00:00Z", now)).toBe("1일 전");
-    expect(reviewTimeLabel("2026-08-29T11:00:00Z", now)).toBe("2일 전");
+    expect(reviewTimeLabel("2026-08-30T12:01:00Z", now)).toBe("23시간 전");
+    expect(reviewTimeLabel("2026-08-30T11:00:00Z", now)).toBe("2026.08.30");
+    expect(reviewTimeLabel("2026-08-29T11:00:00Z", now)).toBe("2026.08.29");
     expect(reviewTimeLabel("2026-08-28T11:00:00Z", now)).toBe("2026.08.28");
   });
 });

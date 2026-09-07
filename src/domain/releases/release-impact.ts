@@ -50,17 +50,20 @@ export function calculateReleaseImpact({
   reviews,
   beforeDays,
   afterDays,
+  includeReleaseDay = false,
 }: {
   releasedAt: string;
   metrics: MetricPoint[];
   reviews: ReviewPoint[];
   beforeDays: number;
   afterDays: number;
+  includeReleaseDay?: boolean;
 }) {
   const beforeFrom = addDays(releasedAt, -beforeDays);
   const beforeTo = addDays(releasedAt, -1);
-  const afterFrom = addDays(releasedAt, 1);
-  const afterTo = addDays(releasedAt, afterDays);
+  const afterStartOffset = includeReleaseDay ? 0 : 1;
+  const afterFrom = addDays(releasedAt, afterStartOffset);
+  const afterTo = addDays(releasedAt, afterStartOffset + afterDays - 1);
 
   const beforeMetrics = metrics.filter((metric) => inRange(metric.date, beforeFrom, beforeTo));
   const afterMetrics = metrics.filter((metric) => inRange(metric.date, afterFrom, afterTo));

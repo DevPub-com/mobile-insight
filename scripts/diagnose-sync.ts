@@ -81,6 +81,25 @@ const snapshotCoverage = await db.execute(sql`
   group by a.code, s.platform, s.source, s.quality
   order by s.platform, s.source
 `);
+const stabilityCoverage = await db.execute(sql`
+  select a.code, o.metric_key, count(*) as observations,
+    min(o.date) as first_date, max(o.date) as last_date
+  from app_master a
+  join usage_daily_records o on o.app_id = a.id
+  where o.metric_key in (
+    'user_perceived_crash_rate_28d',
+    'user_perceived_anr_rate_28d'
+  )
+  group by a.code, o.metric_key
+  order by a.code, o.metric_key
+`);
+const distributionCoverage = await db.execute(sql`
+  select a.code, d.country_codes, d.rest_of_world, d.device_types,
+    d.quality, d.observed_at
+  from app_master a
+  join android_distribution_snapshots d on d.app_id = a.id
+  order by a.code
+`);
 const recentMetricEvidence = await db.execute(sql`
   select m.platform, m.date, m.downloads, m.rating, m.rating_count,
     exists (
@@ -105,13 +124,25 @@ const latestRuns = await db.execute(sql`
   where s.sync_type = 'all'
   order by a.code, s.platform, s.started_at desc
 `);
+const latestAndroidIntegrationRuns = await db.execute(sql`
+  select distinct on (a.code, s.sync_type) a.code, s.sync_type, s.status,
+    s.records_count, left(coalesce(s.error_message, ''), 300) as error_message
+  from sync_runs s
+  join app_master a on a.id = s.app_id
+  where s.platform = 'android'
+    and s.sync_type in ('stability', 'distribution')
+  order by a.code, s.sync_type, s.started_at desc
+`);
 console.info("metric_coverage:", coverage);
 console.info("review_coverage:", reviewCoverage);
 console.info("release_coverage:", releaseCoverage);
 console.info("provenance_coverage:", provenanceCoverage);
 console.info("snapshot_coverage:", snapshotCoverage);
+console.info("stability_coverage:", stabilityCoverage);
+console.info("distribution_coverage:", distributionCoverage);
 console.info("recent_metric_evidence:", recentMetricEvidence);
 console.info("latest_sync_runs:", latestRuns);
+console.info("latest_android_integration_runs:", latestAndroidIntegrationRuns);
 const migrationTables = await db.execute(sql`
   select table_schema, table_name
   from information_schema.tables

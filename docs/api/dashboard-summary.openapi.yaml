@@ -1,0 +1,312 @@
+openapi: 3.1.0
+info:
+  title: Mobile Insight Dashboard Summary API
+  version: 1.0.0
+  description: 최종 대시보드 한 화면을 렌더링하는 데 필요한 집계 데이터 계약입니다.
+paths:
+  /api/dashboard/{appId}/summary:
+    get:
+      operationId: getDashboardSummary
+      summary: 대시보드 요약 조회
+      parameters:
+        - name: appId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: period
+          in: query
+          required: false
+          description: KPI·일반 차트·리뷰에 적용하며 현재 구간과 직전 동일 길이 구간을 비교합니다. `latestReleaseImpact`에는 적용되지 않습니다.
+          schema:
+            type: string
+            enum: [7d, 30d, 3m]
+            default: 30d
+        - name: from
+          in: query
+          required: false
+          description: 커스텀 조회 시작일(포함). `to`와 함께 사용하며 최대 366일입니다.
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          required: false
+          description: 커스텀 조회 종료일(포함). 지정하면 `period`보다 우선합니다.
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: 대시보드 전체 데이터
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/DashboardSummary" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "422": { $ref: "#/components/responses/RangeNotAvailable" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalError" }
+components:
+  responses:
+    BadRequest:
+      description: 지원하지 않는 기본 기간 또는 누락·역순·366일 초과 커스텀 기간
+      content:
+        { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    RangeNotAvailable:
+      description: 요청 기간이 실제 데이터 보유 기간을 벗어났거나 날짜 데이터가 없음
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error, availableDateRange]
+            properties:
+              error: { type: string }
+              availableDateRange:
+                oneOf:
+                  - { $ref: "#/components/schemas/AvailableDateRange" }
+                  - { type: "null" }
+    NotFound:
+      description: 앱 없음
+      content:
+        { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    InternalError:
+      description: 집계 실패
+      content:
+        { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    MetricQuality:
+      type: string
+      enum: [exact, estimated, derived, unavailable]
+    AvailableDateRange:
+      type: object
+      required: [startDate, endDate, days]
+      properties:
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        days: { type: integer, minimum: 1 }
+    NullableNumber:
+      type: [number, "null"]
+    App:
+      type: object
+      required: [id, code, name, androidPackageName, iosAppId, iosBundleId]
+      properties:
+        id: { type: string }
+        code: { type: string }
+        name: { type: string }
+        androidPackageName: { type: [string, "null"] }
+        iosAppId: { type: [string, "null"] }
+        iosBundleId: { type: [string, "null"] }
+    PeriodWindow:
+      type: object
+      required: [value, startDate, endDate, previousStartDate, previousEndDate]
+      properties:
+        value: { type: string, enum: [7d, 30d, 3m, custom] }
+        days:
+          type: integer
+          minimum: 1
+          maximum: 366
+          description: value가 custom일 때만 반환되는 포함 일수입니다.
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        previousStartDate: { type: string, format: date }
+        previousEndDate: { type: string, format: date }
+    DownloadKpi:
+      type: object
+      required: [value, changePercent, unit, quality, sparkline]
+      properties:
+        value: { $ref: "#/components/schemas/NullableNumber" }
+        changePercent: { $ref: "#/components/schemas/NullableNumber" }
+        unit: { const: count }
+        quality: { $ref: "#/components/schemas/MetricQuality" }
+        sparkline: { type: array, items: { type: number } }
+    RatingKpi:
+      type: object
+      required: [value, change, unit, quality, sparkline]
+      properties:
+        value: { $ref: "#/components/schemas/NullableNumber" }
+        change: { $ref: "#/components/schemas/NullableNumber" }
+        unit: { const: score }
+        quality: { $ref: "#/components/schemas/MetricQuality" }
+        sparkline: { type: array, items: { type: number } }
+    NegativeReviewKpi:
+      type: object
+      required: [value, changePoints, unit, quality, sparkline]
+      description: 작성 리뷰 중 1~2점 리뷰의 비율입니다.
+      properties:
+        value: { $ref: "#/components/schemas/NullableNumber" }
+        changePoints: { $ref: "#/components/schemas/NullableNumber" }
+        unit: { const: percent }
+        quality: { $ref: "#/components/schemas/MetricQuality" }
+        sparkline: { type: array, items: { type: number } }
+    CrashIssueKpi:
+      type: object
+      required: [value, change, changePercent, quality, sparkline]
+      description: Crash 이벤트 횟수가 아닌 이슈 단위 집계입니다. 미수집 시 숫자 필드는 null입니다.
+      properties:
+        value: { $ref: "#/components/schemas/NullableNumber" }
+        change: { $ref: "#/components/schemas/NullableNumber" }
+        changePercent: { $ref: "#/components/schemas/NullableNumber" }
+        quality: { $ref: "#/components/schemas/MetricQuality" }
+        sparkline: { type: array, items: { type: number } }
+    PlatformPairRatings:
+      type: object
+      required: [android, ios]
+      properties:
+        android: { $ref: "#/components/schemas/RatingKpi" }
+        ios: { $ref: "#/components/schemas/RatingKpi" }
+    PlatformPairNegativeReviews:
+      type: object
+      required: [android, ios]
+      properties:
+        android: { $ref: "#/components/schemas/NegativeReviewKpi" }
+        ios: { $ref: "#/components/schemas/NegativeReviewKpi" }
+    PlatformPairCrashIssues:
+      type: object
+      required: [android, ios]
+      properties:
+        android: { $ref: "#/components/schemas/CrashIssueKpi" }
+        ios: { $ref: "#/components/schemas/CrashIssueKpi" }
+    DownloadPoint:
+      type: object
+      required: [date, android, ios, total]
+      properties:
+        date: { type: string, format: date }
+        android: { type: number }
+        ios: { type: number }
+        total: { type: number }
+    RatingPoint:
+      type: object
+      required: [date, android, ios]
+      properties:
+        date: { type: string, format: date }
+        android: { $ref: "#/components/schemas/NullableNumber" }
+        ios: { $ref: "#/components/schemas/NullableNumber" }
+    Review:
+      type: object
+      additionalProperties: true
+      required: [id, appId, platform, externalId, rating, content, reviewedAt]
+      properties:
+        id: { type: string }
+        appId: { type: string }
+        platform: { type: string, enum: [android, ios] }
+        externalId: { type: string }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        content: { type: string }
+        version: { type: [string, "null"] }
+        reviewedAt: { type: string, format: date-time }
+    Release:
+      type: object
+      additionalProperties: true
+      required: [id, appId, platform, version, releasedAt]
+      properties:
+        id: { type: string }
+        appId: { type: string }
+        platform: { type: string, enum: [android, ios] }
+        version: { type: string }
+        releasedAt: { type: string, format: date-time }
+    MetricComparison:
+      type: object
+      required: [before, after]
+      properties:
+        before: { $ref: "#/components/schemas/NullableNumber" }
+        after: { $ref: "#/components/schemas/NullableNumber" }
+        change: { $ref: "#/components/schemas/NullableNumber" }
+        changePoints: { $ref: "#/components/schemas/NullableNumber" }
+    PlatformReleaseImpact:
+      type: object
+      required:
+        [release, rating, negativeReviews, reviewCount, downloads, crashIssues, windows, coverage]
+      properties:
+        release:
+          oneOf:
+            - { $ref: "#/components/schemas/Release" }
+            - { type: "null" }
+        rating: { $ref: "#/components/schemas/MetricComparison" }
+        negativeReviews: { $ref: "#/components/schemas/MetricComparison" }
+        reviewCount: { $ref: "#/components/schemas/MetricComparison" }
+        downloads: { $ref: "#/components/schemas/MetricComparison" }
+        crashIssues: { $ref: "#/components/schemas/CrashIssueKpi" }
+        windows:
+          type: [object, "null"]
+          description: `after`는 최신 빌드 배포일~데이터 최신일, `before`는 그 직전 동일 길이 구간입니다.
+          additionalProperties: true
+        coverage:
+          type: [object, "null"]
+          additionalProperties: true
+    DashboardSummary:
+      type: object
+      required:
+        [
+          app,
+          availableDateRange,
+          period,
+          kpis,
+          charts,
+          negativeReviewsTop10,
+          latestReleaseImpact,
+          dataQuality,
+        ]
+      properties:
+        app: { $ref: "#/components/schemas/App" }
+        availableDateRange:
+          oneOf:
+            - { $ref: "#/components/schemas/AvailableDateRange" }
+            - { type: "null" }
+        period: { $ref: "#/components/schemas/PeriodWindow" }
+        kpis:
+          type: object
+          required: [downloads, ratings, negativeReviews, crashIssues]
+          properties:
+            downloads: { $ref: "#/components/schemas/DownloadKpi" }
+            ratings: { $ref: "#/components/schemas/PlatformPairRatings" }
+            negativeReviews:
+              { $ref: "#/components/schemas/PlatformPairNegativeReviews" }
+            crashIssues:
+              { $ref: "#/components/schemas/PlatformPairCrashIssues" }
+        charts:
+          type: object
+          required: [downloads, ratings]
+          properties:
+            downloads:
+              {
+                type: array,
+                items: { $ref: "#/components/schemas/DownloadPoint" },
+              }
+            ratings:
+              {
+                type: array,
+                items: { $ref: "#/components/schemas/RatingPoint" },
+              }
+        negativeReviewsTop10:
+          type: array
+          maxItems: 10
+          items: { $ref: "#/components/schemas/Review" }
+        latestReleaseImpact:
+          type: object
+          description: 플랫폼별 최신 빌드 배포일부터 데이터 보유 최신일까지의 지표입니다. 증감은 동일 길이의 배포 직전 구간과 비교합니다.
+          required: [release, platforms]
+          properties:
+            release:
+              oneOf:
+                - { $ref: "#/components/schemas/Release" }
+                - { type: "null" }
+            platforms:
+              type: object
+              required: [android, ios]
+              properties:
+                android: { $ref: "#/components/schemas/PlatformReleaseImpact" }
+                ios: { $ref: "#/components/schemas/PlatformReleaseImpact" }
+        dataQuality:
+          type: object
+          required:
+            [downloads, ratings, reviews, crashIssues, reviewDataTruncated]
+          properties:
+            downloads: { $ref: "#/components/schemas/MetricQuality" }
+            ratings: { $ref: "#/components/schemas/MetricQuality" }
+            reviews: { $ref: "#/components/schemas/MetricQuality" }
+            crashIssues: { $ref: "#/components/schemas/MetricQuality" }
+            reviewDataTruncated: { type: boolean }

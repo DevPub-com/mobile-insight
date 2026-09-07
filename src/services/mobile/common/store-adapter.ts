@@ -1,5 +1,6 @@
 import type {
   AppInfo,
+  AndroidDistribution,
   AppRelease,
   AppReview,
   DailyMetric,
@@ -19,6 +20,7 @@ export type StoreSyncPayload = {
   errors: string[];
   observations?: MetricObservation[];
   ratingSnapshots?: RatingSnapshot[];
+  androidDistribution?: AndroidDistribution | null;
 };
 
 export interface StoreAdapter {

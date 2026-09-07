@@ -1,21 +1,5 @@
 "use client";
 
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-  Bug,
-  CalendarDays,
-  CheckCircle2,
-  Database,
-  Download,
-  FileDown,
-  Lightbulb,
-  MessageSquareText,
-  ShieldAlert,
-  Sparkles,
-  Star,
-  TrendingUp,
-} from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 
 import { PlatformIcon } from "@/components/dashboard/platform-icon";
@@ -26,6 +10,7 @@ import { DpCard } from "@/components/ui/dp/DpCard";
 import { DpLayout } from "@/components/ui/dp/DpLayout";
 import { DpSelect } from "@/components/ui/dp/DpSelect";
 import { DpText } from "@/components/ui/dp/DpText";
+import { KoboyoIcon } from "@/components/ui/koboyo-icon";
 import type { DashboardData } from "@/domain/types";
 import {
   buildReleaseImpactWorkspace,
@@ -60,10 +45,14 @@ function Delta({
 }) {
   if (value === null) return <span className="ri-muted">비교 불가</span>;
   const good = lowerIsBetter ? value <= 0 : value >= 0;
-  const Icon = value >= 0 ? ArrowUpRight : ArrowDownRight;
   return (
     <span className={good ? "ri-good" : "ri-bad"}>
-      <Icon size={13} /> {signed(value, suffix, 1)}
+      <KoboyoIcon
+        name="a-arrow-up"
+        size={13}
+        className={value < 0 ? "is-down" : undefined}
+      />{" "}
+      {signed(value, suffix, 1)}
     </span>
   );
 }
@@ -176,7 +165,7 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
       <DpLayout direction="row" align="center" justify="between" className="ri-toolbar">
         <DpLayout direction="row" className="ri-toolbar-controls">
           <DpLayout direction="row" align="center" className="ri-app-chip">
-            <Database size={14} />
+            <KoboyoIcon name="database" size={14} />
             <DpText as="strong">{data.app.name}</DpText>
           </DpLayout>
           <DpSelect value={version} onChange={(event) => setVersion(event.target.value)} aria-label="분석할 릴리즈 버전">
@@ -190,21 +179,21 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
           <DpLayout direction="row" align="center" className="ri-date-chip">
             {shortDate(view.windows.before.from)} ~ {shortDate(view.windows.after.to)}
             {release.releaseDateEstimated && <DpBadge>추정일 기준</DpBadge>}
-            <CalendarDays size={14} />
+            <KoboyoIcon name="calendar" size={14} />
           </DpLayout>
         </DpLayout>
         <DpButton className="ri-export" onClick={exportCsv}>
-          <FileDown size={15} /> 내보내기
+          <KoboyoIcon name="download" size={15} /> 내보내기
         </DpButton>
       </DpLayout>
 
       <DpLayout as="section" className="ri-kpi-grid">
-        <KpiCard icon={<Download size={21} />} title="다운로드 변화" value={signed(view.downloads.change)} detail={<Delta value={view.downloads.changePercent} />} tone="blue" />
-        <KpiCard icon={<Star size={20} />} title="평점 변화 (Android)" value={signed(view.ratings.android.change, "", 2)} detail={`${formatNumber(view.ratings.android.before, 2)} → ${formatNumber(view.ratings.android.after, 2)}`} tone="green" />
-        <KpiCard icon={<Star size={20} />} title="평점 변화 (iOS)" value={signed(view.ratings.ios.change, "", 2)} detail={`${formatNumber(view.ratings.ios.before, 2)} → ${formatNumber(view.ratings.ios.after, 2)}`} tone="violet" />
-        <KpiCard icon={<ShieldAlert size={20} />} title="부정 리뷰 비율" value={signed(view.negativeReviews.change, "%p", 1)} detail={`${formatNumber(view.negativeReviews.before, 1)}% → ${formatNumber(view.negativeReviews.after, 1)}%`} tone="orange" />
-        <KpiCard icon={<MessageSquareText size={20} />} title="신규 리뷰" value={signed(view.newReviews.change)} detail={<Delta value={view.newReviews.changePercent} />} tone="blue" />
-        <KpiCard icon={<Bug size={20} />} title="크래시율" value="연동 필요" detail="Firebase · Sentry 데이터 없음" tone="red" />
+        <KpiCard icon={<KoboyoIcon name="download" size={21} />} title="다운로드 변화" value={signed(view.downloads.change)} detail={<Delta value={view.downloads.changePercent} />} tone="blue" />
+        <KpiCard icon={<KoboyoIcon name="star" size={20} />} title="평점 변화 (Android)" value={signed(view.ratings.android.change, "", 2)} detail={`${formatNumber(view.ratings.android.before, 2)} → ${formatNumber(view.ratings.android.after, 2)}`} tone="green" />
+        <KpiCard icon={<KoboyoIcon name="star" size={20} />} title="평점 변화 (iOS)" value={signed(view.ratings.ios.change, "", 2)} detail={`${formatNumber(view.ratings.ios.before, 2)} → ${formatNumber(view.ratings.ios.after, 2)}`} tone="violet" />
+        <KpiCard icon={<KoboyoIcon name="shield-alert" size={20} />} title="부정 리뷰 비율" value={signed(view.negativeReviews.change, "%p", 1)} detail={`${formatNumber(view.negativeReviews.before, 1)}% → ${formatNumber(view.negativeReviews.after, 1)}%`} tone="orange" />
+        <KpiCard icon={<KoboyoIcon name="message-square" size={20} />} title="신규 리뷰" value={signed(view.newReviews.change)} detail={<Delta value={view.newReviews.changePercent} />} tone="blue" />
+        <KpiCard icon={<KoboyoIcon name="bug" size={20} />} title="크래시율" value="연동 필요" detail="Firebase · Sentry 데이터 없음" tone="red" />
       </DpLayout>
 
       <DpLayout as="section" className="ri-main-grid">
@@ -221,12 +210,12 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
 
         <DpCard className="ri-card ri-insights">
           <DpLayout direction="row" align="center" className="ri-card-title">
-            <Lightbulb size={16} /> <DpText as="h3">핵심 인사이트</DpText>
+            <KoboyoIcon name="lightbulb" size={16} /> <DpText as="h3">핵심 인사이트</DpText>
           </DpLayout>
           {view.insights.map((insight, index) => (
             <DpLayout as="article" direction="row" key={insight.title}>
               <DpLayout align="center" justify="center" className={`ri-insight-icon ri-insight-icon--${insight.tone}`}>
-                {index === 0 ? <TrendingUp size={15} /> : index === 1 ? <Sparkles size={15} /> : <ShieldAlert size={15} />}
+                {index === 0 ? <KoboyoIcon name="trending-up" size={15} /> : index === 1 ? <KoboyoIcon name="sparkles" size={15} /> : <KoboyoIcon name="shield-alert" size={15} />}
               </DpLayout>
               <DpLayout>
                 <DpText as="strong">{insight.title}</DpText>
@@ -242,16 +231,13 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
             <div><dt>버전</dt><dd>v{release.version.replace(/^v/, "")}</dd></div>
             <div>
               <dt>배포일</dt>
-              <dd>
-                {shortDate(view.releasedAt)}
-                {release.releaseDateEstimated && <DpBadge>추정</DpBadge>}
-              </dd>
+              <dd>{shortDate(view.releasedAt)}</dd>
             </div>
             <div><dt>플랫폼</dt><dd>{view.platforms.map((platform) => <span key={platform}><PlatformIcon platform={platform} size={13} />{platform === "android" ? "Android" : "iOS"}</span>)}</dd></div>
             <div><dt>빌드 식별자</dt><dd>{release.buildNumber ? `build ${release.buildNumber}` : "미수집"}</dd></div>
             <div><dt>변경 유형</dt><dd>{changeLabels[versionChange]} <small>버전 비교</small></dd></div>
             <div><dt>배포 채널</dt><dd>{release.platform === "android" ? (release.track === "production" ? "Production" : release.track ?? "Production") : "App Store"}</dd></div>
-            <div><dt>상태</dt><dd><DpBadge className="ri-status"><CheckCircle2 size={12} /> 배포 완료</DpBadge></dd></div>
+            <div><dt>상태</dt><dd><DpBadge className="ri-status"><KoboyoIcon name="star" size={12} /> 배포 완료</DpBadge></dd></div>
           </dl>
           <DpText as="small" className="ri-summary-note">
             {release.releaseDateEstimated

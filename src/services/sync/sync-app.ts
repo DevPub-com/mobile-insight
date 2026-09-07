@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { apps, syncRuns } from "@/db/schema";
 import {
   pruneNonProductionAndroidReleases,
+  upsertAndroidDistribution,
   upsertDailyMetrics,
   upsertMetricObservations,
   upsertRatingSnapshots,
@@ -38,6 +39,13 @@ function recordsForType(payload: StoreSyncPayload, syncType: StoreSyncType): num
     return payload.metrics.filter((metric) => metric.rating !== null).length;
   }
   if (syncType === "reviews") return payload.reviews.length;
+  if (syncType === "stability") {
+    return (payload.observations ?? []).filter((item) =>
+      item.metricKey === "user_perceived_crash_rate_28d" ||
+      item.metricKey === "user_perceived_anr_rate_28d"
+    ).length;
+  }
+  if (syncType === "distribution") return payload.androidDistribution ? 1 : 0;
   return payload.releases.length;
 }
 
@@ -152,6 +160,12 @@ export async function syncAllApps(scope: SyncScope = "all") {
             })),
           );
         }
+        if (payload.androidDistribution) {
+          await upsertAndroidDistribution(db, {
+            ...payload.androidDistribution,
+            observedAt: new Date(payload.androidDistribution.observedAt),
+          });
+        }
         if (payload.reviews.length) {
           await upsertReviews(
             db,
@@ -203,13 +217,14 @@ export async function syncAllApps(scope: SyncScope = "all") {
           payload.releases.length +
           (payload.observations?.length ?? 0) +
           (payload.ratingSnapshots?.length ?? 0);
+        const totalRecordsCount = recordsCount + (payload.androidDistribution ? 1 : 0);
         const status = payload.errors.length ? "partial" : "success";
         await db
           .update(syncRuns)
           .set({
             status,
             finishedAt: new Date(),
-            recordsCount,
+            recordsCount: totalRecordsCount,
             errorMessage: publicSyncError(payload.errors.join(" | ") || null),
           })
           .where(eq(syncRuns.id, run.id));
@@ -218,10 +233,10 @@ export async function syncAllApps(scope: SyncScope = "all") {
           app: app.code,
           platform: adapter.platform,
           status,
-          records: recordsCount,
+          records: totalRecordsCount,
           durationMs: Date.now() - startedAt.getTime(),
         });
-        results.push({ app: app.code, platform: adapter.platform, status, recordsCount });
+        results.push({ app: app.code, platform: adapter.platform, status, recordsCount: totalRecordsCount });
       } catch (error) {
         const message = publicSyncError(
           error instanceof Error ? error.message : "Unknown sync error",

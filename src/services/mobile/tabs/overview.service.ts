@@ -8,11 +8,13 @@ import {
   latestRating,
   latestRatingAt,
   percentChange,
+  periodDateRange,
   periodStart,
   ratingPoints,
   shiftDate,
   sumDownloads,
   type Period,
+  type MetricDateRange,
 } from "../common/metrics-calculator";
 
 export function buildActiveUserSummary(data: DashboardData) {
@@ -140,7 +142,8 @@ export function buildOverview(data: DashboardData) {
       (platform) => latestActive28DayUsers(data.metrics, platform) === null,
     ),
     partialPlatforms: (["android", "ios"] as Platform[]).filter(
-      (platform) => !data.metrics.some((metric) => metric.platform === platform),
+      (platform) =>
+        !data.metrics.some((metric) => metric.platform === platform),
     ),
   };
 }
@@ -174,13 +177,19 @@ export function buildActiveUserTrend(data: DashboardData, period: Period) {
 
 export function buildRatingTrend(data: DashboardData, period: Period) {
   const endDate = latestDate(data);
-  const start = periodStart(period, endDate);
+  return buildRatingTrendForRange(data, periodDateRange(period, endDate));
+}
+
+export function buildRatingTrendForRange(
+  data: DashboardData,
+  range: MetricDateRange,
+) {
   const byDate = new Map<
     string,
     { date: string; android: number | null; ios: number | null }
   >();
   for (const metric of ratingPoints(data).filter(
-    (item) => item.date >= start && item.date <= endDate,
+    (item) => item.date >= range.startDate && item.date <= range.endDate,
   )) {
     const row = byDate.get(metric.date) ?? {
       date: metric.date,
@@ -195,19 +204,29 @@ export function buildRatingTrend(data: DashboardData, period: Period) {
 
 export function buildReviewRateTrend(data: DashboardData, period: Period) {
   const endDate = latestDate(data);
-  const start = periodStart(period, endDate);
+  return buildReviewRateTrendForRange(data, periodDateRange(period, endDate));
+}
+
+export function buildReviewRateTrendForRange(
+  data: DashboardData,
+  range: MetricDateRange,
+) {
   const reviewsByDate = new Map<string, number[]>();
 
   for (const review of data.reviews) {
     const reviewedAt = review.reviewedAt.slice(0, 10);
-    if (reviewedAt < start || reviewedAt > endDate) continue;
+    if (reviewedAt < range.startDate || reviewedAt > range.endDate) continue;
     const ratings = reviewsByDate.get(reviewedAt) ?? [];
     ratings.push(review.rating);
     reviewsByDate.set(reviewedAt, ratings);
   }
 
   const points: Array<{ date: string; rate: number | null }> = [];
-  for (let cursor = start; cursor <= endDate; cursor = shiftDate(cursor, 1)) {
+  for (
+    let cursor = range.startDate;
+    cursor <= range.endDate;
+    cursor = shiftDate(cursor, 1)
+  ) {
     const rate = calculateNegativeReviewRate(reviewsByDate.get(cursor) ?? []);
     points.push({
       date: cursor,
