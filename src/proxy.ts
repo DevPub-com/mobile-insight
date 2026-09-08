@@ -12,16 +12,13 @@ export function proxy(request: NextRequest) {
   const trustsReverseProxy = isTrustReverseProxy();
   const hasPartialCredentials = Boolean(username) !== Boolean(password);
 
-  if (trustsReverseProxy) {
+  if (trustsReverseProxy || (!username && !password)) {
     return NextResponse.next();
   }
-  if (hasPartialCredentials || (!username && isProduction())) {
-    return new NextResponse("Dashboard authentication is not configured", {
+  if (hasPartialCredentials) {
+    return new NextResponse("Dashboard authentication credentials are incomplete", {
       status: 503,
     });
-  }
-  if (!username || !password) {
-    return NextResponse.next();
   }
 
   const authorization = request.headers.get("authorization");
