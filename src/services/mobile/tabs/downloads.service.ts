@@ -53,9 +53,11 @@ export function buildDownloadTrendForRange(
   }
 
   return [...byDate.values()].map((row) => {
-    const android = row.android ?? 0;
-    const ios = row.ios ?? 0;
-    const total = android + ios;
+    const { android, ios } = row;
+    const total =
+      android === null && ios === null
+        ? null
+        : (android ?? 0) + (ios ?? 0);
     return {
       date: row.date,
       android,
@@ -63,6 +65,31 @@ export function buildDownloadTrendForRange(
       total,
     };
   });
+}
+
+export type DownloadDataStatus = "available" | "missing" | "delayed";
+
+export function downloadDataStatusForRange(
+  data: DashboardData,
+  platform: Platform,
+  range: MetricDateRange,
+): DownloadDataStatus {
+  const observedDates = data.metrics.flatMap((metric) => {
+    if (
+      metric.platform !== platform ||
+      metric.date < range.startDate ||
+      metric.date > range.endDate ||
+      downloadValue(data, metric) === null
+    ) {
+      return [];
+    }
+    return [metric.date];
+  });
+
+  if (!observedDates.length) return "missing";
+  return observedDates.sort().at(-1)! < range.endDate
+    ? "delayed"
+    : "available";
 }
 
 export function buildDownloadPeriodChange(

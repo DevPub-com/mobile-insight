@@ -38,6 +38,7 @@ import {
   classifyVersionChange,
   compareVersionsDescending,
   dateRangeDays,
+  downloadDataStatusForRange,
   periodStart,
   reviewMatchesRatingGroup,
   type ReviewRatingGroup,
@@ -296,7 +297,11 @@ function ReviewDevice({
   const label = reviewDeviceLabel(review);
   if (!label) return null;
   return (
-    <span className="mi-review-device" title={`작성 단말: ${label}`}>
+    <span
+      className="mi-review-device"
+      title={`작성 단말: ${label}`}
+      aria-label={`작성 단말: ${label}`}
+    >
       <KoboyoIcon name="phone" size={9} />
       {label}
     </span>
@@ -347,6 +352,19 @@ export function DashboardShell({ data }: { data: DashboardData }) {
   );
   const installLifecycle = useMemo(
     () => buildInstallLifecycleForRange(data, dateRange),
+    [data, dateRange],
+  );
+  const downloadDataStatuses = useMemo(
+    () =>
+      (["android", "ios"] as Platform[]).flatMap((platform) => {
+        const connected =
+          platform === "android"
+            ? Boolean(data.app.androidPackageName)
+            : Boolean(data.app.iosAppId || data.app.iosBundleId);
+        if (!connected) return [];
+        const status = downloadDataStatusForRange(data, platform, dateRange);
+        return status === "available" ? [] : [{ platform, status }];
+      }),
     [data, dateRange],
   );
   const releases = useMemo(
@@ -1675,7 +1693,10 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                   <DpCard as="article" key={label}>
                     <DpText as="span">{label}</DpText>
                     <DpText as="strong">{number(value)}</DpText>
-                    <Change value={change} />
+                    <Change
+                      value={change}
+                      comparisonLabel={`직전 ${dateRangeDays(dateRange)}일 대비`}
+                    />
                   </DpCard>
                 ))}
               </DpLayout>
@@ -1691,6 +1712,26 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                       <DpText as="h3">다운로드 추이</DpText>
                       <DpText>전체 · Android · iOS</DpText>
                     </DpLayout>
+                    {downloadDataStatuses.length > 0 && (
+                      <DpLayout
+                        direction="row"
+                        className="mi-data-statuses"
+                        aria-live="polite"
+                        aria-label="다운로드 데이터 수집 상태"
+                      >
+                        {downloadDataStatuses.map(({ platform, status }) => (
+                          <span
+                            key={platform}
+                            className={`mi-data-status mi-data-status--${status}`}
+                          >
+                            <PlatformIcon platform={platform} size={12} />
+                            {platform === "android" ? "Android" : "iOS"} ·{
+                              status === "missing" ? "데이터 없음" : "수집 지연"
+                            }
+                          </span>
+                        ))}
+                      </DpLayout>
+                    )}
                   </DpLayout>
                   <DownloadChart
                     data={trend}

@@ -1,5 +1,6 @@
 export function isDemoMode(): boolean {
-  return process.env.MOBILE_INSIGHT_DEMO_MODE === "true";
+  const value = process.env.MOBILE_INSIGHT_DEMO_MODE?.trim().toLowerCase().replace(/^["']|["']$/g, "");
+  return value === "true" || value === "1" || value === "yes";
 }
 
 export function getDefaultAppCode(): string {
@@ -19,13 +20,14 @@ export function getDashboardBasicCredentials(): {
   password?: string;
 } {
   return {
-    username: process.env.DASHBOARD_BASIC_USER,
-    password: process.env.DASHBOARD_BASIC_PASSWORD,
+    username: process.env.DASHBOARD_BASIC_USER?.trim(),
+    password: process.env.DASHBOARD_BASIC_PASSWORD?.trim(),
   };
 }
 
 export function isTrustReverseProxy(): boolean {
-  return process.env.TRUST_REVERSE_PROXY === "true";
+  const value = process.env.TRUST_REVERSE_PROXY?.trim().toLowerCase().replace(/^["']|["']$/g, "");
+  return value === "true" || value === "1" || value === "yes" || value === "t";
 }
 
 export function isProduction(): boolean {

@@ -24,6 +24,7 @@ import type {
 } from "@/services/mobile/common/store-adapter";
 import { publicSyncError } from "@/services/sync/sync-errors";
 import { fetchGa4SyncData } from "@/services/sync/ga4-sync";
+import { toReviewInsertValue } from "@/services/sync/review-sync";
 import { analyzeReviewsBatch } from "@/services/ai/review-analyzer.service";
 
 const adapters: StoreAdapter[] = [new GooglePlayAdapter(), new AppStoreAdapter()];
@@ -207,25 +208,7 @@ export async function syncAllApps(scope: SyncScope = "all") {
             db,
             payload.reviews.map((review) => {
               const analyzed = analysisMap.get(review.externalId);
-              return {
-                appId: review.appId,
-                platform: review.platform,
-                externalId: review.externalId,
-                rating: review.rating,
-                title: review.title,
-                content: review.content,
-                author: review.author,
-                version: review.version,
-                territory: review.territory,
-                source: review.source,
-                quality: review.quality,
-                observedAt: review.observedAt ? new Date(review.observedAt) : undefined,
-                description: review.description,
-                reviewedAt: new Date(review.reviewedAt),
-                aiSentiment: analyzed?.sentiment ?? null,
-                aiTopics: analyzed?.topics ?? null,
-                aiSummary: analyzed?.summary ?? null,
-              };
+              return toReviewInsertValue(review, analyzed);
             }),
           );
         }

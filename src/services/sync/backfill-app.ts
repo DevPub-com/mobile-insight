@@ -22,6 +22,7 @@ import type {
 } from "@/services/mobile/common/store-adapter";
 import type { BackfillOptions } from "./backfill-options";
 import { fetchGa4SyncData } from "./ga4-sync";
+import { toReviewInsertValue } from "./review-sync";
 
 const adapters: BackfillStoreAdapter[] = [new GooglePlayAdapter(), new AppStoreAdapter()];
 const ga4Adapter = new Ga4Adapter();
@@ -61,22 +62,9 @@ async function persistPayload(payload: StoreSyncPayload) {
       observedAt: new Date(payload.androidDistribution.observedAt),
     });
   }
-  const reviewValues = payload.reviews.map((review) => ({
-    appId: review.appId,
-    platform: review.platform,
-    externalId: review.externalId,
-    rating: review.rating,
-    title: review.title,
-    content: review.content,
-    author: review.author,
-    version: review.version,
-    territory: review.territory,
-    source: review.source,
-    quality: review.quality,
-    observedAt: review.observedAt ? new Date(review.observedAt) : undefined,
-    description: review.description,
-    reviewedAt: new Date(review.reviewedAt),
-  }));
+  const reviewValues = payload.reviews.map((review) =>
+    toReviewInsertValue(review)
+  );
   for (const reviews of chunks(reviewValues)) {
     await upsertReviews(db, reviews);
   }

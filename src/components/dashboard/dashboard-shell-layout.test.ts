@@ -199,6 +199,10 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("설치 vs 삭제 추이");
     expect(source).toContain('className="mi-install-bars"');
     expect(source).toContain("CSV 다운로드");
+    expect(source).toContain("직전 ${dateRangeDays(dateRange)}일 대비");
+    expect(source).toContain("데이터 없음");
+    expect(source).toContain("수집 지연");
+    expect(source).toContain('className={`mi-data-status mi-data-status--${status}`}');
   });
 
   it("matches the review reference information architecture", () => {

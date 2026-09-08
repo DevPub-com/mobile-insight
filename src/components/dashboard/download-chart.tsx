@@ -143,7 +143,7 @@ export function DownloadChart({
       name,
       type: "line" as const,
       data: data.map((row) => row[key]),
-      connectNulls: true,
+      connectNulls: false,
       smooth: 0.2,
       symbol: "circle",
       symbolSize: 5,
