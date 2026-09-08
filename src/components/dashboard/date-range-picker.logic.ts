@@ -4,6 +4,7 @@ import {
 } from "@/services/mobile/common/metrics-calculator";
 
 const DAY_MS = 86_400_000;
+export const MAX_DATE_RANGE_DAYS = 366;
 
 const utcDate = (value: string) => new Date(`${value}T00:00:00.000Z`);
 const isoDate = (value: Date) => value.toISOString().slice(0, 10);
@@ -29,6 +30,44 @@ export function metricRangeFromCalendar(range: {
     startDate: isoFromDate(range.from),
     endDate: range.to ? isoFromDate(range.to) : "",
   };
+}
+
+const clampDate = (value: string, minDate: string, maxDate: string) =>
+  value < minDate ? minDate : value > maxDate ? maxDate : value;
+
+export function normalizeDateRangeBoundary(
+  current: MetricDateRange,
+  boundary: keyof MetricDateRange,
+  value: string,
+  minDate: string,
+  maxDate: string,
+): MetricDateRange {
+  if (!value) return { ...current, [boundary]: "" };
+
+  const nextValue = clampDate(value, minDate, maxDate);
+  if (boundary === "startDate") {
+    let endDate = current.endDate
+      ? clampDate(current.endDate, minDate, maxDate)
+      : nextValue;
+    if (endDate < nextValue) endDate = nextValue;
+
+    const latestAllowedEnd = shiftDate(nextValue, MAX_DATE_RANGE_DAYS - 1);
+    if (endDate > latestAllowedEnd) {
+      endDate = clampDate(latestAllowedEnd, minDate, maxDate);
+    }
+    return { startDate: nextValue, endDate };
+  }
+
+  let startDate = current.startDate
+    ? clampDate(current.startDate, minDate, maxDate)
+    : nextValue;
+  if (startDate > nextValue) startDate = nextValue;
+
+  const earliestAllowedStart = shiftDate(nextValue, -(MAX_DATE_RANGE_DAYS - 1));
+  if (startDate < earliestAllowedStart) {
+    startDate = clampDate(earliestAllowedStart, minDate, maxDate);
+  }
+  return { startDate, endDate: nextValue };
 }
 
 export type CalendarDay = {

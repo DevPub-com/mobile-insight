@@ -8,6 +8,7 @@ import {
   dateRangePosition,
   isoFromDate,
   metricRangeFromCalendar,
+  normalizeDateRangeBoundary,
   presetDateRange,
 } from "@/components/dashboard/date-range-picker.logic";
 
@@ -139,5 +140,42 @@ describe("DashboardDateRangePicker", () => {
       startDate: "2025-04-11",
       endDate: "2025-05-10",
     });
+  });
+
+  it("keeps manual start and end edits as an ordered, complete range", () => {
+    expect(
+      normalizeDateRangeBoundary(
+        { startDate: "2026-09-02", endDate: "2026-09-05" },
+        "startDate",
+        "2026-09-07",
+        "2022-05-18",
+        "2026-09-07",
+      ),
+    ).toEqual({ startDate: "2026-09-07", endDate: "2026-09-07" });
+
+    expect(
+      normalizeDateRangeBoundary(
+        { startDate: "2026-09-02", endDate: "2026-09-05" },
+        "endDate",
+        "2026-09-01",
+        "2022-05-18",
+        "2026-09-07",
+      ),
+    ).toEqual({ startDate: "2026-09-01", endDate: "2026-09-01" });
+  });
+
+  it("limits manual edits and calendar selection to 366 inclusive days", () => {
+    expect(
+      normalizeDateRangeBoundary(
+        { startDate: "2026-01-01", endDate: "2026-09-07" },
+        "startDate",
+        "2025-01-01",
+        "2022-05-18",
+        "2026-09-07",
+      ),
+    ).toEqual({ startDate: "2025-01-01", endDate: "2026-01-01" });
+
+    expect(source).toContain("max={MAX_DATE_RANGE_DAYS - 1}");
+    expect(source).not.toContain("max={366}");
   });
 });

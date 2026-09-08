@@ -147,6 +147,12 @@ describe("reference dashboard chart style", () => {
     );
   });
 
+  it("balances seven release-impact KPI cards as four plus three", () => {
+    expect(globalStyles).toMatch(
+      /@media \(max-width:\s*1280px\)[\s\S]*?\.ri-kpi-grid\s*\{[^}]*grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\);/s,
+    );
+  });
+
   it("uses neutral gray before and brand blue after in release impact charts", () => {
     expect(impactTrendSource).toContain(
       'lineStyle: { color: "#8993A7", width: 2 }',

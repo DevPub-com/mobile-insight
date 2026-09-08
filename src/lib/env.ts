@@ -32,6 +32,10 @@ export function isProduction(): boolean {
   return process.env.NODE_ENV === "production";
 }
 
+export function getGeminiApiKey(): string | undefined {
+  return process.env.GEMINI_API_KEY;
+}
+
 export function getEnvironmentVariable(name: string): string | undefined {
   return process.env[name];
 }

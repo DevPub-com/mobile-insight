@@ -12,13 +12,19 @@ export function normalizeDate(value: string | undefined): string | null {
 export function rollingDateRange(
   now: Date,
   days: number,
+  timeZone = "UTC",
 ): { startDate: string; endDate: string } {
-  const end = new Date(now);
-  end.setUTCHours(0, 0, 0, 0);
-  end.setUTCDate(end.getUTCDate() - 1);
-  const start = new Date(end);
-  start.setUTCDate(start.getUTCDate() - (days - 1));
-  return { startDate: isoDate(start), endDate: isoDate(end) };
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value;
+  const today = `${part("year")}-${part("month")}-${part("day")}`;
+  const endDate = addDays(today, -1);
+  return { startDate: addDays(endDate, -(days - 1)), endDate };
 }
 
 export function addDays(date: string, days: number): string {

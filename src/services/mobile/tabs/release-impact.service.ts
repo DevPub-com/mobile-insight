@@ -318,3 +318,7 @@ export function buildReleaseImpactWorkspace(
     coverage,
   };
 }
+
+export type ReleaseImpactWorkspaceView = ReturnType<
+  typeof buildReleaseImpactWorkspace
+>;

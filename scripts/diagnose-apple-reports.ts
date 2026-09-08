@@ -10,7 +10,7 @@ import { apps } from "../src/db/schema";
 
 loadScriptEnv();
 
-const appCode = process.argv[2] ?? "wtc";
+const appCode = process.argv[2] ?? "kis";
 const [app] = await getDb().select().from(apps).where(eq(apps.code, appCode));
 const profile = getStoreCredentialProfile(appCode)?.apple;
 if (!app?.iosAppId || !profile) throw new Error(`Apple app not configured: ${appCode}`);

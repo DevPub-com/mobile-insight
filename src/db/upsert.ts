@@ -1,10 +1,12 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import * as schema from "./schema";
 import {
+  aiInsightsCache,
   dailyMetrics,
   androidDistributionSnapshots,
+  deviceDailyRecords,
   metricObservations,
   ratingSnapshots,
   releases,
@@ -72,6 +74,65 @@ export async function upsertDailyMetrics<TQueryResult extends PgQueryResultHKT>(
         updatedAt: new Date(),
       },
     });
+}
+
+export async function upsertDeviceDailyRecords<
+  TQueryResult extends PgQueryResultHKT,
+>(
+  db: Database<TQueryResult>,
+  values: Array<typeof deviceDailyRecords.$inferInsert>,
+) {
+  if (!values.length) return;
+  await db.insert(deviceDailyRecords).values(values).onConflictDoUpdate({
+    target: [
+      deviceDailyRecords.appId,
+      deviceDailyRecords.platform,
+      deviceDailyRecords.date,
+      deviceDailyRecords.deviceBrand,
+      deviceDailyRecords.deviceModel,
+    ],
+    set: {
+      activeUsers: sql`excluded.active_users`,
+      updatedAt: new Date(),
+    },
+  });
+}
+
+export async function replaceDeviceDailyRecords<
+  TQueryResult extends PgQueryResultHKT,
+>(
+  db: Database<TQueryResult>,
+  appId: string,
+  startDate: string,
+  endDate: string,
+  platforms: Array<"android" | "ios">,
+  values: Array<typeof deviceDailyRecords.$inferInsert>,
+) {
+  if (!platforms.length) return;
+  const invalidRecord = values.find((value) =>
+    value.appId !== appId ||
+    !platforms.includes(value.platform) ||
+    value.date < startDate ||
+    value.date > endDate
+  );
+  if (invalidRecord) {
+    throw new Error("Device replacement contains a record outside its app, platform, or date scope.");
+  }
+  await db.transaction(async (tx) => {
+    await tx.delete(deviceDailyRecords).where(
+      and(
+        eq(deviceDailyRecords.appId, appId),
+        inArray(deviceDailyRecords.platform, platforms),
+        gte(deviceDailyRecords.date, startDate),
+        lte(deviceDailyRecords.date, endDate),
+      ),
+    );
+    for (let index = 0; index < values.length; index += 1_000) {
+      await tx
+        .insert(deviceDailyRecords)
+        .values(values.slice(index, index + 1_000));
+    }
+  });
 }
 
 export async function upsertMetricObservations<TQueryResult extends PgQueryResultHKT>(
@@ -150,6 +211,30 @@ export async function upsertReviews<TQueryResult extends PgQueryResultHKT>(
         observedAt: sql`excluded.observed_at`,
         description: sql`excluded.description`,
         reviewedAt: sql`excluded.reviewed_at`,
+        aiSentiment: sql`coalesce(excluded.ai_sentiment, ${reviews.aiSentiment})`,
+        aiTopics: sql`coalesce(excluded.ai_topics, ${reviews.aiTopics})`,
+        aiSummary: sql`coalesce(excluded.ai_summary, ${reviews.aiSummary})`,
+        updatedAt: new Date(),
+      },
+    });
+}
+
+export async function upsertAiInsightsCache<TQueryResult extends PgQueryResultHKT>(
+  db: Database<TQueryResult>,
+  values: Array<typeof aiInsightsCache.$inferInsert>,
+) {
+  if (!values.length) return;
+  await db
+    .insert(aiInsightsCache)
+    .values(values)
+    .onConflictDoUpdate({
+      target: [
+        aiInsightsCache.appId,
+        aiInsightsCache.insightType,
+        aiInsightsCache.cacheKey,
+      ],
+      set: {
+        payload: sql`excluded.payload`,
         updatedAt: new Date(),
       },
     });

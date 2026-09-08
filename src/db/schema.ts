@@ -200,6 +200,9 @@ export const reviews = pgTable(
     observedAt: timestamp("observed_at", timestampConfig).defaultNow().notNull(),
     description: text("description"),
     reviewedAt: timestamp("reviewed_at", timestampConfig).notNull(),
+    aiSentiment: text("ai_sentiment"),
+    aiTopics: jsonb("ai_topics").$type<string[]>(),
+    aiSummary: text("ai_summary"),
     ...timestamps,
   },
   (table) => [
@@ -360,5 +363,27 @@ export const androidDistributionSnapshots = pgTable(
       table.appId,
       table.platform,
     ),
+  ],
+);
+
+export const aiInsightsCache = pgTable(
+  "ai_insights_cache",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    appId: uuid("app_id")
+      .references(() => apps.id, { onDelete: "cascade" })
+      .notNull(),
+    insightType: text("insight_type").notNull(),
+    cacheKey: text("cache_key").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("ai_insights_cache_app_type_key_uidx").on(
+      table.appId,
+      table.insightType,
+      table.cacheKey,
+    ),
+    index("ai_insights_cache_app_type_idx").on(table.appId, table.insightType),
   ],
 );

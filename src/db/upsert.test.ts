@@ -8,13 +8,16 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   apps,
   dailyMetrics,
+  deviceDailyRecords,
   releases,
   reviews,
 } from "./schema";
 import * as schema from "./schema";
 import {
   pruneNonProductionAndroidReleases,
+  replaceDeviceDailyRecords,
   upsertDailyMetrics,
+  upsertDeviceDailyRecords,
   upsertReleases,
   upsertReviews,
 } from "./upsert";
@@ -40,6 +43,8 @@ beforeEach(async () => {
     "0010_unify_release_build_number.sql",
     "0011_expanded_analytics_and_distributions.sql",
     "0012_plain_table_names.sql",
+    "0013_android_reporting_and_distribution.sql",
+    "0014_ai_review_insights_and_cache.sql",
   ]) {
     const migration = await readFile(new URL(`../../drizzle/${name}`, import.meta.url), "utf8");
     await client.exec(migration.replaceAll("--> statement-breakpoint", ""));
@@ -53,6 +58,116 @@ afterEach(async () => {
 });
 
 describe("dashboard upserts", () => {
+  it("updates device active users without duplicating the identity", async () => {
+    const base = {
+      appId,
+      platform: "android" as const,
+      date: "2026-09-07",
+      deviceBrand: "Samsung",
+      deviceModel: "SM-S928N",
+    };
+
+    await upsertDeviceDailyRecords(db, [{ ...base, activeUsers: 10 }]);
+    await upsertDeviceDailyRecords(db, [{ ...base, activeUsers: 12 }]);
+
+    expect(await db.select().from(deviceDailyRecords)).toEqual([
+      expect.objectContaining({ ...base, activeUsers: 12 }),
+    ]);
+  });
+
+  it("replaces a completed GA4 device date range without leaving stale rows", async () => {
+    await upsertDeviceDailyRecords(db, [
+      {
+        appId,
+        platform: "android",
+        date: "2026-09-06",
+        deviceBrand: "Old",
+        deviceModel: "Removed",
+        activeUsers: 5,
+      },
+      {
+        appId,
+        platform: "android",
+        date: "2026-08-01",
+        deviceBrand: "Keep",
+        deviceModel: "Outside range",
+        activeUsers: 2,
+      },
+    ]);
+
+    await replaceDeviceDailyRecords(
+      db,
+      appId,
+      "2026-09-01",
+      "2026-09-07",
+      ["android"],
+      [{
+        appId,
+        platform: "android",
+        date: "2026-09-06",
+        deviceBrand: "Samsung",
+        deviceModel: "SM-S928N",
+        activeUsers: 12,
+      }],
+    );
+
+    expect(
+      (await db.select().from(deviceDailyRecords)).map((row) =>
+        [row.date, row.deviceBrand, row.deviceModel, row.activeUsers]
+      ),
+    ).toEqual([
+      ["2026-08-01", "Keep", "Outside range", 2],
+      ["2026-09-06", "Samsung", "SM-S928N", 12],
+    ]);
+  });
+
+  it("rolls back the range deletion when replacement insertion fails", async () => {
+    const original = {
+      appId,
+      platform: "android" as const,
+      date: "2026-09-06",
+      deviceBrand: "Samsung",
+      deviceModel: "SM-S928N",
+      activeUsers: 5,
+    };
+    await upsertDeviceDailyRecords(db, [original]);
+
+    await expect(
+      replaceDeviceDailyRecords(
+        db,
+        appId,
+        "2026-09-01",
+        "2026-09-07",
+        ["android"],
+        [original, original],
+      ),
+    ).rejects.toThrow();
+
+    expect(await db.select().from(deviceDailyRecords)).toEqual([
+      expect.objectContaining(original),
+    ]);
+  });
+
+  it("rejects replacement records outside the requested scope", async () => {
+    await expect(
+      replaceDeviceDailyRecords(
+        db,
+        appId,
+        "2026-09-01",
+        "2026-09-07",
+        ["android"],
+        [{
+          appId,
+          platform: "ios",
+          date: "2026-09-06",
+          deviceBrand: "Apple",
+          deviceModel: "iPhone",
+          activeUsers: 1,
+        }],
+      ),
+    ).rejects.toThrow("outside its app, platform, or date scope");
+  });
+
   it("migrates to the retained table set", async () => {
     const result = await client.query<{ table_name: string }>(`
       select table_name

@@ -66,7 +66,7 @@ const provenanceCoverage = await db.execute(sql`
     max(o.date) as last_date
   from app_master a
   join usage_daily_records o on o.app_id = a.id
-  where a.code = 'wtc'
+  where a.code = 'kis'
   group by a.code, o.platform, o.source, o.quality, o.metric_key
   order by o.platform, o.source, o.metric_key
 `);
@@ -77,7 +77,7 @@ const snapshotCoverage = await db.execute(sql`
     max(s.date) as last_date
   from app_master a
   join rating_daily_records s on s.app_id = a.id
-  where a.code = 'wtc'
+  where a.code = 'kis'
   group by a.code, s.platform, s.source, s.quality
   order by s.platform, s.source
 `);
@@ -113,7 +113,7 @@ const recentMetricEvidence = await db.execute(sql`
     ) as has_rating_snapshot
   from overview_daily_summary m
   join app_master a on a.id = m.app_id
-  where a.code = 'wtc' and m.date >= '2026-08-01'
+  where a.code = 'kis' and m.date >= '2026-08-01'
   order by m.platform, m.date
 `);
 const latestRuns = await db.execute(sql`

@@ -12,7 +12,7 @@ import { normalizeGa4Report } from "../src/services/mobile/adapter/ga4.adapter";
 
 loadScriptEnv();
 
-const appCode = process.argv[2] || "wtc";
+const appCode = process.argv[2] || "kis";
 const profile = getStoreCredentialProfile(appCode)?.googleAnalytics;
 
 if (!profile) {

@@ -6,6 +6,7 @@ import {
   calculateNegativeReviewRate,
   latestNegativeReviews,
   reviewAuthorLabel,
+  reviewDeviceLabel,
   reviewTimeLabel,
 } from "./review.service";
 
@@ -34,6 +35,19 @@ describe("calculateNegativeReviewRate", () => {
   it("uses a clear fallback when an exported review has no author", () => {
     expect(reviewAuthorLabel(null)).toBe("이름 미제공");
     expect(reviewAuthorLabel("사용자")).toBe("사용자");
+  });
+
+  it("uses the consumer device model and falls back to the device code", () => {
+    expect(
+      reviewDeviceLabel({
+        device: "star2qltechn",
+        deviceMetadata: { productName: " Galaxy S24 Ultra " },
+      }),
+    ).toBe("Galaxy S24 Ultra");
+    expect(
+      reviewDeviceLabel({ device: "star2qltechn", deviceMetadata: null }),
+    ).toBe("star2qltechn");
+    expect(reviewDeviceLabel({ device: null, deviceMetadata: null })).toBeNull();
   });
 
   it("selects only the five latest one and two star reviews without mutating input", () => {

@@ -4,9 +4,9 @@ import { parseGoogleRatingReport } from "../google-reviews";
 
 const app = {
   id: "app-1",
-  code: "wtc",
-  name: "WTC",
-  androidPackageName: "com.worldtc.app",
+  code: "kis",
+  name: "한국투자",
+  androidPackageName: "com.truefriend.coreapp",
   iosAppId: null,
   iosBundleId: null,
 };

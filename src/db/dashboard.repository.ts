@@ -165,11 +165,21 @@ export async function getDashboardData(appCode: string): Promise<DashboardData |
       author: review.author,
       version: review.version,
       territory: review.territory,
+      device: review.device,
+      deviceMetadata: review.deviceMetadata ?? null,
       source: review.source,
       quality: review.quality,
       observedAt: review.observedAt.toISOString(),
       description: review.description,
       reviewedAt: review.reviewedAt.toISOString(),
+      aiSentiment:
+        review.aiSentiment === "positive" ||
+        review.aiSentiment === "neutral" ||
+        review.aiSentiment === "negative"
+          ? review.aiSentiment
+          : null,
+      aiTopics: review.aiTopics ?? null,
+      aiSummary: review.aiSummary ?? null,
     })),
     reviewDataTruncated: reviewRows.length === reviewPageLimit,
     releaseVersionMappings: releaseVersionRows.flatMap((row) => {

@@ -13,6 +13,7 @@ import {
 import { PlatformIcon } from "@/components/dashboard/platform-icon";
 import { RatingChart } from "@/components/dashboard/rating-chart";
 import { ReleaseImpactWorkspace } from "@/components/dashboard/release-impact-workspace";
+import { AiExecutiveBriefing } from "@/components/dashboard/ai-executive-briefing";
 import { DpBadge } from "@/components/ui/dp/DpBadge";
 import { DpButton } from "@/components/ui/dp/DpButton";
 import { DpCard } from "@/components/ui/dp/DpCard";
@@ -22,6 +23,7 @@ import { KoboyoIcon } from "@/components/ui/koboyo-icon";
 import {
   latestNegativeReviews,
   reviewAuthorLabel,
+  reviewDeviceLabel,
   reviewTimeLabel,
 } from "@/domain/reviews/review.service";
 import type { DashboardData, Platform } from "@/domain/types";
@@ -236,6 +238,7 @@ function PlatformMetric({
   changeSuffix = "",
   changeDecimals = 1,
   sparkline,
+  statusLabel,
 }: {
   platform: Platform;
   value: string;
@@ -243,6 +246,7 @@ function PlatformMetric({
   changeSuffix?: string;
   changeDecimals?: number;
   sparkline: number[];
+  statusLabel?: string;
 }) {
   return (
     <DpLayout className={`mi-platform-metric mi-platform-metric--${platform}`}>
@@ -259,9 +263,10 @@ function PlatformMetric({
         as="span"
         className={`mi-platform-delta ${metricTrendTone(change)}`}
       >
-        {change === null
-          ? "비교 불가"
-          : `${change > 0 ? "▲" : change < 0 ? "▼" : "—"} ${Math.abs(change).toFixed(changeDecimals)}${changeSuffix}`}
+        {statusLabel ??
+          (change === null
+            ? "비교 불가"
+            : `${change > 0 ? "▲" : change < 0 ? "▼" : "—"} ${Math.abs(change).toFixed(changeDecimals)}${changeSuffix}`)}
       </DpText>
       <MetricSparkline
         values={sparkline}
@@ -279,6 +284,21 @@ function ReviewStars({ rating }: { rating: number }) {
           ★
         </span>
       ))}
+    </span>
+  );
+}
+
+function ReviewDevice({
+  review,
+}: {
+  review: DashboardData["reviews"][number];
+}) {
+  const label = reviewDeviceLabel(review);
+  if (!label) return null;
+  return (
+    <span className="mi-review-device" title={`작성 단말: ${label}`}>
+      <KoboyoIcon name="phone" size={9} />
+      {label}
     </span>
   );
 }
@@ -359,15 +379,6 @@ export function DashboardShell({ data }: { data: DashboardData }) {
   };
   const androidNegativeReviews = platformNegativeReviews("android");
   const iosNegativeReviews = platformNegativeReviews("ios");
-  const activeUserSparkline = (platform: Platform) =>
-    data.metrics.flatMap((item) =>
-      item.platform === platform &&
-      item.date >= dateRange.startDate &&
-      item.date <= dateRange.endDate &&
-      item.active28DayUsers !== null
-        ? [item.active28DayUsers]
-        : [],
-    );
   const deviceTypeLabels: Record<string, string> = {
     phone_tablet: "휴대전화·태블릿",
     wear: "Wear OS",
@@ -708,11 +719,23 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                     {reviewAuthorLabel(item.author)}
                   </DpText>
                   <ReviewStars rating={item.rating} />
-                  <DpText as="span" className="mi-review-version">
-                    {item.version
-                      ? `v${item.version.replace(/^v/, "")}`
-                      : "버전 정보 없음"}
-                  </DpText>
+                  <span className="mi-review-classification">
+                    <DpText as="span" className="mi-review-version">
+                      {item.version
+                        ? `v${item.version.replace(/^v/, "")}`
+                        : "버전 정보 없음"}
+                    </DpText>
+                    {item.aiSentiment && (
+                      <span
+                        className={`mi-ai-sentiment-badge is-${item.aiSentiment}`}
+                      >
+                        {item.aiSentiment === "positive" && "긍정"}
+                        {item.aiSentiment === "neutral" && "개선"}
+                        {item.aiSentiment === "negative" && "불만"}
+                      </span>
+                    )}
+                  </span>
+                  <ReviewDevice review={item} />
                   <DpText
                     as="time"
                     dateTime={item.reviewedAt}
@@ -722,6 +745,15 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                   </DpText>
                 </DpLayout>
                 <DpText className="mi-review-copy">{item.content}</DpText>
+                {item.aiTopics && item.aiTopics.length > 0 && (
+                  <DpLayout direction="row" className="mi-review-ai-tags">
+                    {[...new Set(item.aiTopics)].map((topic) => (
+                      <span key={topic} className="mi-ai-topic-chip">
+                        #{topic}
+                      </span>
+                    ))}
+                  </DpLayout>
+                )}
               </DpLayout>
             </DpLayout>
           ))
@@ -1346,7 +1378,14 @@ export function DashboardShell({ data }: { data: DashboardData }) {
         </DpLayout>
         <DpLayout className="mi-content">
           {view === "dashboard" && (
-            <DpLayout as="section" className="mi-dashboard-kpi-grid">
+            <>
+              <AiExecutiveBriefing
+                appCode={data.app.code}
+                periodLabel={periodLabel}
+                dateRange={dateRange}
+                initialBriefing={data.executiveBriefing}
+              />
+              <DpLayout as="section" className="mi-dashboard-kpi-grid">
               <DpCard className="mi-dashboard-kpi-card mi-dashboard-download-card">
                 <DashboardCardTitle
                   icon={<KoboyoIcon name="download" size={17} />}
@@ -1444,34 +1483,40 @@ export function DashboardShell({ data }: { data: DashboardData }) {
               </DpCard>
               <DpCard className="mi-dashboard-kpi-card">
                 <DashboardCardTitle
-                  icon={<KoboyoIcon name="trending-up" size={18} />}
-                  tone="blue"
-                  tooltip="GA4의 플랫폼별 최근 28일 활성 사용자"
+                  icon={<KoboyoIcon name="bug" size={18} />}
+                  tone="red"
+                  tooltip="Crashlytics 또는 Sentry에서 수집한 플랫폼별 고유 크래시 이슈"
                 >
-                  월간 활성 사용자
+                  신규 크래시 이슈
                 </DashboardCardTitle>
                 <DpLayout
                   direction="row"
                   className="mi-dashboard-platform-split"
                 >
-                  <PlatformMetric
-                    platform="android"
-                    value={number(
-                      dashboardSummary.kpis.monthlyActiveUsers.android,
-                    )}
-                    change={null}
-                    sparkline={activeUserSparkline("android")}
-                  />
-                  <PlatformMetric
-                    platform="ios"
-                    value={number(dashboardSummary.kpis.monthlyActiveUsers.ios)}
-                    change={null}
-                    sparkline={activeUserSparkline("ios")}
-                  />
+                  {(["android", "ios"] as Platform[]).map((platform) => {
+                    const crashIssue = crashIssueFor(platform);
+                    return (
+                      <PlatformMetric
+                        key={platform}
+                        platform={platform}
+                        value={number(crashIssue.current)}
+                        change={crashIssue.change}
+                        changeSuffix="건"
+                        changeDecimals={0}
+                        sparkline={crashIssue.sparkline}
+                        statusLabel={
+                          crashIssue.current === null
+                            ? "데이터 미연동"
+                            : undefined
+                        }
+                      />
+                    );
+                  })}
                 </DpLayout>
               </DpCard>
             </DpLayout>
-          )}
+          </>
+        )}
           {view === "reviews" && (
             <DpLayout as="section" className="mi-kpi-grid mi-review-kpis">
               <MetricCard

@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 
 import { PlatformIcon } from "@/components/dashboard/platform-icon";
 import { ReleaseImpactTrendChart } from "@/components/dashboard/release-impact-trend-chart";
+import { ReleaseImpactAiBriefingCard } from "@/components/dashboard/release-impact-ai-briefing";
 import { DpBadge } from "@/components/ui/dp/DpBadge";
 import { DpButton } from "@/components/ui/dp/DpButton";
 import { DpCard } from "@/components/ui/dp/DpCard";
@@ -326,6 +327,12 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
           <KoboyoIcon name="download" size={15} /> 내보내기
         </DpButton>
       </DpLayout>
+
+      <ReleaseImpactAiBriefingCard
+        appCode={data.app.code}
+        version={version}
+        initialBriefing={data.releaseImpactBriefing}
+      />
 
       <DpLayout as="section" className="ri-kpi-grid">
         <KpiCard

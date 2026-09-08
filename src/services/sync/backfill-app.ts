@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { apps } from "@/db/schema";
 import {
   pruneNonProductionAndroidReleases,
+  replaceDeviceDailyRecords,
   upsertAndroidDistribution,
   upsertDailyMetrics,
   upsertMetricObservations,
@@ -20,6 +21,7 @@ import type {
   StoreSyncPayload,
 } from "@/services/mobile/common/store-adapter";
 import type { BackfillOptions } from "./backfill-options";
+import { fetchGa4SyncData } from "./ga4-sync";
 
 const adapters: BackfillStoreAdapter[] = [new GooglePlayAdapter(), new AppStoreAdapter()];
 const ga4Adapter = new Ga4Adapter();
@@ -159,23 +161,47 @@ export async function backfillAllApps(
     };
     let analyticsResult: BackfillProgress;
     try {
-      const analyticsMetrics = await ga4Adapter.fetch(appInfo, 365);
-      const filteredMetrics = analyticsMetrics.filter(
+      const analytics = await fetchGa4SyncData(ga4Adapter, appInfo, 365);
+      const filteredMetrics = analytics.metrics.filter(
         (metric) => !options.platform || metric.platform === options.platform,
       );
       for (const metrics of chunks(filteredMetrics)) {
         await upsertDailyMetrics(db, metrics);
       }
-      logger.info("ga4_backfill_finished", {
-        app: app.code,
-        records: filteredMetrics.length,
-      });
+      const filteredDevices = analytics.devices?.records.filter(
+        (record) => !options.platform || record.platform === options.platform,
+      ) ?? [];
+      if (analytics.devices?.configured) {
+        await replaceDeviceDailyRecords(
+          db,
+          app.id,
+          analytics.devices.startDate,
+          analytics.devices.endDate,
+          options.platform ? [options.platform] : ["android", "ios"],
+          filteredDevices,
+        );
+      }
+      const analyticsRecords = filteredMetrics.length + filteredDevices.length;
+      const analyticsError = analytics.errors.join(" | ");
+      if (analyticsError) {
+        logger.error("ga4_backfill_failed", {
+          app: app.code,
+          records: analyticsRecords,
+          error: analyticsError,
+        });
+      } else {
+        logger.info("ga4_backfill_finished", {
+          app: app.code,
+          records: analyticsRecords,
+        });
+      }
       analyticsResult = {
         app: app.code,
         platform: "analytics",
-        batches: filteredMetrics.length ? 1 : 0,
-        records: filteredMetrics.length,
+        batches: analyticsRecords ? 1 : 0,
+        records: analyticsRecords,
         done: true,
+        ...(analyticsError ? { error: analyticsError } : {}),
       };
     } catch (error) {
       const message =

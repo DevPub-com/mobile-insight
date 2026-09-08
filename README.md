@@ -110,7 +110,7 @@ GOOGLE_KIS_SERVICE_ACCOUNT_JSON={...}
 GA4_KIS_PROPERTY_ID=987654321
 ```
 
-`G-...` 형태의 Measurement ID가 아니라 숫자형 GA4 Property ID를 사용합니다. 일반 동기화는 최근 35일의 `active1DayUsers`, `active7DayUsers`, `active28DayUsers`, `sessions`를 다시 조회해 지연·보정 데이터를 반영합니다. `db:backfill`은 최근 365일을 조회합니다. Android와 iOS는 GA4의 `platform` 차원으로 분리하며 Web 행은 저장하지 않습니다. GA4 설정이 없는 앱은 분석 수집만 건너뛰고 Store 동기화는 계속합니다.
+`G-...` 형태의 Measurement ID가 아니라 숫자형 GA4 Property ID를 사용합니다. 일반 동기화는 최근 35일의 `active1DayUsers`, `active7DayUsers`, `active28DayUsers`, `sessions`와 기기 제조사·모델별 `activeUsers`를 다시 조회해 지연·보정 데이터를 반영합니다. `db:backfill`은 최근 365일을 조회합니다. Android와 iOS는 GA4의 `platform` 차원으로 분리하며 Web 행은 저장하지 않습니다. 기기별 활성 사용자는 `device_daily_records`에 저장되며, 여러 기기를 사용한 사용자가 중복될 수 있으므로 행을 합산해 전체 MAU로 사용하지 않습니다. GA4 설정이 없는 앱은 분석 수집만 건너뛰고 Store 동기화는 계속합니다.
 
 ## Historical backfill
 
@@ -123,7 +123,7 @@ npm run db:backfill
 특정 앱과 플랫폼만 다시 처리할 수 있습니다.
 
 ```bash
-npm run db:backfill -- --app=wtc --platform=android
+npm run db:backfill -- --app=kis --platform=android
 ```
 
 - Android: GCS에 존재하는 설치, 평점, 리뷰 월별 보고서 전체. Review Link로 개별 API 조회가 가능한 과거 리뷰는 작성자명도 보완합니다.

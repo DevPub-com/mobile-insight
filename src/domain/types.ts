@@ -67,6 +67,15 @@ export type DailyMetric = {
   screenPageViews?: number | null;
 };
 
+export type DeviceDailyRecord = {
+  appId: string;
+  platform: Platform;
+  date: string;
+  deviceBrand: string;
+  deviceModel: string;
+  activeUsers: number;
+};
+
 export type DeviceMetadata = {
   productName?: string | null;
   manufacturer?: string | null;
@@ -80,6 +89,8 @@ export type DeviceMetadata = {
   cpuModel?: string | null;
   cpuMake?: string | null;
 };
+
+export type ReviewSentiment = "positive" | "neutral" | "negative";
 
 export type AppReview = {
   id: string;
@@ -104,6 +115,9 @@ export type AppReview = {
   observedAt?: string;
   description?: string | null;
   reviewedAt: string;
+  aiSentiment?: ReviewSentiment | null;
+  aiTopics?: string[] | null;
+  aiSummary?: string | null;
 };
 
 export type AppRelease = {
@@ -167,6 +181,26 @@ export type SyncStatus = {
   errorMessage: string | null;
 };
 
+export type ReleaseImpactAiBriefing = {
+  headline: string;
+  summary: string;
+  riskLevel: "low" | "medium" | "high" | "critical";
+  keyChanges: string[];
+  recommendations: string[];
+  analyzedAt: string;
+};
+
+export type DashboardExecutiveAiBriefing = {
+  headline: string;
+  summary: string;
+  highlights: Array<{
+    category: "growth" | "risk" | "voc" | "quality";
+    title: string;
+    description: string;
+  }>;
+  analyzedAt: string;
+};
+
 export type DashboardData = {
   apps: AppInfo[];
   app: AppInfo;
@@ -190,5 +224,7 @@ export type DashboardData = {
     asOfDate?: string | null;
   }>;
   androidDistribution?: AndroidDistribution | null;
+  executiveBriefing?: DashboardExecutiveAiBriefing | null;
+  releaseImpactBriefing?: ReleaseImpactAiBriefing | null;
   source: "database" | "demo";
 };

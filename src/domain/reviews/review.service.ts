@@ -11,6 +11,12 @@ export function reviewAuthorLabel(author: string | null): string {
   return author?.trim() || "이름 미제공";
 }
 
+export function reviewDeviceLabel(
+  review: Pick<AppReview, "device" | "deviceMetadata">,
+): string | null {
+  return review.deviceMetadata?.productName?.trim() || review.device?.trim() || null;
+}
+
 export function latestNegativeReviews(
   reviews: AppReview[],
   limit = 5,

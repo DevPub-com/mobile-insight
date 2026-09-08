@@ -7,7 +7,9 @@ import { useEffect, useRef, useState } from "react";
 import {
   dateFromIso,
   isoFromDate,
+  MAX_DATE_RANGE_DAYS,
   metricRangeFromCalendar,
+  normalizeDateRangeBoundary,
   presetDateRange,
 } from "@/components/dashboard/date-range-picker.logic";
 import {
@@ -44,12 +46,14 @@ export function DashboardDateRangePicker({
   const rootRef = useRef<HTMLDivElement>(null);
   const days = dateRangeDays(value);
   const availableDays = dateRangeDays({ startDate: minDate, endDate: maxDate });
+  const draftIsComplete = Boolean(draft.startDate && draft.endDate);
   const draftIsValid =
+    draftIsComplete &&
     draft.startDate >= minDate &&
     draft.endDate <= maxDate &&
     draft.startDate <= draft.endDate &&
     dateRangeDays(draft) >= 1 &&
-    dateRangeDays(draft) <= 366;
+    dateRangeDays(draft) <= MAX_DATE_RANGE_DAYS;
 
   useEffect(() => {
     if (!open) return;
@@ -140,14 +144,19 @@ export function DashboardDateRangePicker({
                 <input
                   type="date"
                   min={minDate}
-                  max={draft.endDate || maxDate}
+                  max={maxDate}
                   value={draft.startDate}
                   onChange={(event) => {
                     setDraftPreset(null);
-                    setDraft((current) => ({
-                      ...current,
-                      startDate: event.target.value,
-                    }));
+                    setDraft((current) =>
+                      normalizeDateRangeBoundary(
+                        current,
+                        "startDate",
+                        event.target.value,
+                        minDate,
+                        maxDate,
+                      ),
+                    );
                   }}
                 />
               </label>
@@ -156,15 +165,20 @@ export function DashboardDateRangePicker({
                 종료일
                 <input
                   type="date"
-                  min={draft.startDate || minDate}
+                  min={minDate}
                   max={maxDate}
                   value={draft.endDate}
                   onChange={(event) => {
                     setDraftPreset(null);
-                    setDraft((current) => ({
-                      ...current,
-                      endDate: event.target.value,
-                    }));
+                    setDraft((current) =>
+                      normalizeDateRangeBoundary(
+                        current,
+                        "endDate",
+                        event.target.value,
+                        minDate,
+                        maxDate,
+                      ),
+                    );
                   }}
                 />
               </label>
@@ -180,7 +194,7 @@ export function DashboardDateRangePicker({
                 fixedWeeks
                 resetOnSelect
                 excludeDisabled
-                max={366}
+                max={MAX_DATE_RANGE_DAYS - 1}
                 month={dateFromIso(visibleMonth)}
                 startMonth={dateFromIso(minDate)}
                 endMonth={dateFromIso(maxDate)}
@@ -194,9 +208,17 @@ export function DashboardDateRangePicker({
               />
             </div>
 
-            {!draftIsValid && (
+            {!draftIsComplete && (
+              <p className="mi-date-range-help" aria-live="polite">
+                {draft.startDate
+                  ? "종료일을 선택해 주세요."
+                  : "시작일과 종료일을 선택해 주세요."}
+              </p>
+            )}
+            {draftIsComplete && !draftIsValid && (
               <p role="alert">
-                시작일과 종료일을 확인해 주세요. 최대 366일까지 볼 수 있습니다.
+                조회 가능 기간 안에서 최대 {MAX_DATE_RANGE_DAYS}일까지 선택해
+                주세요.
               </p>
             )}
             <footer>

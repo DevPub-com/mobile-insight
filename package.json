@@ -17,6 +17,7 @@
     "db:backfill": "tsx scripts/backfill.ts",
     "data:sync": "tsx scripts/sync.ts",
     "data:diagnose": "tsx scripts/diagnose-sync.ts",
+    "data:inspect-devices": "tsx scripts/inspect-device-records.ts",
     "data:inspect-google": "tsx scripts/inspect-google-integrations.ts",
     "sync": "tsx scripts/sync.ts",
     "backfill": "tsx scripts/backfill.ts",

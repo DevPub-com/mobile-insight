@@ -6,6 +6,7 @@ import {
   pruneNonProductionAndroidReleases,
   upsertAndroidDistribution,
   upsertDailyMetrics,
+  replaceDeviceDailyRecords,
   upsertMetricObservations,
   upsertRatingSnapshots,
   upsertReleases,
@@ -22,6 +23,8 @@ import type {
   SyncScope,
 } from "@/services/mobile/common/store-adapter";
 import { publicSyncError } from "@/services/sync/sync-errors";
+import { fetchGa4SyncData } from "@/services/sync/ga4-sync";
+import { analyzeReviewsBatch } from "@/services/ai/review-analyzer.service";
 
 const adapters: StoreAdapter[] = [new GooglePlayAdapter(), new AppStoreAdapter()];
 const ga4Adapter = new Ga4Adapter();
@@ -100,22 +103,55 @@ export async function syncAllApps(scope: SyncScope = "all") {
       iosAppId: app.iosAppId,
       iosBundleId: app.iosBundleId,
     };
-    let analyticsError: string | null = null;
+    const analyticsErrors: string[] = [];
     if (scope === "all") {
+      const analytics = await fetchGa4SyncData(ga4Adapter, appInfo);
+      analyticsErrors.push(...analytics.errors);
       try {
-        const analyticsMetrics = await ga4Adapter.fetch(appInfo);
-        if (analyticsMetrics.length) {
-          await upsertDailyMetrics(db, analyticsMetrics);
+        if (analytics.metrics.length) {
+          await upsertDailyMetrics(db, analytics.metrics);
         }
+      } catch (error) {
+        analyticsErrors.push(
+          `analytics_summary: ${error instanceof Error ? error.message : "Unknown GA4 persistence error"}`,
+        );
+      }
+      if (analytics.devices?.configured) {
+        try {
+          await replaceDeviceDailyRecords(
+            db,
+            app.id,
+            analytics.devices.startDate,
+            analytics.devices.endDate,
+            ["android", "ios"],
+            analytics.devices.records,
+          );
+        } catch (error) {
+          analyticsErrors.push(
+            `analytics_devices: ${error instanceof Error ? error.message : "Unknown device persistence error"}`,
+          );
+        }
+      }
+      const analyticsRecords =
+        analytics.metrics.length + (analytics.devices?.records.length ?? 0);
+      if (analyticsErrors.length) {
+        logger.error("ga4_sync_failed", {
+          app: app.code,
+          records: analyticsRecords,
+          error: analyticsErrors.join(" | "),
+        });
+      } else {
         logger.info("ga4_sync_finished", {
           app: app.code,
-          records: analyticsMetrics.length,
+          records: analyticsRecords,
         });
-      } catch (error) {
-        analyticsError =
-          error instanceof Error ? error.message : "Unknown GA4 sync error";
-        logger.error("ga4_sync_failed", { app: app.code, error: analyticsError });
       }
+      results.push({
+        app: app.code,
+        platform: "analytics",
+        status: analyticsErrors.length ? "failed" : "success",
+        recordsCount: analyticsRecords,
+      });
     }
 
     for (const adapter of adapters) {
@@ -138,7 +174,6 @@ export async function syncAllApps(scope: SyncScope = "all") {
 
       try {
         const payload = await adapter.sync(appInfo, targetSyncTypes);
-        if (analyticsError) payload.errors.push(`analytics: ${analyticsError}`);
         if (payload.metrics.length) {
           await upsertDailyMetrics(db, payload.metrics);
         }
@@ -167,24 +202,31 @@ export async function syncAllApps(scope: SyncScope = "all") {
           });
         }
         if (payload.reviews.length) {
+          const analysisMap = await analyzeReviewsBatch(payload.reviews);
           await upsertReviews(
             db,
-            payload.reviews.map((review) => ({
-              appId: review.appId,
-              platform: review.platform,
-              externalId: review.externalId,
-              rating: review.rating,
-              title: review.title,
-              content: review.content,
-              author: review.author,
-              version: review.version,
-              territory: review.territory,
-              source: review.source,
-              quality: review.quality,
-              observedAt: review.observedAt ? new Date(review.observedAt) : undefined,
-              description: review.description,
-              reviewedAt: new Date(review.reviewedAt),
-            })),
+            payload.reviews.map((review) => {
+              const analyzed = analysisMap.get(review.externalId);
+              return {
+                appId: review.appId,
+                platform: review.platform,
+                externalId: review.externalId,
+                rating: review.rating,
+                title: review.title,
+                content: review.content,
+                author: review.author,
+                version: review.version,
+                territory: review.territory,
+                source: review.source,
+                quality: review.quality,
+                observedAt: review.observedAt ? new Date(review.observedAt) : undefined,
+                description: review.description,
+                reviewedAt: new Date(review.reviewedAt),
+                aiSentiment: analyzed?.sentiment ?? null,
+                aiTopics: analyzed?.topics ?? null,
+                aiSummary: analyzed?.summary ?? null,
+              };
+            }),
           );
         }
         if (payload.releases.length) {

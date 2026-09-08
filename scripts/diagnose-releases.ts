@@ -7,7 +7,7 @@ import { apps } from "../src/db/schema";
 
 loadScriptEnv();
 
-const code = process.argv.find((argument) => argument.startsWith("--app="))?.slice(6) ?? "wtc";
+const code = process.argv.find((argument) => argument.startsWith("--app="))?.slice(6) ?? "kis";
 const db = getDb();
 const app = (await db.select().from(apps).where(eq(apps.code, code)))[0];
 if (!app?.iosAppId) throw new Error(`${code}: iOS App Store Connect app ID가 없습니다.`);

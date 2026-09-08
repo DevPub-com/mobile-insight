@@ -15,4 +15,14 @@ export type GoogleAnalyticsReportRow = {
 
 export type GoogleAnalyticsReportResponse = {
   rows?: GoogleAnalyticsReportRow[];
+  rowCount?: number;
+  metadata?: {
+    dataLossFromOtherRow?: boolean;
+    subjectToThresholding?: boolean;
+    timeZone?: string;
+    samplingMetadatas?: Array<{
+      samplesReadCount?: string;
+      samplingSpaceSize?: string;
+    }>;
+  };
 };

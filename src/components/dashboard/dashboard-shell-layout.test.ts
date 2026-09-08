@@ -151,7 +151,12 @@ describe("Mobile Insight dashboard shell layout", () => {
   });
 
   it("keeps the reference dashboard compact", () => {
-    expect(source).toContain("월간 활성 사용자");
+    expect(source).toContain("신규 크래시 이슈");
+    expect(source).toMatch(
+      /statusLabel=\{\s*crashIssue\.current === null\s*\? "데이터 미연동"\s*: undefined\s*\}/s,
+    );
+    expect(source).not.toContain("월간 활성 사용자");
+    expect(source).not.toContain("activeUserSparkline");
     expect(releaseImpactSource).toContain("배포 후 비정상 종료율");
     expect(releaseImpactSource).toContain("배포 후 ANR 발생률");
     expect(releaseImpactSource).not.toContain("Firebase · Sentry 데이터 없음");
@@ -200,6 +205,43 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("VOC 키워드 요약");
     expect(source).toContain('className="mi-voc-summary"');
     expect(source).toContain("전체 부정 리뷰 수");
+  });
+
+  it("places the sentiment chip beside the version and keeps only topics below", () => {
+    const versionIndex = source.indexOf('className="mi-review-version"');
+    const sentimentIndex = source.indexOf('className={`mi-ai-sentiment-badge');
+    const timeIndex = source.indexOf('as="time"', sentimentIndex);
+
+    expect(versionIndex).toBeGreaterThan(-1);
+    expect(sentimentIndex).toBeGreaterThan(versionIndex);
+    expect(timeIndex).toBeGreaterThan(sentimentIndex);
+    expect(source).toContain('item.aiSentiment === "positive" && "긍정"');
+    expect(source).toContain('item.aiSentiment === "neutral" && "개선"');
+    expect(source).toContain('item.aiSentiment === "negative" && "불만"');
+    expect(source).not.toContain("긍정 피드백");
+    expect(source).not.toContain("개선 제안");
+    expect(source).not.toContain("불만 이슈");
+    expect(source).toContain('className="mi-review-classification"');
+    expect(source).toContain('className="mi-review-device"');
+    expect(source).toContain("reviewDeviceLabel(review)");
+    expect(source).toContain("<ReviewDevice review={item} />");
+    expect(source).toContain("[...new Set(item.aiTopics)]");
+    expect(source).toContain("{item.aiTopics && item.aiTopics.length > 0 && (");
+    expect(globalStyles).toMatch(
+      /\.mi-review-meta \.mi-ai-sentiment-badge\s*\{[^}]*flex:\s*0 0 auto;/s,
+    );
+    expect(globalStyles).toMatch(
+      /@media \(max-width:\s*760px\)\s*\{[\s\S]*?\.mi-review-meta\s*\{[^}]*flex-wrap:\s*wrap;[\s\S]*?\.mi-review-meta time\s*\{[^}]*flex-basis:\s*100%;/s,
+    );
+    expect(globalStyles).toMatch(
+      /\.mi-ai-sentiment-badge\.is-positive\s*\{[^}]*color:\s*#166534;/s,
+    );
+    expect(globalStyles).toMatch(
+      /\.mi-ai-sentiment-badge\.is-neutral\s*\{[^}]*color:\s*#92400e;/s,
+    );
+    expect(globalStyles).toMatch(
+      /\.mi-ai-sentiment-badge\.is-negative\s*\{[^}]*color:\s*#991b1b;/s,
+    );
   });
 
   it("shows up to ten negative reviews on the dashboard and links to the review tab", () => {

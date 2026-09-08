@@ -9,7 +9,7 @@ import { fetchGoogleReleaseData } from "../src/services/google/google-releases";
 
 loadScriptEnv();
 
-const appCode = process.argv[2] || "wtc";
+const appCode = process.argv[2] || "kis";
 let packageName = process.argv[3];
 
 if (!packageName) {
@@ -26,7 +26,6 @@ if (!packageName) {
 
 if (!packageName) {
   const defaultPackages: Record<string, string> = {
-    wtc: "com.withuslaw.wtc",
     kis: "com.koreainvestment.stock",
   };
   packageName = defaultPackages[appCode] || `com.example.${appCode}`;
