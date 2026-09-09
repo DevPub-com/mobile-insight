@@ -236,20 +236,22 @@ export function buildReviewRateTrendForRange(
   return points;
 }
 
-// Store-displayed Google Play ratings are distinct from GCS Total Average Rating.
 export function buildStoreRatingSummary(data: DashboardData) {
-  const android = (data.metricObservations ?? [])
+  const androidPoints = (data.metricObservations ?? [])
     .filter((item) => item.platform === "android" && item.metricKey === "google_play_rating"
       && item.quality !== "unavailable" && item.value !== null && item.value >= 1 && item.value <= 5)
-    .toSorted((a, b) => a.date.localeCompare(b.date) || a.observedAt.localeCompare(b.observedAt))
-    .at(-1);
-  const ios = (data.ratingSnapshots ?? [])
+    .toSorted((a, b) => a.date.localeCompare(b.date) || a.observedAt.localeCompare(b.observedAt));
+  const iosPoints = (data.ratingSnapshots ?? [])
     .filter((item) => item.platform === "ios" && item.quality !== "unavailable"
       && item.averageRating >= 1 && item.averageRating <= 5)
-    .toSorted((a, b) => a.date.localeCompare(b.date) || a.observedAt.localeCompare(b.observedAt))
-    .at(-1);
+    .toSorted((a, b) => a.date.localeCompare(b.date) || a.observedAt.localeCompare(b.observedAt));
+  const android = androidPoints.at(-1);
+  const ios = iosPoints.at(-1);
+  const androidTrend = [...new Map(androidPoints.map((item) => [item.date, item.value!])).values()];
+  const iosTrend = [...new Map(iosPoints.map((item) => [item.date, item.averageRating])).values()];
+  const change = (values: number[]) => values.length < 2 ? null : Number((values.at(-1)! - values.at(-2)!).toFixed(2));
   return {
-    android: android ? { value: android.value!, date: android.date, source: android.source } : null,
-    ios: ios ? { value: ios.averageRating, date: ios.date, source: ios.source } : null,
+    android: android ? { value: android.value!, date: android.date, source: android.source, trend: androidTrend, change: change(androidTrend) } : null,
+    ios: ios ? { value: ios.averageRating, date: ios.date, source: ios.source, trend: iosTrend, change: change(iosTrend) } : null,
   };
 }

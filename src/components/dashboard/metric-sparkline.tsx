@@ -32,16 +32,18 @@ export function metricTrendTone(value: number | null) {
 export function MetricSparkline({
   values,
   color,
+  singlePoint = false,
 }: {
   values: number[];
   color: string;
+  singlePoint?: boolean;
 }) {
   const option = useMemo<EChartsCoreOption>(
     () => {
       const isFlat =
         values.length > 0 &&
         values.every((value) => value === values[0]);
-      const chartValues = isFlat ? [values[0], values[0]] : values;
+      const chartValues = isFlat && !(singlePoint && values.length === 1) ? [values[0], values[0]] : values;
       const chartColor = resolveSparklineColor(color);
       const flatPadding = 1;
       return {
@@ -88,7 +90,7 @@ export function MetricSparkline({
         ],
       };
     },
-    [color, values],
+    [color, values, singlePoint],
   );
 
   return (

@@ -33,6 +33,7 @@ import {
   buildDateRangeSummary,
   buildInstallLifecycleForRange,
   buildOverview,
+  buildDownloadTrendForRange,
   buildStoreRatingSummary,
   buildRatingDistribution,
   buildReviewRateTrendForRange,
@@ -344,6 +345,15 @@ export function DashboardShell({ data }: { data: DashboardData }) {
   );
   const overallSummary = useMemo(() => buildOverview(data), [data]);
   const storeRatings = useMemo(() => buildStoreRatingSummary(data), [data]);
+  const cumulativeDownloads = useMemo(() => {
+    if (!availableDateRange) return [];
+    let total = 0;
+    return buildDownloadTrendForRange(data, availableDateRange).flatMap((point) => {
+      if (point.total === null) return [];
+      total += point.total;
+      return [total];
+    });
+  }, [data, availableDateRange]);
   const trend = dashboardSummary.charts.downloads;
   const periodSummary = useMemo(
     () => buildDateRangeSummary(data, dateRange),
@@ -1408,7 +1418,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                 initialBriefing={data.executiveBriefing}
               />
               <DpLayout as="section" className="mi-dashboard-overall-grid" aria-label="전체 기간 지표">
-                <DpCard className="mi-dashboard-kpi-card mi-dashboard-overall-card">
+                <DpCard className="mi-dashboard-kpi-card mi-dashboard-overall-card mi-dashboard-overall-download">
                   <DashboardCardTitle
                     icon={<KoboyoIcon name="download" size={17} />}
                     tone="blue"
@@ -1423,6 +1433,9 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                   <DpLayout direction="row" className="mi-dashboard-overall-platforms">
                     <DpText>Android {number(overallSummary.androidDownloads)}</DpText>
                     <DpText>iOS {number(overallSummary.iosDownloads)}</DpText>
+                  </DpLayout>
+                  <DpLayout className="mi-overall-download-chart" aria-label="수집 기간 누적 다운로드 추이">
+                    <MetricSparkline values={cumulativeDownloads} color="#6489EE" />
                   </DpLayout>
                 </DpCard>
                 <DpCard className="mi-dashboard-kpi-card mi-dashboard-overall-card">
@@ -1441,17 +1454,14 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                           <DpText as="span">{platform === "android" ? "Android" : "iOS"}</DpText>
                         </DpLayout>
                         <DpText as="strong">{storeRatings[platform]?.value.toFixed(platform === "android" ? 3 : 2) ?? "—"}</DpText>
-                        <DpText className="mi-dashboard-overall-note">
-                          {platform === "android" ? "기본 Google Play 평점" : "App Store 평점"}
-                          <br />
-                          {storeRatings[platform]
-                            ? `${date(storeRatings[platform].date)} · ${storeRatings[platform].source === "manual" ? "수동 확인" : "수집 기준"}`
-                            : "미수집"}
+                        <DpText as="span" className={`mi-platform-delta ${metricTrendTone(storeRatings[platform]?.change ?? null)}`}
+                          title={storeRatings[platform] ? `${date(storeRatings[platform].date)} · ${storeRatings[platform].source === "manual" ? "수동 확인" : "수집 기준"} · 직전 기록 대비` : "미수집"}>
+                          {storeRatings[platform]?.change == null ? "—" : `${storeRatings[platform].change > 0 ? "▲" : storeRatings[platform].change < 0 ? "▼" : "—"} ${Math.abs(storeRatings[platform].change).toFixed(2)}`}
                         </DpText>
+                        <MetricSparkline values={storeRatings[platform]?.trend ?? []} color={platform === "android" ? "#22A447" : "#8B5CF6"} singlePoint />
                       </DpLayout>
                     ))}
                   </DpLayout>
-                  <DpText className="mi-dashboard-overall-note">스토어 표시 평점 · 5점 만점 · 날짜 필터 미적용</DpText>
                 </DpCard>
               </DpLayout>
               <DpLayout as="section" className="mi-dashboard-kpi-grid">

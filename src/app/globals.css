@@ -2421,7 +2421,7 @@ body {
 }
 .mi-dashboard-impact-platform-title {
   gap: 8px;
-  min-height: 48px;
+  min-height: 60px;
   padding: 6px 10px;
   color: #26334a;
 }
@@ -2436,7 +2436,7 @@ body {
   color: var(--mi-ios);
 }
 .mi-dashboard-impact-platform-title strong {
-  font-size: 12px;
+  font-size: 14px;
 }
 .mi-dashboard-impact-version {
   min-width: 0;
@@ -2445,16 +2445,16 @@ body {
 }
 .mi-dashboard-impact-version b {
   color: #26334a;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 820;
 }
 .mi-dashboard-impact-version span {
   color: #7b8799;
-  font-size: 9.5px;
-  white-space: nowrap;
+  font-size: 11.5px;
+  white-space: normal;
 }
 .mi-dashboard-impact-row {
-  min-height: 39px;
+  min-height: 52px;
   gap: 6px;
   padding: 4px 9px;
   border-top: 1px solid rgba(227, 232, 240, 0.9);
@@ -2463,22 +2463,24 @@ body {
   flex: 1;
   min-width: 0;
   color: #556379;
-  font-size: 10px;
-  white-space: nowrap;
+  font-size: 12px;
+  white-space: normal;
 }
 .mi-dashboard-impact-values {
+  flex-wrap: wrap;
+  justify-content: flex-end;
   flex: 0 0 auto;
   gap: 5px;
-  white-space: nowrap;
+  white-space: normal;
 }
 .mi-dashboard-impact-current {
   color: #1b273b;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 840;
   font-variant-numeric: tabular-nums;
 }
 .mi-dashboard-impact-values > span {
-  font-size: 10.5px;
+  font-size: 12.5px;
   font-weight: 780;
   font-variant-numeric: tabular-nums;
 }
@@ -4570,4 +4572,37 @@ body {
   .mi-dashboard-overall-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.mi-dashboard-overall-download {
+  position: relative;
+  padding-right: 45%;
+}
+.mi-overall-download-chart {
+  position: absolute;
+  right: 18px;
+  top: 40px;
+  bottom: 20px;
+  width: 40%;
+}
+.mi-overall-download-chart > .mi-sparkline {
+  height: 100%;
+  width: 100%;
+}
+.mi-dashboard-overall-card .mi-platform-metric > .mi-sparkline {
+  height: 58px;
+  min-height: 58px;
+  margin-top: 12px;
+}
+@media (max-width: 1100px) {
+  .mi-dashboard-overall-download { padding-right: 15px; }
+  .mi-overall-download-chart { position: static; width: 100%; height: 64px; margin-top: 12px; }
+}
+
+@media (min-width: 981px) and (max-width: 1400px) {
+  .mi-dashboard-impact-platform-title { flex-wrap: wrap; }
+  .mi-dashboard-impact-version { flex-basis: 100%; }
+  .mi-dashboard-impact-row { flex-wrap: wrap; }
+  .mi-dashboard-impact-row > span { flex-basis: 100%; }
+  .mi-dashboard-impact-values { margin-left: auto; }
 }
