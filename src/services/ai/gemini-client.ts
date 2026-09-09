@@ -37,6 +37,12 @@ export class GeminiServiceError extends Error {
   }
 }
 
+const candidateModels: readonly string[] = [
+  "gemini-3.1-flash-lite",
+  "gemini-3.6-flash",
+  "gemini-flash-latest",
+];
+
 export async function generateStructuredContent<T>(
   prompt: string,
   systemInstruction?: string,
@@ -50,10 +56,7 @@ export async function generateStructuredContent<T>(
     return null;
   }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
   const timeoutMs = options.timeoutMilliseconds ?? 15000;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   const requestBody = {
     contents: [
@@ -76,62 +79,81 @@ export async function generateStructuredContent<T>(
       : {}),
   };
 
-  try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error("gemini_api_request_failed", {
-        status: response.status,
-        error: errorText,
-      });
-      return null;
-    }
-
-    const json = (await response.json()) as GeminiApiResponse;
-    if (json.error) {
-      logger.error("gemini_api_response_error", {
-        code: json.error.code,
-        message: json.error.message,
-      });
-      return null;
-    }
-
-    const candidateText = json.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!candidateText) {
-      logger.warn("gemini_empty_response", {
-        candidateCount: json.candidates?.length ?? 0,
-      });
-      return null;
-    }
+  for (const model of candidateModels) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      const parsed = JSON.parse(candidateText) as T;
-      return parsed;
-    } catch (parseError) {
-      logger.error("gemini_json_parse_failed", {
-        raw: candidateText,
-        error: parseError instanceof Error ? parseError.message : "Unknown",
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
       });
-      return null;
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.warn("gemini_model_request_failed", {
+          model,
+          status: response.status,
+          error: errorText,
+        });
+        continue;
+      }
+
+      const json = (await response.json()) as GeminiApiResponse;
+      if (json.error) {
+        logger.warn("gemini_model_response_error", {
+          model,
+          code: json.error.code,
+          message: json.error.message,
+        });
+        continue;
+      }
+
+      const candidateText = json.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!candidateText) {
+        logger.warn("gemini_empty_response", {
+          model,
+          candidateCount: json.candidates?.length ?? 0,
+        });
+        continue;
+      }
+
+      try {
+        const parsed = JSON.parse(candidateText) as T;
+        return parsed;
+      } catch (parseError) {
+        logger.error("gemini_json_parse_failed", {
+          model,
+          raw: candidateText,
+          error: parseError instanceof Error ? parseError.message : "Unknown",
+        });
+        continue;
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        logger.warn("gemini_model_request_timeout", {
+          model,
+          timeoutMilliseconds: timeoutMs,
+        });
+        continue;
+      }
+      logger.warn("gemini_model_request_exception", {
+        model,
+        error: error instanceof Error ? error.message : "Unknown",
+      });
+      continue;
+    } finally {
+      clearTimeout(timeoutId);
     }
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      logger.error("gemini_request_timeout", { timeoutMilliseconds: timeoutMs });
-      return null;
-    }
-    logger.error("gemini_request_exception", {
-      error: error instanceof Error ? error.message : "Unknown",
-    });
-    return null;
-  } finally {
-    clearTimeout(timeoutId);
   }
+
+  logger.error("gemini_all_models_failed", {
+    triedModels: candidateModels.join(", "),
+  });
+  return null;
 }

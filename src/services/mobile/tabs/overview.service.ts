@@ -235,3 +235,21 @@ export function buildReviewRateTrendForRange(
   }
   return points;
 }
+
+// Store-displayed Google Play ratings are distinct from GCS Total Average Rating.
+export function buildStoreRatingSummary(data: DashboardData) {
+  const android = (data.metricObservations ?? [])
+    .filter((item) => item.platform === "android" && item.metricKey === "google_play_rating"
+      && item.quality !== "unavailable" && item.value !== null && item.value >= 1 && item.value <= 5)
+    .toSorted((a, b) => a.date.localeCompare(b.date) || a.observedAt.localeCompare(b.observedAt))
+    .at(-1);
+  const ios = (data.ratingSnapshots ?? [])
+    .filter((item) => item.platform === "ios" && item.quality !== "unavailable"
+      && item.averageRating >= 1 && item.averageRating <= 5)
+    .toSorted((a, b) => a.date.localeCompare(b.date) || a.observedAt.localeCompare(b.observedAt))
+    .at(-1);
+  return {
+    android: android ? { value: android.value!, date: android.date, source: android.source } : null,
+    ios: ios ? { value: ios.averageRating, date: ios.date, source: ios.source } : null,
+  };
+}

@@ -32,6 +32,8 @@ import {
   buildDashboardSummaryForRange,
   buildDateRangeSummary,
   buildInstallLifecycleForRange,
+  buildOverview,
+  buildStoreRatingSummary,
   buildRatingDistribution,
   buildReviewRateTrendForRange,
   buildVocKeywords,
@@ -340,6 +342,8 @@ export function DashboardShell({ data }: { data: DashboardData }) {
     () => buildDashboardSummaryForRange(data, dateRange),
     [data, dateRange],
   );
+  const overallSummary = useMemo(() => buildOverview(data), [data]);
+  const storeRatings = useMemo(() => buildStoreRatingSummary(data), [data]);
   const trend = dashboardSummary.charts.downloads;
   const periodSummary = useMemo(
     () => buildDateRangeSummary(data, dateRange),
@@ -1403,6 +1407,53 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                 dateRange={dateRange}
                 initialBriefing={data.executiveBriefing}
               />
+              <DpLayout as="section" className="mi-dashboard-overall-grid" aria-label="전체 기간 지표">
+                <DpCard className="mi-dashboard-kpi-card mi-dashboard-overall-card">
+                  <DashboardCardTitle
+                    icon={<KoboyoIcon name="download" size={17} />}
+                    tone="blue"
+                    tooltip="선택 기간과 무관한 수집된 전체 다운로드 합계입니다. 출시 이후 누적 다운로드와 다를 수 있습니다."
+                  >
+                    총 다운로드
+                  </DashboardCardTitle>
+                  <DpText as="strong" className="mi-dashboard-download-value">
+                    {number(overallSummary.totalDownloads)}
+                  </DpText>
+                  <DpText className="mi-dashboard-overall-note">수집된 전체 기간 합계 · 날짜 필터 미적용</DpText>
+                  <DpLayout direction="row" className="mi-dashboard-overall-platforms">
+                    <DpText>Android {number(overallSummary.androidDownloads)}</DpText>
+                    <DpText>iOS {number(overallSummary.iosDownloads)}</DpText>
+                  </DpLayout>
+                </DpCard>
+                <DpCard className="mi-dashboard-kpi-card mi-dashboard-overall-card">
+                  <DashboardCardTitle
+                    icon={<KoboyoIcon name="star" size={17} />}
+                    tone="blue"
+                    tooltip="Android는 기본 Google Play 평점, iOS는 App Store 평점입니다. Google Play 기본 평점은 전체 기간 단순 평균과 다른 지표입니다."
+                  >
+                    스토어 평점
+                  </DashboardCardTitle>
+                  <DpLayout direction="row" className="mi-dashboard-platform-split">
+                    {(["android", "ios"] as const).map((platform) => (
+                      <DpLayout key={platform} className={`mi-platform-metric mi-platform-metric--${platform}`}>
+                        <DpLayout direction="row" align="center" className="mi-platform-metric-label">
+                          <PlatformIcon platform={platform} size={17} />
+                          <DpText as="span">{platform === "android" ? "Android" : "iOS"}</DpText>
+                        </DpLayout>
+                        <DpText as="strong">{storeRatings[platform]?.value.toFixed(platform === "android" ? 3 : 2) ?? "—"}</DpText>
+                        <DpText className="mi-dashboard-overall-note">
+                          {platform === "android" ? "기본 Google Play 평점" : "App Store 평점"}
+                          <br />
+                          {storeRatings[platform]
+                            ? `${date(storeRatings[platform].date)} · ${storeRatings[platform].source === "manual" ? "수동 확인" : "수집 기준"}`
+                            : "미수집"}
+                        </DpText>
+                      </DpLayout>
+                    ))}
+                  </DpLayout>
+                  <DpText className="mi-dashboard-overall-note">스토어 표시 평점 · 5점 만점 · 날짜 필터 미적용</DpText>
+                </DpCard>
+              </DpLayout>
               <DpLayout as="section" className="mi-dashboard-kpi-grid">
               <DpCard className="mi-dashboard-kpi-card mi-dashboard-download-card">
                 <DashboardCardTitle
@@ -1434,10 +1485,43 @@ export function DashboardShell({ data }: { data: DashboardData }) {
               </DpCard>
               <DpCard className="mi-dashboard-kpi-card">
                 <DashboardCardTitle
+                  icon={<KoboyoIcon name="bug" size={18} />}
+                  tone="red"
+                  tooltip="Crashlytics 또는 Sentry에서 수집한 플랫폼별 고유 크래시 이슈"
+                >
+                  신규 크래시 이슈
+                </DashboardCardTitle>
+                <DpLayout
+                  direction="row"
+                  className="mi-dashboard-platform-split"
+                >
+                  {(["android", "ios"] as Platform[]).map((platform) => {
+                    const crashIssue = crashIssueFor(platform);
+                    return (
+                      <PlatformMetric
+                        key={platform}
+                        platform={platform}
+                        value={number(crashIssue.current)}
+                        change={crashIssue.change}
+                        changeSuffix="건"
+                        changeDecimals={0}
+                        sparkline={crashIssue.sparkline}
+                        statusLabel={
+                          crashIssue.current === null
+                            ? "데이터 미연동"
+                            : undefined
+                        }
+                      />
+                    );
+                  })}
+                </DpLayout>
+              </DpCard>
+              <DpCard className="mi-dashboard-kpi-card">
+                <DashboardCardTitle
                   icon={<KoboyoIcon name="star" size={17} />}
                   tone="blue"
                 >
-                  평점
+                  최근 {periodLabel} 평점
                 </DashboardCardTitle>
                 <DpLayout
                   direction="row"
@@ -1497,39 +1581,6 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                       item.rate === null ? [] : [item.rate],
                     )}
                   />
-                </DpLayout>
-              </DpCard>
-              <DpCard className="mi-dashboard-kpi-card">
-                <DashboardCardTitle
-                  icon={<KoboyoIcon name="bug" size={18} />}
-                  tone="red"
-                  tooltip="Crashlytics 또는 Sentry에서 수집한 플랫폼별 고유 크래시 이슈"
-                >
-                  신규 크래시 이슈
-                </DashboardCardTitle>
-                <DpLayout
-                  direction="row"
-                  className="mi-dashboard-platform-split"
-                >
-                  {(["android", "ios"] as Platform[]).map((platform) => {
-                    const crashIssue = crashIssueFor(platform);
-                    return (
-                      <PlatformMetric
-                        key={platform}
-                        platform={platform}
-                        value={number(crashIssue.current)}
-                        change={crashIssue.change}
-                        changeSuffix="건"
-                        changeDecimals={0}
-                        sparkline={crashIssue.sparkline}
-                        statusLabel={
-                          crashIssue.current === null
-                            ? "데이터 미연동"
-                            : undefined
-                        }
-                      />
-                    );
-                  })}
                 </DpLayout>
               </DpCard>
             </DpLayout>

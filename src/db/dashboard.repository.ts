@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, isNotNull, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, lte, or } from "drizzle-orm";
 
 import type { DashboardData } from "@/domain/types";
 import { publicSyncError } from "@/services/sync/sync-errors";
@@ -58,7 +58,10 @@ export async function getDashboardData(appCode: string): Promise<DashboardData |
       .where(
         and(
           eq(metricObservations.appId, selected.id),
-          gte(metricObservations.date, observationCutoffDate),
+          or(
+            gte(metricObservations.date, observationCutoffDate),
+            inArray(metricObservations.metricKey, ["daily_user_installs", "total_downloads", "google_play_rating"]),
+          ),
         ),
       )
       .orderBy(asc(metricObservations.date)),
