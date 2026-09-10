@@ -24,6 +24,7 @@ import {
   fetchAppleInstallAnalyticsReport,
 } from "../apple-installs";
 import { isoDate } from "@/lib/date";
+import { fetchAppleCrashCounts } from "../apple-crashes";
 import { getEnvironmentVariable } from "@/lib/env";
 
 async function createToken(credentials: AppleCredentials): Promise<string> {
@@ -49,7 +50,7 @@ async function appleJson<T>(path: string, token: string, init: RequestInit = {})
 
 export class AppStoreAdapter implements StoreAdapter {
   readonly platform = "ios" as const;
-  readonly syncTypes = ["downloads", "installs", "ratings", "reviews", "releases"] as const;
+  readonly syncTypes = ["downloads", "installs", "ratings", "reviews", "releases", "stability"] as const;
 
   private credentialsFor(app: AppInfo): AppleCredentials {
     const profile = getStoreCredentialProfile(app.code)?.apple;
@@ -91,6 +92,7 @@ export class AppStoreAdapter implements StoreAdapter {
       ratingResult,
       reviewsResult,
       releasesResult,
+      crashesResult,
     ] = await Promise.allSettled([
       downloadsPromise ?? Promise.resolve({ metrics: [], observations: [] }),
       shouldSync("installs")
@@ -104,6 +106,9 @@ export class AppStoreAdapter implements StoreAdapter {
         ? versionsPromise.then((versions) =>
             normalizeAppleReleases(app.id, versions.data, versions.included),
           )
+        : Promise.resolve([]),
+      shouldSync("stability")
+        ? fetchAppleCrashCounts(app.id, app.iosAppId!, appleApi)
         : Promise.resolve([]),
     ]);
 
@@ -121,6 +126,9 @@ export class AppStoreAdapter implements StoreAdapter {
     }
     if (releasesResult.status === "rejected") {
       errors.push(`releases: ${releasesResult.reason}`);
+    }
+    if (crashesResult.status === "rejected") {
+      errors.push(`stability: ${crashesResult.reason}`);
     }
 
     const metrics = downloadsResult.status === "fulfilled" ? [...downloadsResult.value.metrics] : [];
@@ -153,6 +161,7 @@ export class AppStoreAdapter implements StoreAdapter {
       observations: [
         ...(downloadsResult.status === "fulfilled" ? downloadsResult.value.observations : []),
         ...(installsResult.status === "fulfilled" ? installsResult.value.observations : []),
+        ...(crashesResult.status === "fulfilled" ? crashesResult.value : []),
       ],
       ratingSnapshots:
         ratingResult.status === "fulfilled" && ratingResult.value

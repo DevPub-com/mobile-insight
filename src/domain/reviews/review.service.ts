@@ -14,7 +14,9 @@ export function reviewAuthorLabel(author: string | null): string {
 export function reviewDeviceLabel(
   review: Pick<AppReview, "device" | "deviceMetadata">,
 ): string | null {
-  return review.deviceMetadata?.productName?.trim() || review.device?.trim() || null;
+  const label = review.deviceMetadata?.productName?.trim() || review.device?.trim();
+  if (!label) return null;
+  return label.match(/\(([^()]+)\)\s*$/)?.[1]?.trim() || label;
 }
 
 export function latestNegativeReviews(
@@ -42,4 +44,15 @@ export function reviewTimeLabel(reviewedAt: string, now = new Date()): string {
   if (hours < 24) return `${hours}시간 전`;
 
   return absoluteDate;
+}
+
+export function summarizeReviewRatings(ratings: number[]) {
+  const total = ratings.length;
+  return {
+    average: total ? ratings.reduce((sum, value) => sum + value, 0) / total : null,
+    total,
+    positive: ratings.filter((value) => value >= 4).length,
+    neutral: ratings.filter((value) => value === 3).length,
+    negative: ratings.filter((value) => value <= 2).length,
+  };
 }

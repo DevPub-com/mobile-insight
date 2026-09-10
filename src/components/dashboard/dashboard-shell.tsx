@@ -2,18 +2,22 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { CrashHistory } from "@/components/dashboard/crash-history";
+import { buildCrashHistory } from "@/services/mobile/crash-history.service";
 import { AppSelector } from "@/components/dashboard/app-selector";
 import { DashboardDateRangePicker } from "@/components/dashboard/date-range-picker";
 import { DownloadChart } from "@/components/dashboard/download-chart";
+import { DownloadOsShare } from "@/components/dashboard/download-os-share";
+import { DownloadModels } from "@/components/dashboard/download-models";
 import {
   MetricSparkline,
   metricTrendTone,
   releaseImpactSparklineColor,
 } from "@/components/dashboard/metric-sparkline";
 import { PlatformIcon } from "@/components/dashboard/platform-icon";
+import { ReviewRatingSummary } from "@/components/dashboard/review-rating-summary";
 import { RatingChart } from "@/components/dashboard/rating-chart";
 import { ReleaseImpactWorkspace } from "@/components/dashboard/release-impact-workspace";
-import { AiExecutiveBriefing } from "@/components/dashboard/ai-executive-briefing";
 import { DpBadge } from "@/components/ui/dp/DpBadge";
 import { DpButton } from "@/components/ui/dp/DpButton";
 import { DpCard } from "@/components/ui/dp/DpCard";
@@ -38,7 +42,6 @@ import {
   buildRatingDistribution,
   buildReviewRateTrendForRange,
   buildVocKeywords,
-  classifyVersionChange,
   compareVersionsDescending,
   dateRangeDays,
   downloadDataStatusForRange,
@@ -332,9 +335,6 @@ export function DashboardShell({ data }: { data: DashboardData }) {
   const [releasePlatform, setReleasePlatform] = useState<Platform | "all">(
     "all",
   );
-  const [releaseType, setReleaseType] = useState<
-    "all" | "major" | "minor" | "patch"
-  >("all");
   const [releaseSearch, setReleaseSearch] = useState("");
   const [timelineScale, setTimelineScale] = useState<
     "week" | "month" | "quarter"
@@ -345,15 +345,17 @@ export function DashboardShell({ data }: { data: DashboardData }) {
   );
   const overallSummary = useMemo(() => buildOverview(data), [data]);
   const storeRatings = useMemo(() => buildStoreRatingSummary(data), [data]);
-  const cumulativeDownloads = useMemo(() => {
+  const collectedDownloadTrend = useMemo(() => {
     if (!availableDateRange) return [];
     let total = 0;
     return buildDownloadTrendForRange(data, availableDateRange).flatMap((point) => {
       if (point.total === null) return [];
       total += point.total;
-      return [total];
+      return [{ date: point.date, total }];
     });
   }, [data, availableDateRange]);
+  const cumulativeDownloads = collectedDownloadTrend.map((point) => point.total);
+  const crashHistory = useMemo(() => buildCrashHistory(data, dateRange), [data, dateRange]);
   const trend = dashboardSummary.charts.downloads;
   const periodSummary = useMemo(
     () => buildDateRangeSummary(data, dateRange),
@@ -422,32 +424,6 @@ export function DashboardShell({ data }: { data: DashboardData }) {
   const androidDistributionDetail = data.androidDistribution
     ? `배포 폼팩터: ${data.androidDistribution.deviceTypes.map((item) => deviceTypeLabels[item] ?? item).join(", ") || "미수집"} · 휴대전화·태블릿 출시: ${data.androidDistribution.restOfWorld ? "전 세계" : `${data.androidDistribution.countryCodes.length}개 국가`}`
     : "출시 국가·기기 유형 미수집";
-  const previousVersion = (release: DashboardData["releases"][number]) => {
-    const platformReleases = releases.filter(
-      (item) => item.platform === release.platform,
-    );
-    const index = platformReleases.findIndex((item) => item.id === release.id);
-    return index < 0 ? null : (platformReleases[index + 1]?.version ?? null);
-  };
-  const releaseKind = (release: DashboardData["releases"][number]) =>
-    classifyVersionChange(release.version, previousVersion(release));
-  const releaseKindLabel = (release: DashboardData["releases"][number]) => {
-    const labels = {
-      major: "Major",
-      minor: "Minor",
-      patch: "Patch",
-      unknown: "분류 불가",
-    };
-    return labels[releaseKind(release)];
-  };
-  const releaseDeliveryLabel = (release: DashboardData["releases"][number]) => {
-    if (release.platform === "android") {
-      return release.track === "production"
-        ? "Production"
-        : (release.track ?? "Production");
-    }
-    return "App Store";
-  };
   const releaseReferenceDate = new Date(`${latestDate}T00:00:00.000Z`);
   const cadenceReleases = releases.filter(
     (item) => item.releaseDateSource !== "first_observed_at",
@@ -476,7 +452,6 @@ export function DashboardShell({ data }: { data: DashboardData }) {
     const query = releaseSearch.trim().toLowerCase();
     return (
       (releasePlatform === "all" || item.platform === releasePlatform) &&
-      (releaseType === "all" || releaseKind(item) === releaseType) &&
       (!query ||
         item.version.toLowerCase().includes(query) ||
         item.platform.toLowerCase().includes(query))
@@ -605,7 +580,6 @@ export function DashboardShell({ data }: { data: DashboardData }) {
       "릴리즈 임팩트",
       <KoboyoIcon name="bar-chart" size={17} key="impact" />,
     ],
-    ["apps", "앱 관리", <KoboyoIcon name="settings" size={17} key="apps" />],
   ];
   const appRows = data.apps.map((app) => {
     const isSelectedApp = app.id === data.app.id;
@@ -857,7 +831,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
               <DpLayout direction="row" align="center">
                 <DpText as="strong">{value}</DpText>
                 {(tone === "android" || tone === "ios") && (
-                  <DpBadge>최신</DpBadge>
+                  <DpBadge className="mi-release-latest-badge">최신</DpBadge>
                 )}
               </DpLayout>
               <DpText as="small">{detail}</DpText>
@@ -963,21 +937,6 @@ export function DashboardShell({ data }: { data: DashboardData }) {
             ))}
           </DpLayout>
           <DpLayout direction="row" className="mi-release-filters">
-            <label className="mi-release-type-filter">
-              <KoboyoIcon name="sliders-horizontal" size={15} />
-              <select
-                aria-label="변경 유형"
-                value={releaseType}
-                onChange={(event) =>
-                  setReleaseType(event.target.value as typeof releaseType)
-                }
-              >
-                <option value="all">전체 변경 유형</option>
-                <option value="major">Major</option>
-                <option value="minor">Minor</option>
-                <option value="patch">Patch</option>
-              </select>
-            </label>
             <label className="mi-release-search">
               <KoboyoIcon name="search" size={16} />
               <input
@@ -992,11 +951,9 @@ export function DashboardShell({ data }: { data: DashboardData }) {
         <DpLayout className="mi-release-table">
           <DpLayout className="mi-release-table-head">
             <DpText as="span">버전</DpText>
-            <DpText as="span">플랫폼 · 배포</DpText>
+            <DpText as="span">플랫폼</DpText>
             <DpText as="span">출시일</DpText>
-            <DpText as="span">변경 유형</DpText>
             <DpText as="span">변경사항 요약</DpText>
-            <DpText as="span">상태</DpText>
           </DpLayout>
           {filteredReleases.length ? (
             filteredReleases.map((item) => (
@@ -1015,7 +972,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                     </DpText>
                   </DpLayout>
                   {latestRelease(item.platform)?.id === item.id && (
-                    <DpBadge>최신</DpBadge>
+                    <DpBadge className="mi-release-latest-badge">최신</DpBadge>
                   )}
                 </DpLayout>
                 <DpText
@@ -1024,7 +981,6 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                 >
                   <PlatformIcon platform={item.platform} size={14} />
                   {item.platform === "android" ? "Android" : "iOS"}
-                  <small>{releaseDeliveryLabel(item)}</small>
                 </DpText>
                 <DpLayout
                   direction="row"
@@ -1033,22 +989,9 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                 >
                   <DpText as="time">{releaseDate(item)}</DpText>
                 </DpLayout>
-                <DpBadge
-                  className={`mi-release-kind mi-release-kind--${releaseKind(item)}`}
-                >
-                  {releaseKindLabel(item)}
-                </DpBadge>
                 <DpText as="span" className="mi-release-notes">
-                  {item.releaseNotes ??
+                  {item.releaseNotes?.replace(/[^\S\r\n]+-\s+/g, "\n- ") ??
                     "스토어에 변경사항이 등록되지 않았습니다."}
-                </DpText>
-                <DpText as="span" className="mi-release-complete">
-                  <KoboyoIcon name="star" size={15} />
-                  {item.phasedReleaseState === "ACTIVE"
-                    ? `단계 배포 ${item.phasedReleaseDay ?? "—"}일차`
-                    : item.rolloutFraction != null
-                      ? `배포 ${(item.rolloutFraction * 100).toFixed(0)}%`
-                      : (item.status?.replaceAll("_", " ") ?? "상태 미수집")}
                 </DpText>
               </DpLayout>
             ))
@@ -1114,7 +1057,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                 <PlatformIcon platform={item.platform} size={13} />
               </DpLayout>
               <ReviewStars rating={item.rating} />
-              <DpText as="span">
+              <DpText as="span" title="스토어 리뷰 원문에 포함된 앱 버전 · 현재 배포 버전과 다를 수 있습니다.">
                 {item.version ? `v${item.version.replace(/^v/, "")}` : "—"}
               </DpText>
               <DpText
@@ -1342,7 +1285,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
           <DpText as="span" className="mi-nav-label">
             성과
           </DpText>
-          {nav.slice(0, 5).map(([key, label, icon]) => (
+          {nav.map(([key, label, icon]) => (
             <DpButton
               key={key}
               className={view === key ? "is-active" : ""}
@@ -1355,23 +1298,6 @@ export function DashboardShell({ data }: { data: DashboardData }) {
               {label}
             </DpButton>
           ))}
-          <DpText as="span" className="mi-nav-label">
-            설정
-          </DpText>
-          {nav.slice(5).map(([key, label, icon]) => (
-            <DpButton
-              key={key}
-              className={view === key ? "is-active" : ""}
-              onClick={() => setView(key)}
-            >
-              {icon}
-              {label}
-            </DpButton>
-          ))}
-        </DpLayout>
-        <DpLayout direction="row" align="center" className="mi-sidebar-user">
-          <KoboyoIcon name="chevron-left" size={14} />
-          <DpText as="span">메뉴 접기</DpText>
         </DpLayout>
       </DpLayout>
       <DpLayout as="section" className="mi-workspace">
@@ -1411,12 +1337,6 @@ export function DashboardShell({ data }: { data: DashboardData }) {
         <DpLayout className="mi-content">
           {view === "dashboard" && (
             <>
-              <AiExecutiveBriefing
-                appCode={data.app.code}
-                periodLabel={periodLabel}
-                dateRange={dateRange}
-                initialBriefing={data.executiveBriefing}
-              />
               <DpLayout as="section" className="mi-dashboard-overall-grid" aria-label="전체 기간 지표">
                 <DpCard className="mi-dashboard-kpi-card mi-dashboard-overall-card mi-dashboard-overall-download">
                   <DashboardCardTitle
@@ -1430,12 +1350,17 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                     {number(overallSummary.totalDownloads)}
                   </DpText>
                   <DpText className="mi-dashboard-overall-note">수집된 전체 기간 합계 · 날짜 필터 미적용</DpText>
+                  {collectedDownloadTrend.length > 0 && (
+                    <DpText className="mi-dashboard-overall-note">
+                      {date(collectedDownloadTrend[0].date)} ~ {date(collectedDownloadTrend.at(-1)!.date)} · {collectedDownloadTrend.length}일 수집분
+                    </DpText>
+                  )}
                   <DpLayout direction="row" className="mi-dashboard-overall-platforms">
-                    <DpText>Android {number(overallSummary.androidDownloads)}</DpText>
-                    <DpText>iOS {number(overallSummary.iosDownloads)}</DpText>
+                    <DpText>Android {overallSummary.androidDownloads === null ? "미수집" : number(overallSummary.androidDownloads)}</DpText>
+                    <DpText>iOS {overallSummary.iosDownloads === null ? "미수집" : number(overallSummary.iosDownloads)}</DpText>
                   </DpLayout>
                   <DpLayout className="mi-overall-download-chart" aria-label="수집 기간 누적 다운로드 추이">
-                    <MetricSparkline values={cumulativeDownloads} color="#6489EE" />
+                    <MetricSparkline values={cumulativeDownloads} color="#6489EE" smooth={false} singlePoint />
                   </DpLayout>
                 </DpCard>
                 <DpCard className="mi-dashboard-kpi-card mi-dashboard-overall-card">
@@ -1459,6 +1384,9 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                           {storeRatings[platform]?.change == null ? "—" : `${storeRatings[platform].change > 0 ? "▲" : storeRatings[platform].change < 0 ? "▼" : "—"} ${Math.abs(storeRatings[platform].change).toFixed(2)}`}
                         </DpText>
                         <MetricSparkline values={storeRatings[platform]?.trend ?? []} color={platform === "android" ? "#22A447" : "#8B5CF6"} singlePoint />
+                        {storeRatings[platform]?.trend.length === 1 && (
+                          <DpText className="mi-dashboard-overall-note">{date(storeRatings[platform].date)} 기록 1건 · 추이 비교 불가</DpText>
+                        )}
                       </DpLayout>
                     ))}
                   </DpLayout>
@@ -1497,29 +1425,29 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                 <DashboardCardTitle
                   icon={<KoboyoIcon name="bug" size={18} />}
                   tone="red"
-                  tooltip="Crashlytics 또는 Sentry에서 수집한 플랫폼별 고유 크래시 이슈"
+                  tooltip="선택 기간의 스토어 크래시 보고 건수입니다. 같은 오류의 반복 발생을 포함하며, 신규 고유 이슈 수와 다릅니다."
                 >
-                  신규 크래시 이슈
+                  크래시 발생 건수
                 </DashboardCardTitle>
                 <DpLayout
                   direction="row"
                   className="mi-dashboard-platform-split"
                 >
                   {(["android", "ios"] as Platform[]).map((platform) => {
-                    const crashIssue = crashIssueFor(platform);
+                    const crashIssue = crashHistory[platform];
                     return (
                       <PlatformMetric
                         key={platform}
                         platform={platform}
-                        value={number(crashIssue.current)}
+                        value={number(crashIssue.value)}
                         change={crashIssue.change}
                         changeSuffix="건"
                         changeDecimals={0}
-                        sparkline={crashIssue.sparkline}
+                        sparkline={crashHistory.trend.flatMap((point) => point[platform] === null ? [] : [point[platform]])}
                         statusLabel={
-                          crashIssue.current === null
-                            ? "데이터 미연동"
-                            : undefined
+                          crashIssue.value === null
+                            ? "보고서 데이터 없음"
+                            : `${crashIssue.days}일 수집분`
                         }
                       />
                     );
@@ -1565,10 +1493,11 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                 <DashboardCardTitle
                   icon={<KoboyoIcon name="message-square" size={17} />}
                   tone="red"
-                  tooltip="수집된 작성 리뷰 중 1~2점 리뷰 비율"
+                  tooltip="선택 기간에 수집된 플랫폼별 작성 리뷰 중 1~2점 리뷰 수 ÷ 전체 작성 리뷰 수 × 100. 직전 동일 길이 기간과 비교합니다. 별점만 남긴 평가는 포함하지 않습니다."
                 >
                   부정 리뷰 비율
                 </DashboardCardTitle>
+                <DpText className="mi-dashboard-overall-note">{date(dateRange.startDate)} ~ {date(dateRange.endDate)} · 수집 리뷰 중 1~2점</DpText>
                 <DpLayout
                   direction="row"
                   className="mi-dashboard-platform-split"
@@ -1578,24 +1507,21 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                     value={percent(androidNegativeReviews.current)}
                     change={androidNegativeReviews.change}
                     changeSuffix="%p"
-                    sparkline={reviewRateTrend.flatMap((item) =>
-                      item.rate === null ? [] : [item.rate],
-                    )}
+                    sparkline={dashboardSummary.kpis.negativeReviews.android.sparkline}
                   />
                   <PlatformMetric
                     platform="ios"
                     value={percent(iosNegativeReviews.current)}
                     change={iosNegativeReviews.change}
                     changeSuffix="%p"
-                    sparkline={reviewRateTrend.flatMap((item) =>
-                      item.rate === null ? [] : [item.rate],
-                    )}
+                    sparkline={dashboardSummary.kpis.negativeReviews.ios.sparkline}
                   />
                 </DpLayout>
               </DpCard>
             </DpLayout>
           </>
         )}
+          {view === "dashboard" && <CrashHistory data={data} range={dateRange} />}
           {view === "reviews" && (
             <DpLayout as="section" className="mi-kpi-grid mi-review-kpis">
               <MetricCard
@@ -1809,7 +1735,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                   >
                     <DpLayout>
                       <DpText as="h3">설치 vs 삭제 추이</DpText>
-                      <DpText>일별 순설치 변화를 비교합니다.</DpText>
+                      <DpText>중앙 0선 기준 · 위: 설치 / 아래: 삭제</DpText>
                     </DpLayout>
                     <DpBadge>일별</DpBadge>
                   </DpLayout>
@@ -1820,7 +1746,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                       className="mi-install-bars"
                       aria-label="설치 및 삭제 일별 막대 차트"
                     >
-                      {installLifecycle.trend.slice(-20).map((item) => (
+                      {installLifecycle.trend.map((item) => (
                         <DpLayout
                           key={item.date}
                           className="mi-install-bar"
@@ -1829,14 +1755,14 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                           {item.installs !== null && (
                             <i
                               style={{
-                                height: `${Math.max(3, (item.installs / installChartMaximum) * 74)}px`,
+                                height: `${(item.installs / installChartMaximum) * 44}%`,
                               }}
                             />
                           )}
                           {item.uninstalls !== null && (
                             <b
                               style={{
-                                height: `${Math.max(3, (item.uninstalls / installChartMaximum) * 74)}px`,
+                                height: `${(item.uninstalls / installChartMaximum) * 44}%`,
                               }}
                             />
                           )}
@@ -1866,6 +1792,8 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                   )}
                 </DpCard>
               </DpLayout>
+              <DownloadOsShare android={periodSummary.androidDownloads} ios={periodSummary.iosDownloads} />
+              <DownloadModels data={data} range={dateRange} />
               <DpCard className="mi-panel mi-daily-table">
                 <DpLayout
                   direction="row"
@@ -1917,6 +1845,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
           )}
           {view === "reviews" && (
             <>
+              <ReviewRatingSummary reviews={periodReviews} periodLabel={periodLabel} />
               <DpLayout className="mi-rating-distributions">
                 {ratingDistribution.map(({ platform, rows, total }) => (
                   <DpCard key={platform} className="mi-rating-card">

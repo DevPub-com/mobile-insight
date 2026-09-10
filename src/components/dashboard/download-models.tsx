@@ -1,0 +1,86 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { DpCard } from "@/components/ui/dp/DpCard";
+import { DpText } from "@/components/ui/dp/DpText";
+import type { DashboardData } from "@/domain/types";
+import { reviewDeviceLabel } from "@/domain/reviews/review.service";
+import { buildModelDownloads, type ModelDownloadRow } from "@/services/mobile/tabs/download-breakdown.service";
+import type { MetricDateRange } from "@/services/mobile/common/metrics-calculator";
+
+const count = (value: number | null) => value === null ? "미수집" : value.toLocaleString("ko-KR");
+
+function Ranking({ title, rows }: { title: string; rows: ModelDownloadRow[] }) {
+  const maximum = Math.max(1, ...rows.map((row) => row.installs ?? 0));
+  return (
+    <DpCard className="mi-panel p-5">
+      <DpText as="h3" className="mb-5 font-semibold">{title}</DpText>
+      {rows.length ? <ol className="space-y-4">
+        {rows.map((row, index) => <li key={`${row.platform}:${row.model}`}>
+          <div className="mb-2 flex justify-between gap-3 text-sm">
+            <span className="min-w-0 break-words"><span className="mr-2 text-slate-400">{index + 1}</span>{row.model}</span>
+            <strong className="shrink-0 tabular-nums">{count(row.installs)}건</strong>
+          </div>
+          <div className="h-1.5 rounded-full bg-slate-100" aria-hidden="true"><div className="h-full rounded-full bg-blue-400" style={{ width: `${((row.installs ?? 0) / maximum) * 100}%` }} /></div>
+        </li>)}
+      </ol> : <DpText className="mi-empty">선택 기간의 기종별 설치 데이터가 없습니다.</DpText>}
+    </DpCard>
+  );
+}
+
+export function DownloadModels({ data, range }: { data: DashboardData; range: MetricDateRange }) {
+  const [query, setQuery] = useState("");
+  const [order, setOrder] = useState("desc");
+  const [expanded, setExpanded] = useState(false);
+  const rows = useMemo(() => buildModelDownloads(data.modelDownloadObservations ?? data.metricObservations ?? [], range, data.app.id), [data.modelDownloadObservations, data.metricObservations, data.app.id, range]);
+  const labels = new Map(data.reviews.flatMap((review) => {
+    const label = reviewDeviceLabel(review);
+    return review.device && label && label !== review.device ? [[review.device, label] as const] : [];
+  }));
+  const displayModel = (model: string) => model.toLowerCase() === "unknown" ? "모델 미확인" : labels.get(model) ? `${labels.get(model)} (${model})` : model;
+  const ranked = rows.filter((row) => row.installs !== null && row.model.toLowerCase() !== "unknown").map((row) => ({ ...row, model: displayModel(row.model) }));
+  const ascending = [...ranked].sort((a, b) => a.installs! - b.installs! || a.model.localeCompare(b.model));
+  const filtered = rows.filter((row) => displayModel(row.model).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+    .sort((a, b) => {
+      if (a.installs === null) return b.installs === null ? a.model.localeCompare(b.model) : 1;
+      if (b.installs === null) return -1;
+      return (order === "asc" ? a.installs - b.installs : b.installs - a.installs) || a.model.localeCompare(b.model);
+    });
+  return (
+    <section className="space-y-5" aria-label="모델별 다운로드 및 설치">
+      <div>
+        <h2 className="text-lg font-semibold">모델별 다운로드 · 설치</h2>
+        <p className="mt-1 text-sm text-slate-500">선택 기간 합계 · Google Play 기종별 보고서 · iOS 기종별 데이터 미수집</p>
+        <p className="mt-1 text-xs text-slate-500">설치 순위는 확인된 모델만 비교합니다. 수집 일수가 적은 모델은 하위에 표시될 수 있습니다. 모델명이 확인되지 않으면 기종 코드를 표시합니다.</p>
+      </div>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Ranking title="많이 설치한 모델 TOP 5" rows={ranked.slice(0, 5)} />
+        <Ranking title="적게 설치한 모델 TOP 5" rows={ascending.slice(0, 5)} />
+      </div>
+      <DpCard className="mi-panel p-5">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-semibold">모델별 상세 <span className="text-sm font-normal text-slate-400">{filtered.length}개</span></h3>
+          <div className="flex flex-wrap gap-2">
+            <input aria-label="모델 검색" placeholder="모델 검색" value={query} onChange={(event) => { setQuery(event.target.value); setExpanded(false); }} className="max-w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            <select aria-label="설치 수 정렬" value={order} onChange={(event) => setOrder(event.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+              <option value="desc">설치 많은 순</option><option value="asc">설치 적은 순</option>
+            </select>
+          </div>
+        </div>
+        {rows.length ? <div className="overflow-x-auto">
+          <table className="w-full min-w-[540px] text-left text-sm">
+            <thead><tr className="border-b border-slate-200 text-slate-500">{["모델", "OS", "다운로드", "설치", "수집 일수"].map((label) => <th key={label} scope="col" className="px-3 py-3 font-medium">{label}</th>)}</tr></thead>
+            <tbody>{(expanded ? filtered : filtered.slice(0, 20)).map((row) => <tr key={`${row.platform}:${row.model}`} className="border-b border-slate-100">
+              <th scope="row" className="max-w-64 break-words px-3 py-3 font-medium">{displayModel(row.model)}</th>
+              <td className="px-3 py-3">{row.platform === "android" ? "Android" : "iOS"}</td>
+              <td className="px-3 py-3 tabular-nums">{count(row.downloads)}</td><td className="px-3 py-3 tabular-nums">{count(row.installs)}</td><td className="px-3 py-3">{row.days}일</td>
+            </tr>)}</tbody>
+          </table>
+          {!filtered.length && <p className="py-8 text-center text-sm text-slate-500">검색 결과가 없습니다.</p>}
+        </div> : <p className="py-8 text-center text-sm text-slate-500">기종별 보고서가 아직 수집되지 않았습니다. 데이터 동기화 후 확인할 수 있습니다.</p>}
+        {filtered.length > 20 && <button type="button" onClick={() => setExpanded(!expanded)} className="mt-4 self-center rounded-lg border border-slate-200 px-4 py-2 text-sm">{expanded ? "접기" : `${filtered.length}개 모델 모두 보기`}</button>}
+        <p className="mt-4 text-xs text-slate-500">다운로드: 일별 사용자 설치 합계 · 설치: 일별 기기 설치 합계 · 0건은 수집된 값입니다.</p>
+      </DpCard>
+    </section>
+  );
+}

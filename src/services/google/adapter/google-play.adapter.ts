@@ -23,8 +23,10 @@ import {
   selectReportNames,
 } from "../google-reviews";
 import { parseGoogleInstallReport } from "../google-installs";
+import { parseGoogleDeviceInstalls } from "../google-device-installs";
 import { fetchGoogleReleaseData } from "../google-releases";
 import { fetchGoogleVitals } from "../google-vitals";
+import { fetchGoogleCrashCounts } from "../google-crashes";
 
 function decodeReport(buffer: Buffer): string {
   if (buffer[0] === 0xff && buffer[1] === 0xfe) {
@@ -109,7 +111,7 @@ export class GooglePlayAdapter implements StoreAdapter {
     const shouldSync = (type: StoreSyncType) =>
       !syncTypes || syncTypes.includes(type);
 
-    const [installResult, ratingResult, reviewResult, releaseResult, vitalsResult] =
+    const [installResult, ratingResult, reviewResult, releaseResult, vitalsResult, crashesResult, deviceResult] =
       await Promise.allSettled([
         shouldSync("downloads") || shouldSync("installs")
           ? downloadCsvRows(
@@ -142,7 +144,21 @@ export class GooglePlayAdapter implements StoreAdapter {
         shouldSync("stability")
           ? this.fetchVitals(app, credentials)
           : Promise.resolve([]),
+        shouldSync("stability")
+          ? fetchGoogleCrashCounts(
+              { id: app.id, packageName: app.androidPackageName! },
+              (options) => this.reportingAuth(credentials).request(options),
+            )
+          : Promise.resolve([]),
+        shouldSync("downloads") || shouldSync("installs")
+          ? this.fetchModelDownloads(app)
+          : Promise.resolve([]),
       ]);
+
+    if (deviceResult.status === "rejected") {
+      errors.push(`downloads: 기종별 보고서 수집 실패: ${deviceResult.reason}`);
+      errors.push(`installs: 기종별 보고서 수집 실패: ${deviceResult.reason}`);
+    }
 
     if (installResult.status === "rejected") {
       errors.push(`downloads: ${installResult.reason}`);
@@ -162,6 +178,9 @@ export class GooglePlayAdapter implements StoreAdapter {
     }
     if (vitalsResult.status === "rejected") {
       errors.push(`stability: ${vitalsResult.reason}`);
+    }
+    if (crashesResult.status === "rejected") {
+      errors.push(`stability: ${crashesResult.reason}`);
     }
 
     const normalized = this.normalizeReports(
@@ -186,7 +205,7 @@ export class GooglePlayAdapter implements StoreAdapter {
       reviews,
       releases,
       errors,
-      observations: [...normalized.observations, ...vitals],
+      observations: [...normalized.observations, ...vitals, ...(crashesResult.status === "fulfilled" ? crashesResult.value : []), ...(deviceResult.status === "fulfilled" ? deviceResult.value : [])],
       ratingSnapshots: normalized.ratingSnapshots,
       androidDistribution: releaseData.distribution,
     };
@@ -248,6 +267,18 @@ export class GooglePlayAdapter implements StoreAdapter {
       releases: [],
       errors: [],
     };
+    try {
+      const observations = await this.fetchModelDownloads(app, "all");
+      yield { metrics: [], reviews: [], releases: [], errors: [], observations };
+    } catch (error) {
+      yield { metrics: [], reviews: [], releases: [], observations: [], errors: [`downloads: 기종별 보고서 수집 실패: ${error}`] };
+    }
+  }
+
+  async fetchModelDownloads(app: AppInfo, selection: "all" | "newest" = "newest") {
+    const { storage, bucketName } = this.connectionFor(app);
+    const rows = await downloadCsvRows(storage, bucketName, `stats/installs/installs_${app.androidPackageName}_`, "_device.csv", selection);
+    return parseGoogleDeviceInstalls(app.id, rows, new Date().toISOString());
   }
 
   private normalizeReports(

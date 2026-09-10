@@ -7,6 +7,7 @@ import {
   latestNegativeReviews,
   reviewAuthorLabel,
   reviewDeviceLabel,
+  summarizeReviewRatings,
   reviewTimeLabel,
 } from "./review.service";
 
@@ -81,5 +82,16 @@ describe("calculateNegativeReviewRate", () => {
     expect(reviewTimeLabel("2026-08-30T11:00:00Z", now)).toBe("2026.08.30");
     expect(reviewTimeLabel("2026-08-29T11:00:00Z", now)).toBe("2026.08.29");
     expect(reviewTimeLabel("2026-08-28T11:00:00Z", now)).toBe("2026.08.28");
+  });
+});
+
+ describe("review summary display", () => {
+  it("extracts the consumer name inside parentheses", () => {
+    expect(reviewDeviceLabel({ device: "m1s (Galaxy S26)", deviceMetadata: null })).toBe("Galaxy S26");
+    expect(reviewDeviceLabel({ device: "m1s", deviceMetadata: { productName: "m1s (Galaxy S26)" } })).toBe("Galaxy S26");
+  });
+  it("weights the average by review count and keeps neutral ratings separate", () => {
+    expect(summarizeReviewRatings([1, 2, 3, 4, 5])).toEqual({ average: 3, total: 5, positive: 2, neutral: 1, negative: 2 });
+    expect(summarizeReviewRatings([])).toEqual({ average: null, total: 0, positive: 0, neutral: 0, negative: 0 });
   });
 });

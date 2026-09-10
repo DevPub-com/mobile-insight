@@ -151,9 +151,10 @@ describe("Mobile Insight dashboard shell layout", () => {
   });
 
   it("keeps the reference dashboard compact", () => {
-    expect(source).toContain("신규 크래시 이슈");
+    expect(source).toContain("크래시 발생 건수");
+    expect(source).toContain("<CrashHistory data={data} range={dateRange}");
     expect(source).toMatch(
-      /statusLabel=\{\s*crashIssue\.current === null\s*\? "데이터 미연동"\s*: undefined\s*\}/s,
+      /statusLabel=\{\s*crashIssue\.value === null\s*\? "보고서 데이터 없음"/s,
     );
     expect(source).not.toContain("월간 활성 사용자");
     expect(source).not.toContain("activeUserSparkline");
@@ -325,20 +326,22 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("평균 배포 주기");
     expect(source).toContain("릴리즈 타임라인");
     expect(source).toContain("item.releaseNotes");
-    expect(source).toContain("item.phasedReleaseState");
-    expect(source).toContain("item.status");
+    expect(source).not.toContain("item.phasedReleaseState");
+    expect(source).not.toContain('className="mi-release-complete"');
+    expect(source).not.toContain('className="mi-release-type-filter"');
+    expect(globalStyles).toMatch(/\.mi-release-notes\s*\{[^}]*white-space:\s*pre-line;/s);
     expect(source).toContain("releaseDateEstimated");
     expect(source).toContain("item.buildNumber");
-    expect(source).toContain("classifyVersionChange");
-    expect(source).toContain("Major");
-    expect(source).toContain("Minor");
-    expect(source).toContain("Patch");
+    expect(source).not.toContain("classifyVersionChange");
+    expect(source).not.toContain("Major");
+    expect(source).not.toContain("Minor");
+    expect(source).not.toContain("Patch");
     expect(source).not.toContain('patch > 0 ? "patch" : "major"');
     expect(source).toContain("추정");
     expect(source).toContain('item.releaseDateSource !== "first_observed_at"');
     expect(source).toContain("releaseSearch");
     expect(source).toContain("releasePlatform");
-    expect(source).toContain("releaseType");
+    expect(source).not.toContain("releaseType");
   });
 
   it("shows the latest platform release impacts without dashboard selectors", () => {

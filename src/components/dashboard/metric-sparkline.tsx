@@ -33,10 +33,12 @@ export function MetricSparkline({
   values,
   color,
   singlePoint = false,
+  smooth = true,
 }: {
   values: number[];
   color: string;
   singlePoint?: boolean;
+  smooth?: boolean;
 }) {
   const option = useMemo<EChartsCoreOption>(
     () => {
@@ -68,9 +70,11 @@ export function MetricSparkline({
           {
             type: "line",
             data: chartValues,
-            smooth: 0.4,
-            symbol: "none",
-            showSymbol: false,
+            smooth: smooth ? 0.4 : false,
+            symbol: singlePoint && values.length === 1 ? "circle" : "none",
+            showSymbol: singlePoint && values.length === 1,
+            symbolSize: 6,
+            itemStyle: { color: chartColor },
             lineStyle: { color: chartColor, width: 1 },
             areaStyle: {
               origin: "start",
@@ -90,7 +94,7 @@ export function MetricSparkline({
         ],
       };
     },
-    [color, values, singlePoint],
+    [color, values, singlePoint, smooth],
   );
 
   return (

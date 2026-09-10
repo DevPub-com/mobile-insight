@@ -140,22 +140,25 @@ export async function upsertMetricObservations<TQueryResult extends PgQueryResul
   values: Array<typeof metricObservations.$inferInsert>,
 ) {
   if (!values.length) return;
-  await db.insert(metricObservations).values(values).onConflictDoUpdate({
-    target: [
-      metricObservations.appId,
-      metricObservations.platform,
-      metricObservations.date,
-      metricObservations.metricKey,
-      metricObservations.source,
-    ],
-    set: {
-      value: sql`excluded.value`,
-      quality: sql`excluded.quality`,
-      observedAt: sql`excluded.observed_at`,
-      description: sql`excluded.description`,
-      updatedAt: new Date(),
-    },
-  });
+  // Device reports can contain tens of thousands of daily series.
+  for (let offset = 0; offset < values.length; offset += 500) {
+    await db.insert(metricObservations).values(values.slice(offset, offset + 500)).onConflictDoUpdate({
+      target: [
+        metricObservations.appId,
+        metricObservations.platform,
+        metricObservations.date,
+        metricObservations.metricKey,
+        metricObservations.source,
+      ],
+      set: {
+        value: sql`excluded.value`,
+        quality: sql`excluded.quality`,
+        observedAt: sql`excluded.observed_at`,
+        description: sql`excluded.description`,
+        updatedAt: new Date(),
+      },
+    });
+  }
 }
 
 export async function upsertRatingSnapshots<TQueryResult extends PgQueryResultHKT>(

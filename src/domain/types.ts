@@ -202,6 +202,7 @@ export type DashboardExecutiveAiBriefing = {
 };
 
 export type DashboardData = {
+  modelDownloadObservations?: Array<Pick<MetricObservation, "appId" | "platform" | "date" | "metricKey" | "value" | "quality">>;
   apps: AppInfo[];
   app: AppInfo;
   metrics: DailyMetric[];
