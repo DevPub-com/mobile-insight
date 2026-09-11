@@ -5,6 +5,26 @@ export const keywordGradeLabel: Record<ReviewSentiment, string> = {
   negative: "불만", neutral: "개선", positive: "만족",
 };
 
+export type KeywordFilter = "all" | ReviewSentiment;
+export type KeywordSelection = { label: string; grade: KeywordFilter };
+
+export function matchesKeyword(review: AppReview, selection: KeywordSelection | null) {
+  return !selection || reviewKeywords(review).some(({ label, grade }) =>
+    label === selection.label && (selection.grade === "all" || grade === selection.grade));
+}
+
+export function keywordChartRows(groups: ReturnType<typeof summarizeReviewKeywords>, filter: KeywordFilter) {
+  const rows = new Map<string, { label: string; total: number; positive: number; neutral: number; negative: number }>();
+  for (const group of groups) {
+    if (filter !== "all" && group.grade !== filter) continue;
+    const row = rows.get(group.label) ?? { label: group.label, total: 0, positive: 0, neutral: 0, negative: 0 };
+    row[group.grade] += group.count;
+    row.total += group.count;
+    rows.set(group.label, row);
+  }
+  return [...rows.values()].sort((a, b) => b.total - a.total || a.label.localeCompare(b.label, "ko"));
+}
+
 export function reviewKeywords(review: AppReview) {
   const topics = review.aiTopics?.length ? review.aiTopics : VOC_GROUPS
     .filter(({ terms }) => contentMatchesTerms(review.content, terms)).map(({ label }) => label);

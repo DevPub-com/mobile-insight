@@ -8,12 +8,12 @@ describe("databaseClientOptions", () => {
       databaseClientOptions(
         "postgresql://postgres.example:secret@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres",
       ),
-    ).toMatchObject({ max: 1, prepare: false });
+    ).toMatchObject({ max: 8, prepare: false });
   });
 
   it("keeps prepared statements for a direct PostgreSQL connection", () => {
     expect(
       databaseClientOptions("postgresql://mobile:secret@localhost:5432/mobile"),
-    ).toMatchObject({ max: 1, prepare: true });
+    ).toMatchObject({ max: 8, prepare: true });
   });
 });

@@ -17,7 +17,7 @@ export function databaseClientOptions(databaseUrl: string) {
     ".pooler.supabase.com",
   );
   return {
-    max: 1,
+    max: 8,
     prepare: !isSupabasePooler,
     idle_timeout: 20,
     connect_timeout: 10,

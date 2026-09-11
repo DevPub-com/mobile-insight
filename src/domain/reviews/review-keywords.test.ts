@@ -1,12 +1,29 @@
 import { describe, expect, it } from "vitest";
 import type { AppReview } from "@/domain/types";
-import { reviewKeywords, summarizeReviewKeywords } from "./review-keywords";
+import { reviewKeywords, summarizeReviewKeywords, keywordChartRows, matchesKeyword } from "./review-keywords";
 
 const review = (id: string, topics: string[], extra: Partial<AppReview> = {}) => ({
   id, aiTopics: topics, rating: 2, content: "로그인 오류", reviewedAt: "2026-09-01", ...extra,
 }) as AppReview;
 
 describe("review keywords", () => {
+  it("stacks identical keywords across sentiments and reranks the selected sentiment", () => {
+    const groups = summarizeReviewKeywords([
+      review("1", ["로그인", "로그인"], { rating: 5 }),
+      review("2", ["로그인"]), review("3", ["속도"]),
+      review("4", ["속도"]), review("5", ["로그인"], { rating: 3 }),
+    ]);
+    expect(keywordChartRows(groups, "all")[0]).toEqual({ label: "로그인", total: 3, positive: 1, neutral: 1, negative: 1 });
+    expect(keywordChartRows(groups, "negative").map(({ label, total }) => [label, total])).toEqual([["속도", 2], ["로그인", 1]]);
+    expect(keywordChartRows([], "all")).toEqual([]);
+  });
+  it("opens reviews matching the exact keyword and its topic sentiment, regardless of star rating", () => {
+    const item = review("1", ["로그인_오류", "사용성_만족"], { rating: 5 });
+    expect(matchesKeyword(item, { label: "로그인_오류", grade: "negative" })).toBe(true);
+    expect(matchesKeyword(item, { label: "로그인_오류", grade: "positive" })).toBe(false);
+    expect(matchesKeyword(item, { label: "로그인", grade: "all" })).toBe(false);
+    expect(matchesKeyword(item, null)).toBe(true);
+  });
   it("classifies individual topics before falling back to overall sentiment", () => {
     expect(reviewKeywords(review("1", ["로그인_오류", "기능_추가", "사용성_만족", "UI"], { aiSentiment: "positive" })).map((item) => item.grade))
       .toEqual(["negative", "neutral", "positive", "positive"]);

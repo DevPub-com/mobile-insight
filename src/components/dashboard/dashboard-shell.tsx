@@ -15,6 +15,7 @@ import {
   releaseImpactSparklineColor,
 } from "@/components/dashboard/metric-sparkline";
 import { PlatformIcon } from "@/components/dashboard/platform-icon";
+import { VocKeywordChart } from "@/components/dashboard/voc-keyword-chart";
 import { ReviewRatingSummary } from "@/components/dashboard/review-rating-summary";
 import { RatingChart } from "@/components/dashboard/rating-chart";
 import { ReleaseImpactWorkspace } from "@/components/dashboard/release-impact-workspace";
@@ -50,7 +51,7 @@ import {
   type ReviewRatingGroup,
 } from "@/services/mobile";
 
-import { keywordGradeLabel, reviewKeywords, summarizeReviewKeywords } from "@/domain/reviews/review-keywords";
+import { keywordGradeLabel, reviewKeywords, summarizeReviewKeywords, matchesKeyword, type KeywordSelection } from "@/domain/reviews/review-keywords";
 
 type View =
   "dashboard" | "downloads" | "reviews" | "releases" | "impact" | "apps";
@@ -295,6 +296,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
   const [reviewPlatform, setReviewPlatform] = useState<Platform | "all">("all");
   const [reviewRating, setReviewRating] = useState<ReviewRatingGroup>("all");
   const [reviewPage, setReviewPage] = useState(1);
+  const [reviewKeyword, setReviewKeyword] = useState<KeywordSelection | null>(null);
   const reviewLoadMoreRef = useRef<HTMLElement | null>(null);
   const [releasePlatform, setReleasePlatform] = useState<Platform | "all">(
     "all",
@@ -406,7 +408,8 @@ export function DashboardShell({ data }: { data: DashboardData }) {
       reviewedAt >= dateRange.startDate &&
       reviewedAt <= dateRange.endDate &&
       (reviewPlatform === "all" || item.platform === reviewPlatform) &&
-      reviewMatchesRatingGroup(item.rating, reviewRating)
+      reviewMatchesRatingGroup(item.rating, reviewRating) &&
+      matchesKeyword(item, reviewKeyword)
     );
   });
   const dashboardNegativeReviews = useMemo(
@@ -566,7 +569,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
   });
 
   const reviewPanel = (
-    <DpCard className="mi-panel mi-review-panel">
+    <DpCard id="voc-review-results" tabIndex={-1} className="mi-panel mi-review-panel">
       <DpLayout
         direction="row"
         justify="between"
@@ -586,6 +589,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
             onClick={() => {
               setReviewPlatform("all");
               setReviewRating("negative");
+              setReviewKeyword(null);
               setReviewPage(1);
               setView("reviews");
             }}
@@ -636,6 +640,10 @@ export function DashboardShell({ data }: { data: DashboardData }) {
           )}
         </DpLayout>
       )}
+      {view === "reviews" && reviewKeyword && <div className="mi-voc-active-filter" aria-live="polite">
+        <span>{reviewKeyword.label} · {reviewKeyword.grade === "all" ? "전체 감정" : keywordGradeLabel[reviewKeyword.grade]} · {filteredReviews.length}개 리뷰</span>
+        <button type="button" onClick={() => { setReviewKeyword(null); setReviewPage(1); }}>키워드 필터 해제</button>
+      </div>}
       <DpLayout className="mi-review-list">
         {visibleReviews.length ? (
           visibleReviews.map((item) => (
@@ -958,6 +966,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
           onClick={() => {
             setReviewPlatform("all");
             setReviewRating("negative");
+              setReviewKeyword(null);
             setReviewPage(1);
             setView("reviews");
           }}
@@ -1783,14 +1792,17 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                     </DpLayout>
                     <DpBadge>선택 기간</DpBadge>
                   </DpLayout>
-                  <DpLayout direction="row" className="mi-voc-chips">
-                    {!vocKeywords.length && <DpText className="mi-summary-caption">이 기간에 집계된 키워드가 없습니다.</DpText>}
-                    {vocKeywords.map(({ label, grade, count }) => (
-                      <DpBadge key={`${grade}:${label}`} className={`mi-ai-topic-chip is-${grade}`} title={keywordGradeLabel[grade]}>
-                        {label} <small>{count}</small>
-                      </DpBadge>
-                    ))}
-                  </DpLayout>
+                  <VocKeywordChart groups={vocKeywords} onSelect={(selection) => {
+                    setReviewKeyword(selection);
+                    setReviewPlatform("all");
+                    setReviewRating("all");
+                    setReviewPage(1);
+                    requestAnimationFrame(() => {
+                      const results = document.getElementById("voc-review-results");
+                      results?.focus({ preventScroll: true });
+                      results?.scrollIntoView({ block: "start", behavior: "smooth" });
+                    });
+                  }} />
                   <DpLayout
                     direction="row"
                     align="center"
