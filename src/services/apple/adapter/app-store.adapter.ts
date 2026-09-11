@@ -11,7 +11,7 @@ import type {
   AppleVersionResponse,
   AppleVersions,
 } from "@/domain/models/apple.model";
-import { fetchAppleAppReviews, toAppleRatingReport } from "../apple-reviews";
+import { fetchAppleReviewsWithVersions, toAppleRatingReport } from "../apple-reviews";
 import {
   StoreConfigurationError,
   type StoreAdapter,
@@ -85,7 +85,7 @@ export class AppStoreAdapter implements StoreAdapter {
         ? fetchAppleDownloadAnalytics(app.id, app.iosAppId!, appleApi)
         : null;
     const versionsPromise =
-      shouldSync("releases") ? this.fetchVersions(app, token) : null;
+      shouldSync("releases") || shouldSync("reviews") ? this.fetchVersions(app, token) : null;
     const [
       downloadsResult,
       installsResult,
@@ -100,9 +100,9 @@ export class AppStoreAdapter implements StoreAdapter {
         : Promise.resolve({ metrics: [], observations: [] }),
       shouldSync("ratings") ? this.fetchRating(app) : Promise.resolve(null),
       shouldSync("reviews")
-        ? this.fetchReviews(app, token)
+        ? versionsPromise!.then((versions) => this.fetchReviews(app, token, versions))
         : Promise.resolve([]),
-      versionsPromise
+      shouldSync("releases") && versionsPromise
         ? versionsPromise.then((versions) =>
             normalizeAppleReleases(app.id, versions.data, versions.included),
           )
@@ -179,7 +179,7 @@ export class AppStoreAdapter implements StoreAdapter {
     try {
       const versions = await this.fetchVersions(app, token);
       const [reviews, releases] = await Promise.all([
-        this.fetchReviews(app, token),
+        this.fetchReviews(app, token, versions),
         Promise.resolve(
           normalizeAppleReleases(app.id, versions.data, versions.included),
         ),
@@ -261,10 +261,12 @@ export class AppStoreAdapter implements StoreAdapter {
   private async fetchReviews(
     app: AppInfo,
     token: string,
+    versions: AppleVersions,
   ): Promise<AppReview[]> {
-    return fetchAppleAppReviews(
+    return fetchAppleReviewsWithVersions(
       app.id,
       app.iosAppId!,
+      versions.data,
       (path) => appleJson<AppleReviewResponse>(path, token),
     );
   }

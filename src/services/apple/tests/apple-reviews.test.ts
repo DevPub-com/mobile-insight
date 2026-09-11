@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fetchAppleAppReviews, toAppleAppReviews, toAppleVersionReviews } from "../apple-reviews";
+import { fetchAppleAppReviews, fetchAppleReviewsWithVersions, toAppleAppReviews, toAppleVersionReviews } from "../apple-reviews";
 
 describe("Apple version review normalization", () => {
   it("attaches the enclosing App Store version to every review", () => {
@@ -65,5 +65,51 @@ describe("Apple app review normalization", () => {
       quality: "exact",
       observedAt: "2026-08-31T00:00:00.000Z",
     });
+  });
+});
+
+
+describe("Apple review version mapping", () => {
+  const observedAt = "2026-09-11T00:00:00.000Z";
+  const review = (id: string, body = "현재 리뷰") => ({ id, attributes: {
+    rating: 4, body, territory: "KOR", createdDate: "2026-09-10T00:00:00Z",
+  } });
+  const versions = [
+    { id: "v1", attributes: { platform: "IOS", versionString: "1.0.0" } },
+    { id: "v2", attributes: { platform: "IOS", versionString: "2.0.0" } },
+    { id: "mac", attributes: { platform: "MAC_OS", versionString: "9.0.0" } },
+  ];
+
+  it("maps explicit version relationships across pages and preserves review metadata", async () => {
+    const paths: string[] = [];
+    const result = await fetchAppleReviewsWithVersions("app-1", "123", versions, async (path) => {
+      paths.push(path);
+      if (path.includes("/apps/")) return { data: [review("r1"), review("r2"), review("unmapped")] };
+      if (path.includes("/v1/customerReviews")) return { data: [review("r1", "이전 리뷰")], links: { next: "/reviews/page2" } };
+      if (path === "/reviews/page2") return { data: [review("historical")] };
+      if (path.includes("/v2/customerReviews")) return { data: [review("r2")] };
+      throw new Error(`Unexpected path ${path}`);
+    }, observedAt);
+    expect(result.map(({ externalId, version }) => [externalId, version])).toEqual([
+      ["r1", "1.0.0"], ["r2", "2.0.0"], ["unmapped", null], ["historical", "1.0.0"],
+    ]);
+    expect(result[0]).toMatchObject({ content: "현재 리뷰", territory: "KOR", source: "app_store_reviews", quality: "exact", observedAt });
+    expect(result[3]).toMatchObject({ territory: "KOR", source: "app_store_reviews", observedAt });
+    expect(paths).toContain("/reviews/page2");
+    expect(paths.some((path) => path.includes("/mac/"))).toBe(false);
+  });
+
+  it("leaves ambiguous version relationships unassigned", async () => {
+    const result = await fetchAppleReviewsWithVersions("app-1", "123", versions,
+      async () => ({ data: [review("same")] }), observedAt);
+    expect(result).toHaveLength(1);
+    expect(result[0].version).toBeNull();
+  });
+
+  it("reports version lookup failures instead of claiming successful mapping", async () => {
+    await expect(fetchAppleReviewsWithVersions("app-1", "123", versions, async (path) => {
+      if (path.includes("/apps/")) return { data: [review("r1")] };
+      throw new Error("Apple API unavailable");
+    }, observedAt)).rejects.toThrow("Apple API unavailable");
   });
 });

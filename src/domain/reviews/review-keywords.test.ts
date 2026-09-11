@@ -48,3 +48,24 @@ describe("review keywords", () => {
     expect(groups.map(({ grade }) => grade)).toEqual(["positive", "neutral", "negative"]);
   });
 });
+
+
+describe("keyword synonym grouping", () => {
+  it("groups launch errors across reviews and counts each review once", () => {
+    const items = [review("1", ["앱실행_오류", "앱 실행 불가", "어플 구동 실패"]),
+      review("2", ["앱 실행시 튕김"]), review("3", ["로그인 실패"])];
+    const groups = summarizeReviewKeywords(items);
+    expect(groups.find((group) => group.label === "앱실행_오류")?.count).toBe(2);
+    expect(groups.find((group) => group.label === "로그인_오류")?.count).toBe(1);
+    expect(matchesKeyword(items[1], { label: "앱실행_오류", grade: "negative" })).toBe(true);
+    expect(matchesKeyword(items[0], { label: "앱 실행 불가", grade: "all" })).toBe(true);
+  });
+  it("preserves distinct features and positive or improvement topics", () => {
+    const labels = reviewKeywords(review("1", ["앱 실행 만족", "앱 실행 개선", "주문 오류", "지문인증 오류"])).map((item) => item.label);
+    expect(labels).toEqual(["앱_실행_만족", "앱_실행_개선", "주문_오류", "지문인증_오류"]);
+  });
+  it("combines latency and notification synonyms", () => {
+    expect(reviewKeywords(review("1", ["로딩 지연", "응답 느림", "푸시 미수신", "알림 안옴"])))
+      .toEqual([{ label: "속도_지연", grade: "negative" }, { label: "알림_미수신", grade: "negative" }]);
+  });
+});

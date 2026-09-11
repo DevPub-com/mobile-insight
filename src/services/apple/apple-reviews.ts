@@ -2,6 +2,7 @@ import type {
   AppleCustomerReview,
   AppleRatingLookup,
   AppleReviewResponse,
+  AppleVersionResource,
 } from "@/domain/models/apple.model";
 import type { AppReview, DailyMetric, RatingSnapshot } from "@/domain/types";
 
@@ -67,18 +68,11 @@ export function toAppleVersionReviews(
   appId: string,
   version: string,
   reviews: AppleCustomerReview[],
+  observedAt = new Date().toISOString(),
 ): AppReview[] {
-  return reviews.map((review) => ({
-    id: review.id,
-    appId,
-    platform: "ios",
-    externalId: review.id,
-    rating: review.attributes.rating,
-    title: review.attributes.title ?? null,
-    content: review.attributes.body,
-    author: review.attributes.reviewerNickname ?? null,
+  return toAppleAppReviews(appId, reviews, observedAt).map((review) => ({
+    ...review,
     version,
-    reviewedAt: new Date(review.attributes.createdDate).toISOString(),
   }));
 }
 
@@ -122,4 +116,40 @@ export async function fetchAppleAppReviews(
     next = response.links?.next;
   }
   return [...reviewsById.values()];
+}
+
+
+/** Join review IDs to Apple's explicit version relationship, never review dates. */
+export async function fetchAppleReviewsWithVersions(
+  appId: string,
+  appleAppId: string,
+  versions: AppleVersionResource[],
+  request: (path: string) => Promise<AppleReviewResponse>,
+  observedAt = new Date().toISOString(),
+): Promise<AppReview[]> {
+  const allReviews = await fetchAppleAppReviews(appId, appleAppId, request, observedAt);
+  const reviewsById = new Map(allReviews.map((review) => [review.externalId, review]));
+  const versionByReviewId = new Map<string, string | null>();
+  const iosVersions = new Map(versions
+    .filter((version) => version.attributes.platform === "IOS" && version.attributes.versionString.trim())
+    .map((version) => [version.id, version]));
+
+  for (const version of iosVersions.values()) {
+    let next: string | undefined = `/v1/appStoreVersions/${encodeURIComponent(version.id)}/customerReviews?limit=200&sort=-createdDate`;
+    while (next) {
+      const response = await request(next);
+      for (const review of toAppleVersionReviews(appId, version.attributes.versionString.trim(), response.data, observedAt)) {
+        // Keep the app-wide review's current content when both endpoints return it.
+        if (!reviewsById.has(review.externalId)) reviewsById.set(review.externalId, review);
+        const previous = versionByReviewId.get(review.externalId);
+        versionByReviewId.set(review.externalId,
+          previous === undefined || previous === review.version ? review.version : null);
+      }
+      next = response.links?.next;
+    }
+  }
+  return [...reviewsById.values()].map((review) => ({
+    ...review,
+    version: versionByReviewId.get(review.externalId) ?? null,
+  }));
 }

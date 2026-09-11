@@ -1728,52 +1728,54 @@ export function DashboardShell({ data }: { data: DashboardData }) {
             <>
               <ReviewRatingSummary reviews={periodReviews} periodLabel={reviewPeriodLabel} />
               <DpLayout className="mi-rating-distributions">
-                {ratingDistribution.map(({ platform, rows, total }) => (
-                  <DpCard key={platform} className="mi-rating-card">
-                    <DpLayout
-                      direction="row"
-                      align="center"
-                      justify="between"
-                      className="mi-panel-head"
-                    >
-                      <DpLayout>
-                        <DpText as="h3">
-                          수집 리뷰 별점 분포 (
-                          {platform === "android" ? "Android" : "iOS"})
-                        </DpText>
-                        <DpText>
-                          {reviewPeriodLabel} · 리뷰 {number(total)}건
-                        </DpText>
-                      </DpLayout>
+                <DpLayout className="mi-rating-distribution-stack">
+                  {ratingDistribution.map(({ platform, rows, total }) => (
+                    <DpCard key={platform} className="mi-rating-card">
                       <DpLayout
+                        direction="row"
                         align="center"
-                        justify="center"
-                        className={`mi-platform mi-platform--${platform}`}
+                        justify="between"
+                        className="mi-panel-head"
                       >
-                        <PlatformIcon platform={platform} />
-                      </DpLayout>
-                    </DpLayout>
-                    <DpLayout className="mi-rating-bars">
-                      {rows.map((row) => (
-                        <DpLayout
-                          direction="row"
-                          align="center"
-                          key={row.score}
-                        >
-                          <DpText as="span">{row.score}점</DpText>
-                          <DpLayout as="i">
-                            <DpLayout
-                              as="b"
-                              className={`mi-rating-fill mi-rating-fill--${platform}`}
-                              style={{ width: `${row.percent}%` }}
-                            />
-                          </DpLayout>
-                          <DpText as="strong">{row.percent.toFixed(1)}%</DpText>
+                        <DpLayout>
+                          <DpText as="h3">
+                            수집 리뷰 별점 분포 (
+                            {platform === "android" ? "Android" : "iOS"})
+                          </DpText>
+                          <DpText>
+                            {reviewPeriodLabel} · 리뷰 {number(total)}건
+                          </DpText>
                         </DpLayout>
-                      ))}
-                    </DpLayout>
-                  </DpCard>
-                ))}
+                        <DpLayout
+                          align="center"
+                          justify="center"
+                          className={`mi-platform mi-platform--${platform}`}
+                        >
+                          <PlatformIcon platform={platform} />
+                        </DpLayout>
+                      </DpLayout>
+                      <DpLayout className="mi-rating-bars">
+                        {rows.map((row) => (
+                          <DpLayout
+                            direction="row"
+                            align="center"
+                            key={row.score}
+                          >
+                            <DpText as="span">{row.score}점</DpText>
+                            <DpLayout as="i">
+                              <DpLayout
+                                as="b"
+                                className={`mi-rating-fill mi-rating-fill--${platform}`}
+                                style={{ width: `${row.percent}%` }}
+                              />
+                            </DpLayout>
+                            <DpText as="strong">{row.percent.toFixed(1)}%</DpText>
+                          </DpLayout>
+                        ))}
+                      </DpLayout>
+                    </DpCard>
+                  ))}
+                </DpLayout>
                 <DpCard className="mi-voc-summary">
                   <DpLayout
                     direction="row"

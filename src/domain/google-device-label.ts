@@ -11,3 +11,11 @@ export function googleDeviceLabel(device: string): string {
   if (name === null) return `${code} (여러 모델이 공유하는 기종 코드)`;
   return name === code ? name : `${name} (${code})`;
 }
+
+
+export function googleDeviceMarketingName(device: string): string | null {
+  const code = device.trim();
+  return Object.hasOwn(catalog, code)
+    ? (catalog as Record<string, string | null>)[code] ?? null
+    : null;
+}

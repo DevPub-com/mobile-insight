@@ -1,3 +1,4 @@
+import { normalizeReviewKeyword, normalizeReviewKeywords } from "./keyword-normalization";
 import type { AppReview, ReviewSentiment } from "@/domain/types";
 import { VOC_GROUPS, contentMatchesTerms } from "@/services/mobile/common/voc-keywords";
 
@@ -10,7 +11,7 @@ export type KeywordSelection = { label: string; grade: KeywordFilter };
 
 export function matchesKeyword(review: AppReview, selection: KeywordSelection | null) {
   return !selection || reviewKeywords(review).some(({ label, grade }) =>
-    label === selection.label && (selection.grade === "all" || grade === selection.grade));
+    label === normalizeReviewKeyword(selection.label) && (selection.grade === "all" || grade === selection.grade));
 }
 
 export function keywordChartRows(groups: ReturnType<typeof summarizeReviewKeywords>, filter: KeywordFilter) {
@@ -28,9 +29,9 @@ export function keywordChartRows(groups: ReturnType<typeof summarizeReviewKeywor
 export function reviewKeywords(review: AppReview) {
   const topics = review.aiTopics?.length ? review.aiTopics : VOC_GROUPS
     .filter(({ terms }) => contentMatchesTerms(review.content, terms)).map(({ label }) => label);
-  return [...new Set(topics.map((topic) => topic.trim()).filter(Boolean))].map((label) => {
+  return normalizeReviewKeywords(topics).map((label) => {
     // Explicit topic language takes precedence over the review's overall sentiment.
-    const grade: ReviewSentiment = /오류|불만|불가|실패|깨짐|튕김|부재|불편|버그/.test(label)
+    const grade: ReviewSentiment = /오류|불만|불가|실패|깨짐|튕김|부재|불편|버그|지연|미수신/.test(label)
       ? "negative" : /요청|개선|추가|제안/.test(label) ? "neutral"
       : /만족|호평|편리|칭찬|추천/.test(label) ? "positive"
       : review.aiSentiment ?? (review.rating <= 2 ? "negative" : review.rating >= 4 ? "positive" : "neutral");

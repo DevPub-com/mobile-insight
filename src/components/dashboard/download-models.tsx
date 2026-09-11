@@ -5,18 +5,18 @@ import { DpCard } from "@/components/ui/dp/DpCard";
 import { DpText } from "@/components/ui/dp/DpText";
 import type { DashboardData } from "@/domain/types";
 import { googleDeviceLabel } from "@/domain/google-device-label";
-import { buildModelDownloads, type ModelDownloadRow } from "@/services/mobile/tabs/download-breakdown.service";
+import { buildModelDownloads, buildModelInstallRanking, type ModelDownloadRow } from "@/services/mobile/tabs/download-breakdown.service";
 import type { MetricDateRange } from "@/services/mobile/common/metrics-calculator";
 
 const count = (value: number | null) => value === null ? "미수집" : value === 0 ? "—" : value.toLocaleString("ko-KR");
 
-function Ranking({ title, rows }: { title: string; rows: ModelDownloadRow[] }) {
+function Ranking({ title, rows }: { title: string; rows: Pick<ModelDownloadRow, "model" | "installs">[] }) {
   const maximum = Math.max(1, ...rows.map((row) => row.installs ?? 0));
   return (
     <DpCard className="mi-panel p-5">
       <DpText as="h3" className="mb-5 font-semibold">{title}</DpText>
       {rows.length ? <ol className="space-y-4">
-        {rows.map((row, index) => <li key={`${row.platform}:${row.model}`}>
+        {rows.map((row, index) => <li key={row.model}>
           <div className="mb-2 flex justify-between gap-3 text-sm">
             <span className="min-w-0 break-words"><span className="mr-2 text-slate-400">{index + 1}</span>{row.model}</span>
             <strong className="shrink-0 tabular-nums">{count(row.installs)}건</strong>
@@ -35,7 +35,7 @@ export function DownloadModels({ data, range }: { data: DashboardData; range: Me
   const rows = useMemo(() => buildModelDownloads(data.modelDownloadObservations ?? data.metricObservations ?? [], range, data.app.id), [data.modelDownloadObservations, data.metricObservations, data.app.id, range]);
   const displayModel = googleDeviceLabel;
   const visibleRows = rows.filter((row) => (row.installs ?? 0) > 0 || (row.downloads ?? 0) > 0);
-  const ranked = visibleRows.filter((row) => (row.installs ?? 0) > 0 && row.model.toLowerCase() !== "unknown").map((row) => ({ ...row, model: displayModel(row.model) }));
+  const ranked = buildModelInstallRanking(visibleRows);
   const ascending = [...ranked].sort((a, b) => a.installs! - b.installs! || a.model.localeCompare(b.model));
   const filtered = visibleRows.filter((row) => displayModel(row.model).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
     .sort((a, b) => {
@@ -47,8 +47,8 @@ export function DownloadModels({ data, range }: { data: DashboardData; range: Me
     <section className="space-y-5" aria-label="모델별 다운로드 및 설치">
       <div>
         <h2 className="text-lg font-semibold">모델별 다운로드 · 설치</h2>
-        <p className="mt-1 text-sm text-slate-500">선택 기간 합계 · Google Play 기종별 보고서 · iOS 기종별 데이터 미수집</p>
-        <p className="mt-1 text-xs text-slate-500">설치가 1건 이상인 기종만 순위에 표시합니다. 모델명은 Google 공식 기기 목록 기준이며, 여러 모델이 공유하거나 확인되지 않은 코드는 별도로 안내합니다.</p>
+        <p className="mt-1 text-sm text-slate-500">{range.startDate} ~ {range.endDate} 합계 · Google Play 기종별 보고서 · iOS 기종별 데이터 미수집</p>
+        <p className="mt-1 text-xs text-slate-500">순위는 이용자 수가 아닌 기간 내 기기 설치 건수입니다. 공식 목록에서 같은 제품으로 확인된 기기 코드는 합산합니다. 설치가 1건 이상인 기종만 순위에 표시합니다. 모델명은 Google 공식 기기 목록 기준이며, 여러 모델이 공유하거나 확인되지 않은 코드는 별도로 안내합니다.</p>
       </div>
       <div className="grid gap-5 lg:grid-cols-2">
         <Ranking title="많이 설치한 모델 TOP 5" rows={ranked.slice(0, 5)} />

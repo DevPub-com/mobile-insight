@@ -63,3 +63,9 @@ describe("review sync mapping", () => {
     );
   });
 });
+
+
+it("persists the Apple version supplied by its version review endpoint", () => {
+  expect(toReviewInsertValue({ ...review, platform: "ios", version: "3.2.1" }))
+    .toMatchObject({ platform: "ios", externalId: review.externalId, version: "3.2.1" });
+});

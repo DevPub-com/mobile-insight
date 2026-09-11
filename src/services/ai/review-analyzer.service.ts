@@ -1,3 +1,4 @@
+import { normalizeReviewKeywords } from "@/domain/reviews/keyword-normalization";
 import type { AppReview, ReviewSentiment } from "@/domain/types";
 import { generateStructuredContent } from "./gemini-client";
 import { VOC_GROUPS, contentMatchesTerms } from "../mobile/common/voc-keywords";
@@ -87,6 +88,7 @@ export async function analyzeReviewsBatch(
 출력 규칙:
 1. sentiment는 "positive", "neutral", "negative" 중 하나여야 한다. (평점 1~2점은 주로 negative, 4~5점은 주로 positive, 3점은 중립/개선요청)
 2. topics는 한국어 1~3개의 핵심 단어/태그(예: "지문인증_오류", "로딩_지연", "다크모드_개선") 형태로 작성하라.
+동의어는 하나의 대표 태그로 통합하라: 앱 실행 실패/불가/구동 오류/실행 시 튕김은 "앱실행_오류", 로그인 실패/불가는 "로그인_오류", 로딩 지연/응답 느림은 "속도_지연", 푸시 미수신은 "알림_미수신". 서로 다른 기능의 문제는 구분하고, 같은 대표 태그를 중복 출력하지 마라.
 3. summary는 핵심 원인이나 요청 사항을 1문장(50자 내외)으로 명확히 요약하라.
 4. 반드시 JSON 포맷으로 { "results": [ { "externalId": "...", "sentiment": "...", "topics": ["..."], "summary": "..." } ] } 형태를 엄수하라.`;
 
@@ -105,7 +107,7 @@ export async function analyzeReviewsBatch(
         resultMap.set(item.externalId, {
           externalId: item.externalId,
           sentiment: item.sentiment,
-          topics: item.topics.map((topic) => topic.replace(/^#/, "").trim()),
+          topics: normalizeReviewKeywords(item.topics),
           summary: item.summary || "",
         });
       }

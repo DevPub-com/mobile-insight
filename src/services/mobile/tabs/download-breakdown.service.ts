@@ -1,3 +1,4 @@
+import { googleDeviceLabel, googleDeviceMarketingName } from "@/domain/google-device-label";
 import { parseModelMetricKey } from "@/domain/model-downloads";
 import type { MetricObservation, Platform } from "@/domain/types";
 import type { MetricDateRange } from "../common/metrics-calculator";
@@ -37,4 +38,24 @@ export function buildOsDownloadShare(android: number | null, ios: number | null)
       ? (row.downloads / total) * 100
       : null,
   }));
+}
+
+
+// Rank marketed products, not region/carrier-specific device codes.
+// Unresolved and ambiguous codes retain their own identity.
+export function buildModelInstallRanking(rows: ModelDownloadRow[]) {
+  const groups = new Map<string, { name: string | null; codes: Set<string>; installs: number }>();
+  for (const row of rows) {
+    if (row.installs === null || row.installs <= 0 || row.model.trim().toLowerCase() === "unknown") continue;
+    const name = row.platform === "android" ? googleDeviceMarketingName(row.model) : null;
+    const key = JSON.stringify([row.platform, name ? "name" : "code", name ?? row.model]);
+    const group = groups.get(key) ?? { name, codes: new Set<string>(), installs: 0 };
+    group.codes.add(row.model);
+    group.installs += row.installs;
+    groups.set(key, group);
+  }
+  return [...groups.values()].map(({ name, codes, installs }) => ({
+    model: codes.size === 1 ? googleDeviceLabel([...codes][0]) : `${name} (${[...codes].sort().join(", ")})`,
+    installs,
+  })).sort((a, b) => b.installs - a.installs || a.model.localeCompare(b.model));
 }
