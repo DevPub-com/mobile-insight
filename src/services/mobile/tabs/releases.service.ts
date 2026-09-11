@@ -1,6 +1,29 @@
 import type { DashboardData } from "@/domain/types";
 import { shiftDate } from "../common/metrics-calculator";
 
+export function buildReleaseCadence(
+  releases: DashboardData["releases"],
+  referenceDate: string,
+) {
+  const reference = Date.parse(`${referenceDate.slice(0, 10)}T00:00:00.000Z`);
+  const platforms = (["android", "ios"] as const).map((platform) => {
+    const dates = releases
+      .filter((item) => item.platform === platform && item.releaseDateSource !== "first_observed_at")
+      .map((item) => Date.parse(`${item.releasedAt.slice(0, 10)}T00:00:00.000Z`))
+      .filter((value) => Number.isFinite(value) && value <= reference)
+      .sort((a, b) => a - b);
+    const recentCount = dates.filter((value) => (reference - value) / 86_400_000 < 30).length;
+    const averageCycleDays = dates.length > 1
+      ? (dates[dates.length - 1] - dates[0]) / 86_400_000 / (dates.length - 1)
+      : null;
+    return { platform, recentCount, averageCycleDays };
+  });
+  return {
+    platforms,
+    recentCount: platforms.reduce((sum, item) => sum + item.recentCount, 0),
+  };
+}
+
 export function selectLatestMatureRelease(
   data: DashboardData,
   afterDays = 7,

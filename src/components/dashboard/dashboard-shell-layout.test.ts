@@ -83,12 +83,12 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("periodSummary.downloadChangePercent");
     expect(source).toContain("periodSummary.androidRatingChange");
     expect(source).toContain("periodSummary.iosRatingChange");
-    expect(source).toContain("periodSummary.negativeReviewRateChangePoints");
+    expect(source).toContain("androidNegativeReviews.change");
     expect(source).not.toContain("<Change value={12.3}");
     expect(source).not.toContain("<Change value={1.9}");
     expect(source).not.toContain("<Change value={2.3}");
     expect(source).not.toContain("개선 중");
-    expect(source).toContain("percent(periodSummary.negativeReviewRate)");
+    expect(source).toContain("percent(androidNegativeReviews.current)");
     expect(source).not.toContain("periodSummary.negativeReviewRate ?? 0");
     expect(source).toContain("item.rate === null ? [] : [item.rate]");
   });
@@ -137,7 +137,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     const dashboardCharts = source.slice(
       source.indexOf(
         '{view === "dashboard" && (',
-        source.indexOf("mi-kpi-grid"),
+        source.indexOf("mi-review-summary-grid"),
       ),
       source.indexOf('{view === "downloads" && ('),
     );
@@ -208,44 +208,18 @@ describe("Mobile Insight dashboard shell layout", () => {
   it("matches the review reference information architecture", () => {
     expect(source).toContain("VOC 키워드 요약");
     expect(source).toContain('className="mi-voc-summary"');
-    expect(source).toContain("전체 부정 리뷰 수");
+    expect(source).toContain("설정 기간 리뷰 수");
   });
 
-  it("places the sentiment chip beside the version and keeps only topics below", () => {
-    const versionIndex = source.indexOf('className="mi-review-version"');
-    const sentimentIndex = source.indexOf('className={`mi-ai-sentiment-badge');
-    const timeIndex = source.indexOf('as="time"', sentimentIndex);
-
-    expect(versionIndex).toBeGreaterThan(-1);
-    expect(sentimentIndex).toBeGreaterThan(versionIndex);
-    expect(timeIndex).toBeGreaterThan(sentimentIndex);
-    expect(source).toContain('item.aiSentiment === "positive" && "긍정"');
-    expect(source).toContain('item.aiSentiment === "neutral" && "개선"');
-    expect(source).toContain('item.aiSentiment === "negative" && "불만"');
-    expect(source).not.toContain("긍정 피드백");
-    expect(source).not.toContain("개선 제안");
-    expect(source).not.toContain("불만 이슈");
-    expect(source).toContain('className="mi-review-classification"');
-    expect(source).toContain('className="mi-review-device"');
-    expect(source).toContain("reviewDeviceLabel(review)");
+  it("shows sentiment on keywords and includes period review highlights", () => {
+    expect(source).not.toContain('className={`mi-ai-sentiment-badge');
+    expect(source).toContain("reviewKeywords(item)");
+    expect(source).toContain("summarizeReviewKeywords(periodReviews)");
+    expect(source).toContain("전체 평점");
+    expect(source).toContain("설정 기간 평점");
+    expect(source).toContain("주목할 만한 리뷰");
+    expect(source).toContain("item.count >= 2");
     expect(source).toContain("<ReviewDevice review={item} />");
-    expect(source).toContain("[...new Set(item.aiTopics)]");
-    expect(source).toContain("{item.aiTopics && item.aiTopics.length > 0 && (");
-    expect(globalStyles).toMatch(
-      /\.mi-review-meta \.mi-ai-sentiment-badge\s*\{[^}]*flex:\s*0 0 auto;/s,
-    );
-    expect(globalStyles).toMatch(
-      /@media \(max-width:\s*760px\)\s*\{[\s\S]*?\.mi-review-meta\s*\{[^}]*flex-wrap:\s*wrap;[\s\S]*?\.mi-review-meta time\s*\{[^}]*flex-basis:\s*100%;/s,
-    );
-    expect(globalStyles).toMatch(
-      /\.mi-ai-sentiment-badge\.is-positive\s*\{[^}]*color:\s*#166534;/s,
-    );
-    expect(globalStyles).toMatch(
-      /\.mi-ai-sentiment-badge\.is-neutral\s*\{[^}]*color:\s*#92400e;/s,
-    );
-    expect(globalStyles).toMatch(
-      /\.mi-ai-sentiment-badge\.is-negative\s*\{[^}]*color:\s*#991b1b;/s,
-    );
   });
 
   it("shows up to ten negative reviews on the dashboard and links to the review tab", () => {
@@ -335,7 +309,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("Patch");
     expect(source).not.toContain('patch > 0 ? "patch" : "major"');
     expect(source).toContain("추정");
-    expect(source).toContain('item.releaseDateSource !== "first_observed_at"');
+    expect(source).toContain("buildReleaseCadence(releases, releaseToday)");
     expect(source).toContain("releaseSearch");
     expect(source).toContain("releasePlatform");
     expect(source).toContain("releaseType");

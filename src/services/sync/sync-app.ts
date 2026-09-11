@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { apps, syncRuns } from "@/db/schema";
@@ -86,9 +86,11 @@ async function recordTypeRuns({
   );
 }
 
-export async function syncAllApps(scope: SyncScope = "all") {
+export async function syncAllApps(scope: SyncScope = "all", appId?: string) {
   const db = getDb();
-  const activeApps = await db.select().from(apps).where(eq(apps.isActive, true));
+  const activeApps = await db.select().from(apps).where(
+    and(eq(apps.isActive, true), appId ? eq(apps.id, appId) : undefined),
+  );
   const results = [];
   const syncTypesToRun: readonly StoreSyncType[] | undefined =
     scope === "voc"
