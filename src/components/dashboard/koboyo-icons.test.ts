@@ -24,7 +24,6 @@ describe("Koboyo dashboard icons", () => {
       "star",
       "rocket",
       "bar-chart",
-      "settings",
       "message-square",
       "shield-alert",
       "calendar",

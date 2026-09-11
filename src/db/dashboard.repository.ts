@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, lte, or } from "drizzle-orm";
 
 import type { DashboardData } from "@/domain/types";
+import { modelMetricPrefix } from "@/domain/model-downloads";
 import { publicSyncError } from "@/services/sync/sync-errors";
 
 import { getDb } from "./index";
@@ -210,7 +211,11 @@ export async function getDashboardData(appCode: string): Promise<DashboardData |
       phasedReleaseState: release.phasedReleaseState,
       phasedReleaseDay: release.phasedReleaseDay,
     })),
-    metricObservations: observationRows.map((item) => ({
+    modelDownloadObservations: observationRows.filter((item) => item.metricKey.startsWith(modelMetricPrefix)).map((item) => ({
+      appId: item.appId, platform: item.platform, date: item.date,
+      metricKey: item.metricKey, value: item.value, quality: item.quality,
+    })),
+    metricObservations: observationRows.filter((item) => !item.metricKey.startsWith(modelMetricPrefix)).map((item) => ({
       appId: item.appId,
       platform: item.platform,
       date: item.date,

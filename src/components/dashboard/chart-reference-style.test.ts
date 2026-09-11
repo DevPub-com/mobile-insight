@@ -162,7 +162,7 @@ describe("reference dashboard chart style", () => {
     );
   });
 
-  it("removes KPI sparkline markers, smooths the curve, and uses a one-pixel line", () => {
+  it("supports a visible single observation and optional smoothing with a one-pixel line", () => {
     expect(sparklineSource).toContain(
       "values.every((value) => value === values[0])",
     );
@@ -175,14 +175,14 @@ describe("reference dashboard chart style", () => {
     expect(sparklineSource).toContain("min: chartValues[0] - flatPadding");
     expect(sparklineSource).toContain("max: chartValues[0] + flatPadding");
     expect(sparklineSource).toContain('origin: "start"');
-    expect(sparklineSource).toContain("smooth: 0.4");
-    expect(sparklineSource).toContain('symbol: "none"');
-    expect(sparklineSource).toContain("showSymbol: false");
-    expect(sparklineSource).not.toContain("symbolSize:");
+    expect(sparklineSource).toContain("smooth: smooth ? 0.4 : false");
+    expect(sparklineSource).toContain('symbol: singlePoint && values.length === 1 ? "circle" : "none"');
+    expect(sparklineSource).toContain("showSymbol: singlePoint && values.length === 1");
+    expect(sparklineSource).toContain("symbolSize: 6");
     expect(sparklineSource).toContain(
       "lineStyle: { color: chartColor, width: 1 }",
     );
-    expect(sparklineSource).not.toContain("itemStyle:");
+    expect(sparklineSource).toContain("itemStyle: { color: chartColor }");
     expect(sparklineSource).toContain("color: `${chartColor}77`");
     expect(globalStyles).toMatch(
       /\.mi-metric-card \.mi-sparkline\s*\{[^}]*top:\s*50%;[^}]*transform:\s*translateY\(-50%\);/s,

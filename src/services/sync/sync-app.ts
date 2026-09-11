@@ -46,7 +46,8 @@ function recordsForType(payload: StoreSyncPayload, syncType: StoreSyncType): num
   if (syncType === "stability") {
     return (payload.observations ?? []).filter((item) =>
       item.metricKey === "user_perceived_crash_rate_28d" ||
-      item.metricKey === "user_perceived_anr_rate_28d"
+      item.metricKey === "user_perceived_anr_rate_28d" ||
+      item.metricKey === "crash_report_count"
     ).length;
   }
   if (syncType === "distribution") return payload.androidDistribution ? 1 : 0;
