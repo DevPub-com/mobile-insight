@@ -8,7 +8,7 @@ export function buildReleaseCadence(
   const reference = Date.parse(`${referenceDate.slice(0, 10)}T00:00:00.000Z`);
   const platforms = (["android", "ios"] as const).map((platform) => {
     const dates = releases
-      .filter((item) => item.platform === platform && item.releaseDateSource !== "first_observed_at")
+      .filter((item) => item.platform === platform)
       .map((item) => Date.parse(`${item.releasedAt.slice(0, 10)}T00:00:00.000Z`))
       .filter((value) => Number.isFinite(value) && value <= reference)
       .sort((a, b) => a - b);

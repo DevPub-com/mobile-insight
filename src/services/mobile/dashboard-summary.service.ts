@@ -25,6 +25,8 @@ import {
 import { buildRatingTrendForRange } from "./tabs/overview.service";
 import { buildReleaseImpact } from "./tabs/release-impact.service";
 
+import { buildCrashHistory } from "./crash-history.service";
+
 const platforms: Platform[] = ["android", "ios"];
 
 function periodWindow(range: MetricDateRange, value: Period | "custom") {
@@ -290,6 +292,7 @@ export function buildDashboardSummaryForRange(
       changePercent: number | null;
     };
     crashIssues: (typeof crashIssues)[Platform];
+    crashReports: ReturnType<typeof buildCrashHistory>["android"] & { sparkline: number[] };
     windows: ReleaseImpact["windows"] | null;
     coverage: ReleaseImpact["coverage"] | null;
   };
@@ -313,6 +316,13 @@ export function buildDashboardSummaryForRange(
             true,
           )
         : null;
+      const releaseRange = { startDate: releaseDate ?? dataThrough, endDate: dataThrough };
+      const reports = buildCrashHistory(data, releaseRange);
+      const collectedDownloads = data.metrics.filter((metric) =>
+        metric.platform === platform && metric.date >= releaseRange.startDate && metric.date <= releaseRange.endDate,
+      ).flatMap((metric) => metric.downloads === null ? [] : [metric.downloads]);
+      const downloadAfter = impact?.downloads.after ?? (collectedDownloads.length
+        ? collectedDownloads.reduce((sum, count) => sum + count, 0) : null);
       const comparisonWindowComplete =
         impact !== null && latestDate(data) >= impact.windows.after.to;
       const downloadCoverageComplete =
@@ -349,7 +359,7 @@ export function buildDashboardSummaryForRange(
           },
           downloads: {
             before: impact?.downloads.before ?? null,
-            after: impact?.downloads.after ?? null,
+            after: downloadAfter,
             change: impact && comparisonWindowComplete && downloadCoverageComplete
               ? difference(impact.downloads.before, impact.downloads.after, 0)
               : null,
@@ -359,6 +369,7 @@ export function buildDashboardSummaryForRange(
                 : null,
           },
           crashIssues: crashIssues[platform],
+          crashReports: { ...reports[platform], sparkline: reports.trend.flatMap((point) => point[platform] === null ? [] : [point[platform]]) },
           windows: impact?.windows ?? null,
           coverage: impact?.coverage ?? null,
         },

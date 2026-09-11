@@ -10,63 +10,15 @@ type GeminiReleaseBriefingResponse = {
   recommendations: string[];
 };
 
-function fallbackReleaseBriefing(
-  view: ReleaseImpactWorkspaceView,
-): ReleaseImpactAiBriefing {
-  const version = view.release?.version ?? "최신 버전";
-  const negativeChange = view.negativeReviews?.change ?? null;
-  const ratingAndroid = view.ratings?.android?.change ?? null;
-  const ratingIos = view.ratings?.ios?.change ?? null;
-
-  let riskLevel: ReleaseImpactAiBriefing["riskLevel"] = "low";
-  if (negativeChange !== null && negativeChange > 5) {
-    riskLevel = "high";
-  } else if (negativeChange !== null && negativeChange > 2) {
-    riskLevel = "medium";
-  }
-
-  const keyChanges: string[] = [];
-  if (ratingAndroid !== null) {
-    keyChanges.push(
-      `Android 평점 변동: ${ratingAndroid > 0 ? `+${ratingAndroid.toFixed(2)}` : ratingAndroid.toFixed(2)}점`,
-    );
-  }
-  if (ratingIos !== null) {
-    keyChanges.push(
-      `iOS 평점 변동: ${ratingIos > 0 ? `+${ratingIos.toFixed(2)}` : ratingIos.toFixed(2)}점`,
-    );
-  }
-  if (negativeChange !== null) {
-    keyChanges.push(
-      `부정 리뷰 비율: ${negativeChange > 0 ? `+${negativeChange.toFixed(1)}%p 증가` : `${negativeChange.toFixed(1)}%p 감소`}`,
-    );
-  }
-  if (view.voc && view.voc.length > 0) {
-    const topVoc = view.voc[0];
-    keyChanges.push(`주요 언급 VoC 키워드: '${topVoc.label}' (배포 후 ${topVoc.after}건)`);
-  }
-
-  const recommendations: string[] = [
-    "최근 배포 버전 관련 사용자 피드백 모니터링 지속",
-    "상위 부정 리뷰 언급 키워드에 대한 재현 테스트 및 QA 확인",
-  ];
-
-  return {
-    headline: `${version} 배포 영향도 진단 리포트`,
-    summary: `${version} 릴리즈 배포 전후 데이터를 비교 분석한 결과 전반적인 안정성 지표와 사용자 반응을 모니터링 중입니다.`,
-    riskLevel,
-    keyChanges: keyChanges.length > 0 ? keyChanges : ["배포 전후 유의미한 지표 변동 감지 중"],
-    recommendations,
-    analyzedAt: new Date().toISOString(),
-  };
-}
-
 export async function generateReleaseImpactBriefing(
   view: ReleaseImpactWorkspaceView,
-): Promise<ReleaseImpactAiBriefing> {
+): Promise<ReleaseImpactAiBriefing | null> {
+  if (view.downloads.change === null && view.negativeReviews.change === null &&
+      view.ratings[view.release.platform].change === null) return null;
   const systemInstruction = `너는 B2B 모바일 앱 프로덕트 분석가이자 모바일 엔지니어링 리드다.
 제공된 앱 릴리즈 배포 전후(Before vs After) 지표와 사용자 리뷰(VoC) 데이터를 바탕으로 C-Level 및 개발팀을 위한 '릴리즈 임팩트 진단 리포트'를 작성하라.
 
+기간 길이가 서로 다를 수 있으므로 합계 변화만으로 성과 개선을 단정하지 말라. 누락된 데이터로 안정성을 판단하지 말라.
 출력 규칙:
 1. headline: 배포 결과를 한눈에 파악할 수 있는 임팩트 있는 1문장 요약
 2. summary: 배포 전후 주요 성과와 발생한 부작용/리스크를 2~3문장으로 간결하고 전문적으로 설명
@@ -79,6 +31,8 @@ export async function generateReleaseImpactBriefing(
     releaseVersion: view.release?.version,
     platform: view.release?.platform,
     releasedAt: view.release?.releasedAt,
+    windows: view.windows,
+    coverage: view.coverage,
     downloads: view.downloads,
     ratings: view.ratings,
     negativeReviews: view.negativeReviews,
@@ -117,5 +71,5 @@ export async function generateReleaseImpactBriefing(
     };
   }
 
-  return fallbackReleaseBriefing(view);
+  return null;
 }

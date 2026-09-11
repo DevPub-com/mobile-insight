@@ -9,7 +9,7 @@ import { DpBadge } from "@/components/ui/dp/DpBadge";
 import { DpButton } from "@/components/ui/dp/DpButton";
 import { DpCard } from "@/components/ui/dp/DpCard";
 import { DpLayout } from "@/components/ui/dp/DpLayout";
-import { DpSelect } from "@/components/ui/dp/DpSelect";
+import * as Select from "@radix-ui/react-select";
 import { DpText } from "@/components/ui/dp/DpText";
 import { KoboyoIcon } from "@/components/ui/koboyo-icon";
 import type { DashboardData } from "@/domain/types";
@@ -17,7 +17,6 @@ import {
   buildReleaseImpactWorkspace,
   classifyVersionChange,
   compareVersionsDescending,
-  selectLatestMatureRelease,
 } from "@/services/mobile";
 
 const formatNumber = (value: number | null, decimals = 0) =>
@@ -100,18 +99,8 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
       ),
     [data.releases],
   );
-  const versions = useMemo(
-    () =>
-      releases.filter(
-        (release, index, all) =>
-          all.findIndex((item) => item.version === release.version) === index,
-      ),
-    [releases],
-  );
-  const defaultRelease = useMemo(() => selectLatestMatureRelease(data), [data]);
-  const [version, setVersion] = useState(defaultRelease?.version ?? "");
-  const release =
-    releases.find((item) => item.version === version) ?? releases[0] ?? null;
+  const [releaseId, setReleaseId] = useState(releases[0]?.id ?? "");
+  const release = releases.find((item) => item.id === releaseId) ?? releases[0] ?? null;
   const view = useMemo(
     () => (release ? buildReleaseImpactWorkspace(data, release) : null),
     [data, release],
@@ -298,30 +287,28 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
         className="ri-toolbar"
       >
         <DpLayout direction="row" className="ri-toolbar-controls">
-          <DpLayout direction="row" align="center" className="ri-app-chip">
-            <KoboyoIcon name="database" size={14} />
-            <DpText as="strong">{data.app.name}</DpText>
-          </DpLayout>
-          <DpSelect
-            value={version}
-            onChange={(event) => setVersion(event.target.value)}
-            aria-label="분석할 릴리즈 버전"
-          >
-            {versions.map((item) => (
-              <option key={item.id} value={item.version}>
-                v{item.version.replace(/^v/, "")}
-              </option>
-            ))}
-          </DpSelect>
-          <DpLayout direction="row" align="center" className="ri-window-chip">
-            배포 전 7일 vs 배포 후 7일
-          </DpLayout>
-          <DpLayout direction="row" align="center" className="ri-date-chip">
-            {shortDate(view.windows.before.from)} ~{" "}
-            {shortDate(view.windows.after.to)}
-            {release.releaseDateEstimated && <DpBadge>추정일 기준</DpBadge>}
-            <KoboyoIcon name="calendar" size={14} />
-          </DpLayout>
+          <Select.Root value={release.id} onValueChange={setReleaseId}>
+            <Select.Trigger className="app-selector" aria-label="분석할 릴리즈 버전">
+              <Select.Value />
+              <Select.Icon><KoboyoIcon name="chevron-down" size={14} /></Select.Icon>
+            </Select.Trigger>
+            <Select.Portal>
+              <Select.Content className="select-content" position="popper" sideOffset={8}>
+                <Select.Viewport>
+                  {releases.map((item) => (
+                    <Select.Item className="select-item" key={item.id} value={item.id}>
+                      <Select.ItemText>
+                        <span className="select-item__app">
+                          <PlatformIcon platform={item.platform} size={16} />
+                          {item.platform === "android" ? "Android" : "iOS"} · v{item.version.replace(/^v/, "")}
+                        </span>
+                      </Select.ItemText>
+                    </Select.Item>
+                  ))}
+                </Select.Viewport>
+              </Select.Content>
+            </Select.Portal>
+          </Select.Root>
         </DpLayout>
         <DpButton className="ri-export" onClick={exportCsv}>
           <KoboyoIcon name="download" size={15} /> 내보내기
@@ -330,8 +317,8 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
 
       <ReleaseImpactAiBriefingCard
         appCode={data.app.code}
-        version={version}
-        initialBriefing={data.releaseImpactBriefing}
+        key={`${data.app.code}:${release.id}`}
+        releaseId={release.id}
       />
 
       <DpLayout as="section" className="ri-kpi-grid">
@@ -396,8 +383,8 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
           </DpLayout>
           <ReleaseImpactTrendChart data={view.daily} />
           <DpText as="small" className="ri-coverage">
-            수집 범위: 배포 전 {view.coverage.beforeDays}/7일 · 배포 후{" "}
-            {view.coverage.afterDays}/7일
+            수집 범위: 배포 전 {view.coverage.beforeDays}/{view.coverage.expectedBeforeDays}일 · 배포 후{" "}
+            {view.coverage.afterDays}/{view.coverage.expectedDays}일
           </DpText>
         </DpCard>
 
@@ -437,8 +424,8 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
               <dd>v{release.version.replace(/^v/, "")}</dd>
             </div>
             <div>
-              <dt>배포일</dt>
-              <dd>{shortDate(view.releasedAt)}</dd>
+              <dt>분석 기간</dt>
+              <dd>{shortDate(view.windows.after.from)} ~ {shortDate(view.windows.after.to)}</dd>
             </div>
             <div>
               <dt>플랫폼</dt>
@@ -479,7 +466,7 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
               <dt>상태</dt>
               <dd>
                 <DpBadge className="ri-status">
-                  <KoboyoIcon name="star" size={12} /> 배포 완료
+                  <KoboyoIcon name="star" size={12} /> {release.status ?? "상태 미수집"}
                 </DpBadge>
               </dd>
             </div>
@@ -487,7 +474,7 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
           <DpText as="small" className="ri-summary-note">
             {release.releaseDateEstimated
               ? "스토어가 정확한 배포일을 제공하지 않아 버전 생성일 또는 최초 관측일을 기준으로 분석했습니다."
-              : "배포일을 제외한 전후 7일 데이터를 기준으로 분석했습니다."}
+              : "같은 OS의 이전 배포 기간과 선택 버전의 배포 기간을 비교합니다."}
           </DpText>
         </DpCard>
       </DpLayout>

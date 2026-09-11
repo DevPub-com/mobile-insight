@@ -200,8 +200,10 @@ export function selectNewestReportNames(names: string[]): string[] {
 export function selectReportNames(
   names: string[],
   suffix: string,
-  selection: "all" | "newest" = "all",
+  selection: "all" | "newest" | "recent" = "all",
 ): string[] {
   const matching = names.filter((name) => name.endsWith(suffix)).toSorted();
+  // Re-read the previous monthly report too: late data can arrive after rollover.
+  if (selection === "recent") return matching.slice(-2);
   return selection === "newest" ? selectNewestReportNames(matching) : matching;
 }

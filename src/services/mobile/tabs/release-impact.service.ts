@@ -4,7 +4,12 @@ import { addDays } from "@/lib/date";
 import { calculateAverage } from "@/lib/number";
 import { contentMatchesTerms, VOC_GROUPS } from "../common/voc-keywords";
 
-const WINDOW_DAYS = 7;
+const dayCount = (from: string, to: string) =>
+  Math.max(0, Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1);
+
+export function releaseImpactToday(now = new Date()) {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(now);
+}
 
 const roundedDifference = (before: number | null, after: number | null) =>
   before === null || after === null
@@ -114,17 +119,24 @@ export function buildReleaseImpact(
 export function buildReleaseImpactWorkspace(
   data: DashboardData,
   release: AppRelease,
+  today = releaseImpactToday(),
 ) {
   const releasedAt = release.releasedAt.slice(0, 10);
+  const siblings = data.releases.filter((item) =>
+    item.appId === release.appId && item.platform === release.platform,
+  ).sort((a, b) => a.releasedAt.localeCompare(b.releasedAt));
+  const previous = siblings.filter((item) => item.releasedAt.slice(0, 10) < releasedAt).at(-1);
+  const next = siblings.find((item) => item.releasedAt.slice(0, 10) > releasedAt);
   const windows = {
-    before: {
-      from: addDays(releasedAt, -WINDOW_DAYS),
-      to: addDays(releasedAt, -1),
-    },
-    after: {
-      from: addDays(releasedAt, 1),
-      to: addDays(releasedAt, WINDOW_DAYS),
-    },
+    before: { from: previous?.releasedAt.slice(0, 10) ?? releasedAt, to: addDays(releasedAt, -1) },
+    after: { from: releasedAt, to: next ? [addDays(next.releasedAt.slice(0, 10), -1), today].sort()[0] : today },
+  };
+  const expectedBeforeDays = dayCount(windows.before.from, windows.before.to);
+  const expectedAfterDays = dayCount(windows.after.from, windows.after.to);
+  // All cards, reviews and trends use the selected app and OS.
+  data = { ...data,
+    metrics: data.metrics.filter((item) => item.appId === release.appId && item.platform === release.platform),
+    reviews: data.reviews.filter((item) => item.appId === release.appId && item.platform === release.platform),
   };
 
   const metricsIn = (from: string, to: string) =>
@@ -139,12 +151,14 @@ export function buildReleaseImpactWorkspace(
   const beforeReviews = reviewsIn(windows.before.from, windows.before.to);
   const afterReviews = reviewsIn(windows.after.from, windows.after.to);
   const coverage = {
-    beforeDays: new Set(beforeMetrics.map((item) => item.date)).size,
-    afterDays: new Set(afterMetrics.map((item) => item.date)).size,
-    expectedDays: WINDOW_DAYS,
+    beforeDays: new Set(beforeMetrics.filter((item) => item.downloads !== null).map((item) => item.date)).size,
+    afterDays: new Set(afterMetrics.filter((item) => item.downloads !== null).map((item) => item.date)).size,
+    expectedDays: expectedAfterDays,
+    expectedBeforeDays,
   };
   const hasCompleteMetricWindows =
-    coverage.beforeDays === WINDOW_DAYS && coverage.afterDays === WINDOW_DAYS;
+    expectedBeforeDays > 0 && expectedAfterDays > 0 &&
+    coverage.beforeDays === expectedBeforeDays && coverage.afterDays === expectedAfterDays;
 
   const downloadTotal = (rows: typeof data.metrics) => {
     const values = rows.flatMap((item) =>
@@ -186,10 +200,11 @@ export function buildReleaseImpactWorkspace(
     ),
   };
   const negativeReviews = comparison(
-    negativeRate(beforeReviews),
-    negativeRate(afterReviews),
+    data.reviewDataTruncated ? null : negativeRate(beforeReviews),
+    data.reviewDataTruncated ? null : negativeRate(afterReviews),
   );
-  const newReviews = comparison(beforeReviews.length, afterReviews.length);
+  const newReviews = comparison(expectedBeforeDays && !data.reviewDataTruncated ? beforeReviews.length : null,
+    expectedAfterDays && !data.reviewDataTruncated ? afterReviews.length : null);
 
   const stabilityRate = (metricKey: string) => {
     const observations =
@@ -197,6 +212,7 @@ export function buildReleaseImpactWorkspace(
         ? (data.metricObservations ?? [])
             .filter(
               (item) =>
+                item.appId === release.appId &&
                 item.platform === "android" &&
                 item.metricKey === metricKey &&
                 item.value !== null,
@@ -222,7 +238,7 @@ export function buildReleaseImpactWorkspace(
       coverage: {
         before: new Set(before.map((item) => item.date)).size,
         after: new Set(after.map((item) => item.date)).size,
-        expected: WINDOW_DAYS,
+        expected: expectedAfterDays,
       },
     };
   };
@@ -231,8 +247,8 @@ export function buildReleaseImpactWorkspace(
     anrRate: stabilityRate("user_perceived_anr_rate_28d"),
   };
 
-  const daily = Array.from({ length: WINDOW_DAYS * 2 + 1 }, (_, index) => {
-    const offset = index - WINDOW_DAYS;
+  const daily = Array.from({ length: expectedBeforeDays + expectedAfterDays }, (_, index) => {
+    const offset = index - expectedBeforeDays;
     const date = addDays(releasedAt, offset);
     const rows = data.metrics.filter((item) => item.date === date);
     return { offset, date, downloads: downloadTotal(rows) };
@@ -278,8 +294,8 @@ export function buildReleaseImpactWorkspace(
     },
     {
       tone: "good",
-      title: `평점 개선 폭 ${ratings.ios.change !== null && ratings.android.change !== null && ratings.ios.change > ratings.android.change ? "iOS 우세" : "Android 우세"}`,
-      detail: `Android ${ratings.android.change?.toFixed(2) ?? "—"}, iOS ${ratings.ios.change?.toFixed(2) ?? "—"} 변화입니다.`,
+      title: ratings[release.platform].change === null ? "평점 비교 데이터 부족" : "평점 변화",
+      detail: `${release.platform === "android" ? "Android" : "iOS"} ${ratings[release.platform].change?.toFixed(2) ?? "—"}점 변화입니다.`,
     },
     {
       tone:
@@ -291,13 +307,7 @@ export function buildReleaseImpactWorkspace(
     },
   ];
 
-  const platforms = Array.from(
-    new Set(
-      data.releases
-        .filter((item) => item.version === release.version)
-        .map((item) => item.platform),
-    ),
-  );
+  const platforms = [release.platform];
 
   return {
     release,

@@ -10,9 +10,9 @@ describe("buildReleaseCadence", () => {
   it("counts the screenshot releases by OS using today's date, independent of metric lag", () => {
     const result = buildReleaseCadence([
       release("ios", "2026-08-12"),
-      release("android", "2026-09-10"),
+      release("android", "2026-09-10", "first_observed_at"),
       release("ios", "2026-09-09"),
-      release("android", "2026-08-31"),
+      release("android", "2026-08-31", "first_observed_at"),
       release("ios", "2026-08-15"),
     ], "2026-09-11");
     expect(result).toEqual({
@@ -24,7 +24,7 @@ describe("buildReleaseCadence", () => {
     });
   });
 
-  it("includes the full reference day and 29 days ago, excludes 30 days ago, future and first observations", () => {
+  it("includes first observations and the full reference day, excludes dates outside the recent window", () => {
     const result = buildReleaseCadence([
       release("android", "2026-09-11T23:59:59Z"),
       release("android", "2026-08-13T00:00:00Z"),
@@ -33,7 +33,7 @@ describe("buildReleaseCadence", () => {
       release("android", "2026-09-10", "first_observed_at"),
       release("android", "invalid"),
     ], "2026-09-11");
-    expect(result.platforms[0]).toEqual({ platform: "android", recentCount: 2, averageCycleDays: 15 });
+    expect(result.platforms[0]).toEqual({ platform: "android", recentCount: 3, averageCycleDays: 10 });
     expect(result.platforms[1]).toEqual({ platform: "ios", recentCount: 0, averageCycleDays: null });
   });
 

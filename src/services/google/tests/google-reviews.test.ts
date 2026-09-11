@@ -97,6 +97,16 @@ describe("Google Play exported reviews", () => {
     ]);
   });
 
+  it("revisits the previous month for late daily download data", () => {
+    expect(selectReportNames([
+      "installs_202607_overview.csv", "installs_202608_overview.csv",
+      "installs_202609_overview.csv", "installs_202609_device.csv",
+    ], "_overview.csv", "recent")).toEqual([
+      "installs_202608_overview.csv", "installs_202609_overview.csv",
+    ]);
+    expect(selectReportNames([], "_overview.csv", "recent")).toEqual([]);
+  });
+
   it("extracts review IDs from current and legacy Play Console links", () => {
     expect(
       googleReviewIdFromLink("https://play.google.com/console/reviews?reviewId=review-123"),

@@ -69,6 +69,13 @@ export function buildDownloadTrendForRange(
 
 export type DownloadDataStatus = "available" | "missing" | "delayed";
 
+export function latestDownloadDate(data: DashboardData, platform: Platform): string | null {
+  return data.metrics.reduce<string | null>((latest, metric) => {
+    if (metric.appId !== data.app.id || metric.platform !== platform || downloadValue(data, metric) === null) return latest;
+    return latest === null || metric.date > latest ? metric.date : latest;
+  }, null);
+}
+
 export function downloadDataStatusForRange(
   data: DashboardData,
   platform: Platform,

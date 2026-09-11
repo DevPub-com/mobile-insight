@@ -9,7 +9,6 @@ import { getDashboardData } from "@/db/dashboard.repository";
 import { generateDashboardSummaryBriefing } from "@/services/ai/dashboard-summary-briefing.service";
 import { generateReleaseImpactBriefing } from "@/services/ai/release-impact-briefing.service";
 import { buildReleaseImpactWorkspace } from "@/services/mobile/tabs/release-impact.service";
-import { selectLatestMatureRelease } from "@/services/mobile/tabs/releases.service";
 import { buildDateRangeSummary } from "@/services/mobile/tabs/downloads.service";
 import {
   latestDate,
@@ -26,6 +25,7 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as {
       appId?: string;
+      releaseId?: string;
       appCode?: string;
       type?: "dashboard_executive" | "release_impact";
       cacheKey?: string;
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     }
 
     const db = getDb();
-    if (!refresh) {
+    if (!refresh && type !== "release_impact") {
       const [cached] = await db
         .select()
         .from(aiInsightsCache)
@@ -67,12 +67,7 @@ export async function POST(request: Request) {
     }
 
     if (type === "release_impact") {
-      const targetRelease =
-        (body.cacheKey && body.cacheKey.startsWith("release_")
-          ? data.releases.find((item) => body.cacheKey?.includes(item.version))
-          : null) ??
-        selectLatestMatureRelease(data) ??
-        data.releases[0];
+      const targetRelease = data.releases.find((item) => item.id === body.releaseId);
 
       if (!targetRelease) {
         return NextResponse.json(
@@ -82,17 +77,8 @@ export async function POST(request: Request) {
       }
 
       const workspace = buildReleaseImpactWorkspace(data, targetRelease);
-      const briefing: ReleaseImpactAiBriefing =
+      const briefing: ReleaseImpactAiBriefing | null =
         await generateReleaseImpactBriefing(workspace);
-
-      await upsertAiInsightsCache(db, [
-        {
-          appId: data.app.id,
-          insightType: type,
-          cacheKey,
-          payload: { ...briefing },
-        },
-      ]);
 
       return NextResponse.json({ data: briefing, cached: false });
     }

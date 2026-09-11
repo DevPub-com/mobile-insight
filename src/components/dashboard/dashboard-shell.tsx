@@ -44,6 +44,7 @@ import {
   compareVersionsDescending,
   dateRangeDays,
   downloadDataStatusForRange,
+  latestDownloadDate,
   periodStart,
   reviewMatchesRatingGroup,
   type ReviewRatingGroup,
@@ -362,10 +363,6 @@ export function DashboardShell({ data }: { data: DashboardData }) {
     Platform,
     (typeof dashboardSummary.latestReleaseImpact.platforms)[Platform] | null
   >;
-  const crashIssueFor = (platform: Platform) => {
-    const issue = dashboardSummary.kpis.crashIssues[platform];
-    return { ...issue, current: issue.value };
-  };
   const platformNegativeReviews = (platform: Platform) => {
     const review = dashboardSummary.kpis.negativeReviews[platform];
     return { current: review.value, change: review.changePoints };
@@ -422,7 +419,23 @@ export function DashboardShell({ data }: { data: DashboardData }) {
   });
   const vocKeywords = summarizeReviewKeywords(periodReviews);
   const notableReviews = vocKeywords.filter((item) => item.count >= 2).slice(0, 3);
-  const periodAverage = periodReviews.length ? periodReviews.reduce((sum, item) => sum + item.rating, 0) / periodReviews.length : null;
+  const reviewPeriodLabel = `${date(dateRange.startDate)} ~ ${date(dateRange.endDate)}`;
+  const platformReviewSummaries = (["android", "ios"] as Platform[]).map((platform) => {
+    const reviews = periodReviews.filter((review) => review.platform === platform);
+    const days = new Map<string, number[]>();
+    for (const review of reviews) {
+      const day = review.reviewedAt.slice(0, 10);
+      days.set(day, [...(days.get(day) ?? []), review.rating]);
+    }
+    const dailyRatings = [...days.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, ratings]) => ratings);
+    return {
+      platform,
+      count: reviews.length,
+      average: reviews.length ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length : null,
+      counts: dailyRatings.map((ratings) => ratings.length),
+      ratings: dailyRatings.map((ratings) => ratings.reduce((sum, value) => sum + value, 0) / ratings.length),
+    };
+  });
   const pageSize = 8;
   const totalPages = Math.max(1, Math.ceil(filteredReviews.length / pageSize));
   const visibleReviews =
@@ -880,18 +893,18 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                 key={item.id}
                 className="mi-release-table-row"
               >
-                <DpLayout direction="row" align="center">
-                  <DpLayout>
+                <DpLayout>
+                  <DpLayout direction="row" align="center" className="mi-release-version-heading">
                     <DpText as="strong">{item.version}</DpText>
-                    <DpText as="small">
-                      {item.buildNumber
-                        ? `build ${item.buildNumber}`
-                        : "빌드 식별자 미수집"}
-                    </DpText>
+                    {latestRelease(item.platform)?.id === item.id && (
+                      <DpBadge className="mi-release-latest-badge">최신</DpBadge>
+                    )}
                   </DpLayout>
-                  {latestRelease(item.platform)?.id === item.id && (
-                    <DpBadge className="mi-release-latest-badge">최신</DpBadge>
-                  )}
+                  <DpText as="small">
+                    {item.buildNumber
+                      ? `build ${item.buildNumber}`
+                      : "빌드 식별자 미수집"}
+                  </DpText>
                 </DpLayout>
                 <DpText
                   as="span"
@@ -1020,7 +1033,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
           <DpLayout className="mi-dashboard-platform-impact-grid">
             {(["android", "ios"] as Platform[]).map((platform) => {
               const releaseImpact = platformImpacts[platform];
-              const crashIssue = crashIssueFor(platform);
+              const crashIssue = releaseImpact?.crashReports;
               const rows = [
                 {
                   label: "평점",
@@ -1074,17 +1087,17 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                     : [],
                 },
                 {
-                  label: "새 크래시",
-                  current: crashIssue.current,
+                  label: "배포 후 크래시 발생 건수",
+                  current: crashIssue?.value ?? null,
                   currentSuffix: "건",
                   currentDecimals: 0,
-                  change: crashIssue.change,
+                  change: crashIssue?.change ?? null,
                   changeSuffix: "건",
                   changeDecimals: 0,
-                  sparkline: crashIssue.sparkline,
+                  sparkline: crashIssue?.sparkline ?? [],
                 },
                 {
-                  label: "배포 후 신규 다운로드",
+                  label: "배포 후 다운로드",
                   current: releaseImpact?.downloads.after ?? null,
                   currentSuffix: "건",
                   currentDecimals: 0,
@@ -1148,7 +1161,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                             className="mi-dashboard-impact-current"
                           >
                             {row.current === null
-                              ? "—"
+                              ? "데이터 없음"
                               : `${new Intl.NumberFormat("ko-KR", {
                                   minimumFractionDigits: row.currentDecimals,
                                   maximumFractionDigits: row.currentDecimals,
@@ -1442,26 +1455,23 @@ export function DashboardShell({ data }: { data: DashboardData }) {
         )}
           {view === "reviews" && (
             <DpLayout as="section" className="mi-review-summary-grid">
-              <DpCard className="mi-review-summary-card">
-                <DpText as="h3">전체 평점</DpText>
-                <DpText className="mi-summary-caption">스토어 누적 평점 · 최신 수집 기준</DpText>
-                {(["android", "ios"] as Platform[]).map((platform) => (
-                  <div className="mi-summary-rating-row" key={platform}>
-                    <span><PlatformIcon platform={platform} /> {platform === "android" ? "Android" : "iOS"}</span>
-                    <strong>{rating(storeRatings[platform]?.value ?? null)} <small>/ 5</small></strong>
-                  </div>
-                ))}
+              <DpCard className="mi-dashboard-kpi-card mi-review-platform-card">
+                <DashboardCardTitle icon={<KoboyoIcon name="message-square" size={17} />} tone="blue" tooltip="선택 기간에 작성된 수집 리뷰 수입니다.">설정 기간 리뷰 수</DashboardCardTitle>
+                <DpText className="mi-dashboard-overall-note">{reviewPeriodLabel}</DpText>
+                <DpLayout direction="row" className="mi-dashboard-platform-split">
+                  {platformReviewSummaries.map(({ platform, count, counts }) => (
+                    <PlatformMetric key={platform} platform={platform} value={`${number(count)}건`} change={null} statusLabel="수집 리뷰" sparkline={counts} />
+                  ))}
+                </DpLayout>
               </DpCard>
-              <DpCard className="mi-review-summary-card">
-                <DpText as="h3">설정 기간 평점</DpText>
-                <DpText className="mi-summary-caption">{date(dateRange.startDate)} ~ {date(dateRange.endDate)} · 수집 리뷰 {number(periodReviews.length)}건</DpText>
-                <strong className="mi-period-rating">{rating(periodAverage)} <small>/ 5</small></strong>
-                <DpText className="mi-summary-caption">
-                  {(["android", "ios"] as Platform[]).map((platform) => {
-                    const reviews = periodReviews.filter((item) => item.platform === platform);
-                    return `${platform === "android" ? "Android" : "iOS"} ${rating(reviews.length ? reviews.reduce((sum, item) => sum + item.rating, 0) / reviews.length : null)}`;
-                  }).join(" · ")}
-                </DpText>
+              <DpCard className="mi-dashboard-kpi-card mi-review-platform-card">
+                <DashboardCardTitle icon={<KoboyoIcon name="star" size={17} />} tone="blue" tooltip="선택 기간에 작성된 수집 리뷰의 평균 별점입니다.">설정 기간 평점</DashboardCardTitle>
+                <DpText className="mi-dashboard-overall-note">{reviewPeriodLabel} · 수집 리뷰 기준</DpText>
+                <DpLayout direction="row" className="mi-dashboard-platform-split">
+                  {platformReviewSummaries.map(({ platform, average, count, ratings }) => (
+                    <PlatformMetric key={platform} platform={platform} value={rating(average)} change={null} statusLabel={count ? `리뷰 ${number(count)}건 · 5점 만점` : "이 기간에 리뷰 없음"} sparkline={ratings} />
+                  ))}
+                </DpLayout>
               </DpCard>
               <DpCard className="mi-review-summary-card">
                 <DpText as="h3">주목할 만한 리뷰</DpText>
@@ -1665,7 +1675,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                 >
                   <DpLayout>
                     <DpText as="h3">일별 다운로드 상세</DpText>
-                    <DpText>최근 일자부터 플랫폼별 실적을 확인하세요.</DpText>
+                    <DpText>실제 데이터 기준일 · Android {latestDownloadDate(data, "android") ?? "미수집"} · iOS {latestDownloadDate(data, "ios") ?? "미수집"}</DpText>
                   </DpLayout>
                   <DpButton className="mi-csv-button">
                     <KoboyoIcon name="download" size={14} />
@@ -1707,7 +1717,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
           )}
           {view === "reviews" && (
             <>
-              <ReviewRatingSummary reviews={periodReviews} periodLabel={periodLabel} />
+              <ReviewRatingSummary reviews={periodReviews} periodLabel={reviewPeriodLabel} />
               <DpLayout className="mi-rating-distributions">
                 {ratingDistribution.map(({ platform, rows, total }) => (
                   <DpCard key={platform} className="mi-rating-card">
@@ -1723,7 +1733,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                           {platform === "android" ? "Android" : "iOS"})
                         </DpText>
                         <DpText>
-                          최근 {periodLabel} · 리뷰 {number(total)}건
+                          {reviewPeriodLabel} · 리뷰 {number(total)}건
                         </DpText>
                       </DpLayout>
                       <DpLayout
@@ -1764,9 +1774,14 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                   >
                     <DpLayout>
                       <DpText as="h3">VOC 키워드 요약</DpText>
-                      <DpText>설정 기간 리뷰 키워드 · 빨강 불만 / 주황 개선 / 초록 긍정</DpText>
+                      <DpText>{reviewPeriodLabel} · 수집 리뷰 키워드</DpText>
+                      <div className="mi-keyword-legend" aria-label="키워드 등급 범례">
+                        {(["positive", "neutral", "negative"] as const).map((grade) => (
+                          <span key={grade}><i className={`is-${grade}`} aria-hidden="true" />{keywordGradeLabel[grade]}</span>
+                        ))}
+                      </div>
                     </DpLayout>
-                    <DpBadge>전체</DpBadge>
+                    <DpBadge>선택 기간</DpBadge>
                   </DpLayout>
                   <DpLayout direction="row" className="mi-voc-chips">
                     {!vocKeywords.length && <DpText className="mi-summary-caption">이 기간에 집계된 키워드가 없습니다.</DpText>}

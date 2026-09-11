@@ -7,7 +7,7 @@ import { GooglePlayAdapter } from "../src/services/google/adapter/google-play.ad
 loadScriptEnv();
 const adapter = new GooglePlayAdapter();
 const selectedCode = process.argv.find((value) => value.startsWith("--app="))?.slice(6);
-const selection = process.argv.includes("--all") ? "all" : "newest";
+const selection = process.argv.includes("--all") ? "all" : "recent";
 const apps = (await getActiveApps()).filter((app) => app.androidPackageName && (!selectedCode || app.code === selectedCode));
 let failed = false;
 for (const app of apps) {

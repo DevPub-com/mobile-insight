@@ -1599,6 +1599,9 @@ body {
   border-bottom: 1px solid #edf0f5;
 }
 .mi-release-table-row > div:first-child {
+  gap: 2px;
+}
+.mi-release-version-heading {
   gap: 7px;
 }
 .mi-release-latest-badge {
@@ -4658,3 +4661,12 @@ body {
 .mi-review-sentiment li strong { margin-left: auto; }
 .mi-review-sentiment li small { color: #8993a7; }
 @media (max-width: 700px) { .mi-review-summary { grid-template-columns: 1fr; } }
+
+.mi-review-platform-card { min-width: 0; }
+.mi-review-platform-card .mi-dashboard-platform-split { margin-top: 14px; }
+.mi-keyword-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 12px; color: var(--mi-muted); }
+.mi-keyword-legend > span { display: inline-flex; align-items: center; gap: 5px; }
+.mi-keyword-legend i { width: 8px; height: 8px; border-radius: 50%; }
+.mi-keyword-legend .is-positive { background: #22a447; }
+.mi-keyword-legend .is-neutral { background: #f59e0b; }
+.mi-keyword-legend .is-negative { background: #ef4444; }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import type { Platform } from "@/domain/types";
 import { loadDashboardData } from "@/services/mobile/dashboard.service";
-import { buildReleaseImpact } from "@/services/mobile/tabs/release-impact.service";
+import { buildReleaseImpactWorkspace } from "@/services/mobile/tabs/release-impact.service";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +18,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ appI
   try {
     const data = await loadDashboardData(appId);
     if (!data) return NextResponse.json({ error: "앱을 찾을 수 없습니다." }, { status: 404 });
-    const impact = buildReleaseImpact(data, version, platform);
-    if (!impact) return NextResponse.json({ error: "릴리즈를 찾을 수 없습니다." }, { status: 404 });
-    return NextResponse.json({ data: impact });
+    const release = data.releases.find((item) => item.version === version && item.platform === platform);
+    if (!release) return NextResponse.json({ error: "릴리즈를 찾을 수 없습니다." }, { status: 404 });
+    return NextResponse.json({ data: buildReleaseImpactWorkspace(data, release) });
   } catch {
     return NextResponse.json({ error: "릴리즈 영향을 계산하지 못했습니다." }, { status: 500 });
   }

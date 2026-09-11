@@ -168,82 +168,49 @@ const data: DashboardData = {
   source: "demo",
 };
 
-describe("buildReleaseImpactWorkspace", () => {
-  it("uses one shared seven-day window for cross-platform release metrics", () => {
-    const view = buildReleaseImpactWorkspace(data, release);
+const previous = { ...release, id: "previous", version: "1.0.0", releasedAt: `${day(-7)}T00:00:00Z` };
+const next = { ...release, id: "next", version: "3.0.0", releasedAt: `${day(8)}T00:00:00Z` };
+const actual = { ...data, releases: [release, previous, next], source: "database" as const };
 
+describe("buildReleaseImpactWorkspace", () => {
+  it("compares adjacent release periods and isolates the selected OS", () => {
+    const view = buildReleaseImpactWorkspace(actual, release, day(10));
     expect(view.windows).toEqual({
-      before: { from: "2026-01-01", to: "2026-01-07" },
-      after: { from: "2026-01-09", to: "2026-01-15" },
+      before: { from: day(-7), to: day(-1) },
+      after: { from: day(0), to: day(7) },
     });
-    expect(view.downloads).toMatchObject({
-      before: 210,
-      after: 420,
-      change: 210,
-      changePercent: 100,
-    });
-    expect(view.ratings.android).toMatchObject({
-      before: 4,
-      after: 4.4,
-      change: 0.4,
-    });
-    expect(view.ratings.ios).toMatchObject({
-      before: 4.2,
-      after: 4.5,
-      change: 0.3,
-    });
-    expect(view.negativeReviews).toMatchObject({
-      before: 50,
-      after: 25,
-      change: -25,
-    });
-    expect(view.newReviews).toMatchObject({
-      before: 2,
-      after: 4,
-      change: 2,
-      changePercent: 100,
-    });
-    expect(view.voc.find((item) => item.label === "로그인")).toMatchObject({
-      before: 1,
-      after: 3,
-      changePercent: 200,
-    });
-    expect(view.stability.crashRate).toEqual({
-      before: 0.3,
-      after: 0.27,
-      changePoints: -0.03,
-      beforeAsOfDate: day(-1),
-      afterAsOfDate: day(2),
-      coverage: { before: 2, after: 2, expected: 7 },
-    });
-    expect(view.stability.anrRate).toEqual({
-      before: 0.08,
-      after: 0.1,
-      changePoints: 0.02,
-      beforeAsOfDate: day(-1),
-      afterAsOfDate: day(2),
-      coverage: { before: 1, after: 2, expected: 7 },
-    });
+    expect(view.downloads).toMatchObject({ before: 140, after: 315, change: 175, changePercent: 125 });
+    expect(view.ratings.ios.before).toBeNull();
+    expect(view.newReviews).toMatchObject({ before: 1, after: 2 });
+    expect(view.stability.crashRate).toMatchObject({ before: 0.3, after: 0.27, changePoints: -0.03 });
     expect(view.daily).toHaveLength(15);
+    expect(view.platforms).toEqual(["android"]);
   });
 
-  it("does not present a partial after window as a conclusive download rate", () => {
-    const partialData = {
-      ...data,
-      metrics: metrics.filter((item) => item.date <= day(2)),
-    };
-
-    const view = buildReleaseImpactWorkspace(partialData, release);
-
-    expect(view.coverage).toEqual({
-      beforeDays: 7,
-      afterDays: 2,
-      expectedDays: 7,
-    });
+  it("includes today for the latest version even when collection lags", () => {
+    const view = buildReleaseImpactWorkspace({ ...actual, releases: [previous, release] }, release, day(10));
+    expect(view.windows.after).toEqual({ from: day(0), to: day(10) });
+    expect(view.coverage.expectedDays).toBe(11);
     expect(view.downloads.changePercent).toBeNull();
-    expect(view.insights[0]).toMatchObject({
-      tone: "warn",
-      title: "다운로드 비교 기간 미완료",
-    });
+    expect(view.daily.at(-1)?.downloads).toBeNull();
+  });
+
+  it("does not invent a comparison period without a previous release", () => {
+    const view = buildReleaseImpactWorkspace(data, release, day(2));
+    expect(view.coverage.expectedBeforeDays).toBe(0);
+    expect(view.downloads.before).toBeNull();
+    expect(view.newReviews.before).toBeNull();
+  });
+
+  it("does not report truncated reviews as complete counts", () => {
+    const view = buildReleaseImpactWorkspace({ ...actual, reviewDataTruncated: true }, release, day(10));
+    expect(view.newReviews.after).toBeNull();
+    expect(view.negativeReviews.after).toBeNull();
+  });
+
+  it("ignores another OS release when choosing period boundaries", () => {
+    const other = { ...next, id: "ios", platform: "ios" as const, releasedAt: `${day(2)}T00:00:00Z` };
+    const view = buildReleaseImpactWorkspace({ ...actual, releases: [...actual.releases, other] }, release, day(10));
+    expect(view.windows.after.to).toBe(day(7));
   });
 });

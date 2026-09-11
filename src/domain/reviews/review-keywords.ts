@@ -2,7 +2,7 @@ import type { AppReview, ReviewSentiment } from "@/domain/types";
 import { VOC_GROUPS, contentMatchesTerms } from "@/services/mobile/common/voc-keywords";
 
 export const keywordGradeLabel: Record<ReviewSentiment, string> = {
-  negative: "불만", neutral: "개선", positive: "긍정",
+  negative: "불만", neutral: "개선", positive: "만족",
 };
 
 export function reviewKeywords(review: AppReview) {
@@ -30,5 +30,6 @@ export function summarizeReviewKeywords(reviews: AppReview[]) {
       } else groups.set(key, { label, grade, count: 1, review });
     }
   }
-  return [...groups.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  const gradeOrder = { positive: 0, neutral: 1, negative: 2 };
+  return [...groups.values()].sort((a, b) => gradeOrder[a.grade] - gradeOrder[b.grade] || b.count - a.count || a.label.localeCompare(b.label, "ko"));
 }

@@ -90,6 +90,7 @@ describe("AI Briefing API Route", () => {
       body: JSON.stringify({
         appCode: "kis",
         type: "release_impact",
+        releaseId: "rel-1",
       }),
     });
 

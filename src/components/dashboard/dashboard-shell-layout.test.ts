@@ -217,7 +217,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).not.toContain('className={`mi-ai-sentiment-badge');
     expect(source).toContain("reviewKeywords(item)");
     expect(source).toContain("summarizeReviewKeywords(periodReviews)");
-    expect(source).toContain("전체 평점");
+    expect(source).toContain("설정 기간 리뷰 수");
     expect(source).toContain("설정 기간 평점");
     expect(source).toContain("주목할 만한 리뷰");
     expect(source).toContain("item.count >= 2");
@@ -326,12 +326,12 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).not.toContain('className="mi-impact-platform-tabs"');
     expect(source).not.toContain("릴리즈 선택");
     expect(source).toContain("최근 업데이트 후 달라진 점");
-    expect(source).toContain('label: "새 크래시"');
+    expect(source).toContain('label: "배포 후 크래시 발생 건수"');
     expect(source).not.toContain("새 충돌 문제");
     expect(source).toContain("releaseImpact.release.version");
     expect(source).toContain("releaseDate(releaseImpact.release)");
     expect(source).toContain("platformImpacts[platform]");
-    expect(source).toContain("crashIssueFor(platform)");
+    expect(source).toContain("releaseImpact?.crashReports");
   });
 
   it("shows current platform impact values together with their absolute changes", () => {
@@ -339,10 +339,10 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("releaseImpact.negativeReviews.after");
     expect(source).toContain('label: "리뷰 건수"');
     expect(source).toContain("releaseImpact.reviewCount.after");
-    expect(source).toContain('label: "배포 후 신규 다운로드"');
+    expect(source).toContain('label: "배포 후 다운로드"');
     expect(source).toContain("releaseImpact.downloads.after");
-    expect(source).toContain("current: crashIssue.current");
-    expect(source).toContain("change: crashIssue.change");
+    expect(source).toContain("current: crashIssue?.value ?? null");
+    expect(source).toContain("change: crashIssue?.change ?? null");
     expect(source).toContain('className="mi-dashboard-impact-values"');
     expect(source).toContain('className="mi-dashboard-impact-current"');
     expect(source).toMatch(/signedDelta\(\s*row\.change,/s);

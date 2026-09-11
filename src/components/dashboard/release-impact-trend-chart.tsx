@@ -10,7 +10,7 @@ type Point = { offset: number; date: string; downloads: number | null };
 export function ReleaseImpactTrendChart({ data }: { data: Point[] }) {
   const option = useMemo<EChartsCoreOption>(() => {
     const before = data.map((point) =>
-      point.offset <= 0 ? point.downloads : null,
+      point.offset < 0 ? point.downloads : null,
     );
     const after = data.map((point) =>
       point.offset >= 0 ? point.downloads : null,
@@ -105,7 +105,7 @@ export function ReleaseImpactTrendChart({ data }: { data: Point[] }) {
     <EChart
       option={option}
       className="ri-trend-chart"
-      ariaLabel="릴리즈 배포 전후 7일 다운로드 추이"
+      ariaLabel="릴리즈 배포 기간별 다운로드 추이"
     />
   );
 }

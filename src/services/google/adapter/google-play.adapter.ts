@@ -40,7 +40,7 @@ async function downloadCsvRows(
   bucketName: string,
   prefix: string,
   suffix: string,
-  selection: "all" | "newest" = "all",
+  selection: "all" | "newest" | "recent" = "all",
 ): Promise<GoogleReviewCsvRow[]> {
   const [files] = await storage.bucket(bucketName).getFiles({ prefix });
   const selectedNames = new Set(
@@ -119,7 +119,7 @@ export class GooglePlayAdapter implements StoreAdapter {
               bucketName,
               `stats/installs/installs_${app.androidPackageName}_`,
               "_overview.csv",
-              "newest",
+              "recent",
             )
           : Promise.resolve([]),
         shouldSync("ratings")
@@ -275,7 +275,7 @@ export class GooglePlayAdapter implements StoreAdapter {
     }
   }
 
-  async fetchModelDownloads(app: AppInfo, selection: "all" | "newest" = "newest") {
+  async fetchModelDownloads(app: AppInfo, selection: "all" | "newest" | "recent" = "recent") {
     const { storage, bucketName } = this.connectionFor(app);
     const rows = await downloadCsvRows(storage, bucketName, `stats/installs/installs_${app.androidPackageName}_`, "_device.csv", selection);
     return parseGoogleDeviceInstalls(app.id, rows, new Date().toISOString());

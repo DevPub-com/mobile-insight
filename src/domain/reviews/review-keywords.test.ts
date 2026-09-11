@@ -14,11 +14,20 @@ describe("review keywords", () => {
   it("counts each review once per keyword and separates opposing sentiments", () => {
     const first = review("1", ["로그인", "로그인"]);
     const groups = summarizeReviewKeywords([first, first, review("2", ["로그인"], { reviewedAt: "2026-09-02" }), review("3", ["로그인"], { rating: 5 })]);
-    expect(groups.map(({ grade, count }) => ({ grade, count }))).toEqual([{ grade: "negative", count: 2 }, { grade: "positive", count: 1 }]);
-    expect(groups[0].review.id).toBe("2");
+    expect(groups.map(({ grade, count }) => ({ grade, count }))).toEqual([{ grade: "positive", count: 1 }, { grade: "negative", count: 2 }]);
+    expect(groups[1].review.id).toBe("2");
     expect(summarizeReviewKeywords([])).toEqual([]);
   });
   it("uses content keywords when analysis is absent", () => {
     expect(reviewKeywords(review("1", []))).toContainEqual({ label: "로그인", grade: "negative" });
+  });
+  it("orders satisfaction, improvements, and complaints before frequency", () => {
+    const groups = summarizeReviewKeywords([
+      review("1", ["로그인 오류"]),
+      review("2", ["로그인 오류"]),
+      review("3", ["기능 개선"]),
+      review("4", ["사용성 만족"]),
+    ]);
+    expect(groups.map(({ grade }) => grade)).toEqual(["positive", "neutral", "negative"]);
   });
 });

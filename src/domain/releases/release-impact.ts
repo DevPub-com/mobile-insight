@@ -74,8 +74,8 @@ export function calculateReleaseImpact({
   const afterDownloads = sum(afterMetrics.map((metric) => metric.downloads));
   const beforeDownloadDays = beforeMetrics.filter((metric) => metric.downloads !== null).length;
   const afterDownloadDays = afterMetrics.filter((metric) => metric.downloads !== null).length;
-  const beforeRating = average(beforeMetrics.map((metric) => metric.rating));
-  const afterRating = average(afterMetrics.map((metric) => metric.rating));
+  const beforeRating = average(beforeMetrics.map((metric) => metric.rating)) ?? average(beforeReviews.map((review) => review.rating));
+  const afterRating = average(afterMetrics.map((metric) => metric.rating)) ?? average(afterReviews.map((review) => review.rating));
   const beforeNegative = calculateNegativeReviewRate(beforeReviews.map((review) => review.rating));
   const afterNegative = calculateNegativeReviewRate(afterReviews.map((review) => review.rating));
 

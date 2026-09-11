@@ -77,6 +77,7 @@ describe("Release Impact Briefing Service", () => {
       beforeDays: 7,
       afterDays: 7,
       expectedDays: 7,
+      expectedBeforeDays: 7,
     },
   };
 
@@ -103,17 +104,15 @@ describe("Release Impact Briefing Service", () => {
     } as Response);
 
     const briefing = await generateReleaseImpactBriefing(mockView);
-    expect(briefing.headline).toContain("v2.4.0");
-    expect(briefing.riskLevel).toBe("low");
-    expect(briefing.keyChanges).toHaveLength(2);
+    expect(briefing?.headline).toContain("v2.4.0");
+    expect(briefing?.riskLevel).toBe("low");
+    expect(briefing?.keyChanges).toHaveLength(2);
   });
 
   it("generates fallback briefing when API key is missing", async () => {
     delete process.env.GEMINI_API_KEY;
 
     const briefing = await generateReleaseImpactBriefing(mockView);
-    expect(briefing.headline).toContain("2.4.0");
-    expect(briefing.riskLevel).toBe("low");
-    expect(briefing.keyChanges.length).toBeGreaterThan(0);
+    expect(briefing).toBeNull();
   });
 });

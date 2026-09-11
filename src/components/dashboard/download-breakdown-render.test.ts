@@ -11,6 +11,8 @@ describe("download breakdown presentation", () => {
     const data = { ...demoDashboardData, metricObservations: parseGoogleDeviceInstalls(demoDashboardData.app.id, [
       { Date: "2026-09-01", Device: "Galaxy S26", "Daily Device Installs": "12", "Daily User Installs": "10" },
       { Date: "2026-09-01", Device: "Pixel 10", "Daily Device Installs": "0" },
+      { Date: "2026-09-01", Device: "q8q", "Daily Device Installs": "3" },
+      { Date: "2026-09-01", Device: "b8s", "Daily Device Installs": "0", "Daily User Installs": "2" },
       { Date: "2026-09-01", Device: "unknown", "Daily Device Installs": "9999" },
     ], "2026-09-02T00:00:00Z") };
     const html = renderToStaticMarkup(createElement(DownloadModels, { data, range: { startDate: "2026-09-01", endDate: "2026-09-02" } }));
@@ -18,7 +20,11 @@ describe("download breakdown presentation", () => {
     expect(html).toContain("적게 설치한 모델 TOP 5");
     expect(html).toContain("Galaxy S26");
     expect(html).toContain("12건");
-    expect(html).toContain("0건");
+    expect(html).not.toContain("Pixel 10");
+    expect(html).toContain("Galaxy Z Fold8 Ultra (q8q)");
+    expect(html).toContain("Galaxy Z Flip8 (b8s)");
+    expect(html.slice(0, html.indexOf("모델별 상세"))).not.toContain("Galaxy Z Flip8");
+    expect(html).not.toContain(">0건<");
     expect(html).toContain("iOS 기종별 데이터 미수집");
     expect(html).toContain("모델 미확인");
     expect(html.slice(0, html.indexOf("모델별 상세"))).not.toContain("9,999");

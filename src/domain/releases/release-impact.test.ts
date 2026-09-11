@@ -77,3 +77,13 @@ describe("calculateReleaseImpact", () => {
     expect(impact.coverage.downloads).toEqual({ before: 6, after: 7, expectedBefore: 7, expectedAfter: 7 });
   });
 });
+
+it("uses review ratings when daily rating metrics are missing", () => {
+  const impact = calculateReleaseImpact({
+    releasedAt: "2026-09-10", beforeDays: 1, afterDays: 1, includeReleaseDay: true,
+    metrics: [],
+    reviews: [{ reviewedAt: "2026-09-09", rating: 4 }, { reviewedAt: "2026-09-10", rating: 1 }, { reviewedAt: "2026-09-10", rating: 2 }, { reviewedAt: "2026-09-11", rating: 5 }],
+  });
+  expect(impact.newReviews.after).toBe(2);
+  expect(impact.rating).toEqual({ before: 4, after: 1.5 });
+});

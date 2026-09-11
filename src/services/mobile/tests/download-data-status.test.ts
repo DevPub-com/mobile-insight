@@ -4,6 +4,7 @@ import type { DashboardData, DailyMetric, Platform } from "@/domain/types";
 import {
   buildDownloadTrendForRange,
   downloadDataStatusForRange,
+  latestDownloadDate,
 } from "@/services/mobile/tabs/downloads.service";
 
 const metric = (
@@ -44,6 +45,17 @@ const dashboardData = (metrics: DailyMetric[]): DashboardData => ({
 const range = { startDate: "2026-08-09", endDate: "2026-09-07" };
 
 describe("download data status", () => {
+  it("reports the last actual download date instead of the last unrelated metric date", () => {
+    const data = dashboardData([
+      metric("2026-08-21", "android", 0),
+      metric("2026-09-10", "android", null),
+      metric("2026-09-09", "ios", 5),
+      { ...metric("2026-09-11", "android", 20), appId: "another-app" },
+    ]);
+    expect(latestDownloadDate(data, "android")).toBe("2026-08-21");
+    expect(latestDownloadDate(data, "ios")).toBe("2026-09-09");
+    expect(latestDownloadDate(dashboardData([]), "android")).toBeNull();
+  });
   it("reports missing when the platform has no observed download values", () => {
     const data = dashboardData([
       metric("2026-08-09", "android", 120),

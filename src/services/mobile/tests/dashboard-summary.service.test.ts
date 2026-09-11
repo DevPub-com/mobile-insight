@@ -307,3 +307,19 @@ describe("dashboard summary API view model", () => {
     });
   });
 });
+
+it("shows collected downloads and crash reports in the latest release window", () => {
+  const summary = buildDashboardSummary({
+    ...demoDashboardData,
+    metricObservations: [{
+      appId: demoDashboardData.app.id, platform: "android", date: "2025-05-09",
+      metricKey: "crash_report_count", value: 12, source: "google_play_api", quality: "exact", observedAt: "2025-05-10T00:00:00Z",
+    }],
+  }, "30d");
+  const impact = summary.latestReleaseImpact.platforms.android;
+  expect(impact.downloads.after).toBeGreaterThan(0);
+  expect(impact.crashReports.value).toBe(12);
+  expect(impact.crashReports.sparkline).toEqual([12]);
+  expect(impact.crashReports.change).toBeNull();
+  expect(summary.latestReleaseImpact.platforms.ios.crashReports.value).toBeNull();
+});

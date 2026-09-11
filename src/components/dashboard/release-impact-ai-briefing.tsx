@@ -6,11 +6,11 @@ import { KoboyoIcon } from "@/components/ui/koboyo-icon";
 
 export function ReleaseImpactAiBriefingCard({
   appCode,
-  version,
+  releaseId,
   initialBriefing,
 }: {
   appCode: string;
-  version: string;
+  releaseId: string;
   initialBriefing?: ReleaseImpactAiBriefing | null;
 }) {
   const [briefing, setBriefing] = useState<ReleaseImpactAiBriefing | null>(
@@ -23,6 +23,7 @@ export function ReleaseImpactAiBriefingCard({
     let isCancelled = false;
     async function loadBriefing() {
       setIsLoading(true);
+      setBriefing(null);
       try {
         const response = await fetch("/api/ai/briefing", {
           method: "POST",
@@ -30,7 +31,7 @@ export function ReleaseImpactAiBriefingCard({
           body: JSON.stringify({
             appCode,
             type: "release_impact",
-            cacheKey: `release_${appCode}_${version}`,
+            releaseId,
             refresh: false,
           }),
         });
@@ -50,7 +51,7 @@ export function ReleaseImpactAiBriefingCard({
     return () => {
       isCancelled = true;
     };
-  }, [appCode, version]);
+  }, [appCode, releaseId]);
 
   async function handleRefresh() {
     setIsRefreshing(true);
@@ -61,7 +62,7 @@ export function ReleaseImpactAiBriefingCard({
         body: JSON.stringify({
           appCode,
           type: "release_impact",
-          cacheKey: `release_${appCode}_${version}`,
+          releaseId,
           refresh: true,
         }),
       });
@@ -91,7 +92,7 @@ export function ReleaseImpactAiBriefingCard({
     );
   }
 
-  if (!briefing) return null;
+  if (!briefing) return <section className="mi-ai-briefing-card">AI 분석 결과가 없습니다. 실제 비교 데이터와 AI 연결 상태를 확인해 주세요.</section>;
 
   return (
     <section className="mi-ai-briefing-card mi-ai-release-card">
