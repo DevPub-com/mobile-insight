@@ -11,4 +11,14 @@ describe("dashboard review repository contract", () => {
     expect(source).toMatch(/device:\s*review\.device,/);
     expect(source).toMatch(/deviceMetadata:\s*review\.deviceMetadata/);
   });
+
+  it("keeps hierarchical review topics in the dashboard response", () => {
+    expect(source).toMatch(/aiTopicPaths:\s*review\.aiTopicPaths/);
+    expect(source).not.toContain("review.aiTaxonomyVersion");
+  });
+
+  it("does not load device-model observations into the default dashboard payload", () => {
+    expect(source).toContain('notLike(metricObservations.metricKey, "device_downloads:%")');
+    expect(source).not.toContain("modelDownloadObservations:");
+  });
 });

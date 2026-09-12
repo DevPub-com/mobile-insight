@@ -19,6 +19,29 @@ export function reviewDeviceLabel(
   return label.match(/\(([^()]+)\)\s*$/)?.[1]?.trim() || label;
 }
 
+// API levels: https://developer.android.com/guide/topics/manifest/uses-sdk-element
+const androidVersions: Record<number, string> = {
+  21: "5.0", 22: "5.1", 23: "6.0", 24: "7.0", 25: "7.1",
+  26: "8.0", 27: "8.1", 28: "9", 29: "10", 30: "11",
+  31: "12", 32: "12L", 33: "13", 34: "14", 35: "15", 36: "16", 37: "17",
+};
+
+export function reviewDeviceSpecs(
+  review: Pick<AppReview, "platform" | "androidOsVersion" | "deviceMetadata">,
+): string[] {
+  const api = review.androidOsVersion;
+  const os = review.platform === "android" && api != null && api > 0
+    ? androidVersions[api] ? `Android ${androidVersions[api]}` : `Android API ${api}`
+    : "OS —";
+  const metadata = review.deviceMetadata;
+  const width = metadata?.screenWidthPx;
+  const height = metadata?.screenHeightPx;
+  const screen = width != null && width > 0 && height != null && height > 0
+    ? `${width} × ${height} px` : "화면 —";
+  const ram = metadata?.ramMb;
+  return [os, screen, ram != null && ram > 0 ? `RAM ${ram.toLocaleString("en-US")} MB` : "RAM —"];
+}
+
 export function latestNegativeReviews(
   reviews: AppReview[],
   limit = 5,

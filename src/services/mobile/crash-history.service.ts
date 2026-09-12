@@ -13,7 +13,12 @@ export function buildCrashHistory(data: DashboardData, range: MetricDateRange) {
     const before = [...points].filter(([date])=>date>=previous.startDate&&date<=previous.endDate);
     const total = current.reduce((sum,[,value])=>sum+value,0);
     const complete = current.length===dateRangeDays(range)&&before.length===dateRangeDays(previous);
-    return {value:current.length?total:null, change:complete?total-before.reduce((sum,[,value])=>sum+value,0):null, days:current.length, latestDate:current.map(([date])=>date).sort().at(-1)??null};
+    const latestDate = current.map(([date]) => date).sort().at(-1) ?? null;
+    const previousDayValue = latestDate ? points.get(shiftDate(latestDate, -1)) : undefined;
+    const dailyChange = latestDate !== null && previousDayValue !== undefined
+      ? points.get(latestDate)! - previousDayValue
+      : null;
+    return {value:current.length?total:null, change:complete?total-before.reduce((sum,[,value])=>sum+value,0):null, dailyChange, days:current.length, latestDate};
   };
   const trend: Array<{date:string;android:number|null;ios:number|null}> = [];
   for(let date=range.startDate;date<=range.endDate;date=shiftDate(date,1)) trend.push({date,android:androidRows.get(date)??null,ios:iosRows.get(date)??null});

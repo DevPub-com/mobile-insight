@@ -65,7 +65,7 @@ describe("dashboard summary API view model", () => {
         before: impact.newReviews.before,
         after: impact.newReviews.after,
         change:
-          impact.newReviews.after === null || impact.newReviews.before === null
+          impact.newReviews.after === 0 || impact.newReviews.before === 0
             ? null
             : impact.newReviews.after - impact.newReviews.before,
         changePercent: impact.newReviews.changePercent,
@@ -318,8 +318,57 @@ it("shows collected downloads and crash reports in the latest release window", (
   }, "30d");
   const impact = summary.latestReleaseImpact.platforms.android;
   expect(impact.downloads.after).toBeGreaterThan(0);
-  expect(impact.crashReports.value).toBe(12);
-  expect(impact.crashReports.sparkline).toEqual([12]);
+  expect(impact.crashReports.value).toBeNull();
+  expect(impact.crashReports.sparkline).toEqual([]);
   expect(impact.crashReports.change).toBeNull();
   expect(summary.latestReleaseImpact.platforms.ios.crashReports.value).toBeNull();
+});
+
+
+it("uses only post-release dates and matching version crash reports in the card and chart", () => {
+ const appId=demoDashboardData.app.id;
+ const observations = [
+  {date:"2025-05-09", metricKey:"crash_report_count:version:2.27.05",value:100},
+  {date:"2025-05-10", metricKey:"crash_report_count",value:338},
+  {date:"2025-05-10", metricKey:"crash_report_count:version:2.27.00",value:300},
+  {date:"2025-05-10", metricKey:"crash_report_count:version:2.27.05",value:4},
+ ].map(row=>({...row,appId,platform:"ios" as const,source:"app_store_analytics" as const,quality:"estimated" as const,observedAt:"2025-05-10T00:00:00Z"}));
+ const data={...demoDashboardData,releases:demoDashboardData.releases.map(row=>({...row,version:"2.27.05",releasedAt:"2025-05-10T00:00:00Z"})),metricObservations:observations};
+ const impact=buildDashboardSummary(data,"30d").latestReleaseImpact.platforms.ios;
+ expect(impact.windows?.after.from).toBe("2025-05-10");
+ expect(impact.crashReports.value).toBe(4);
+ expect(impact.crashReports.sparkline).toEqual([4]);
+ expect(impact.sparklines.rating.length).toBeLessThanOrEqual(1);
+ const missing=buildDashboardSummary({...data,metricObservations:observations.filter(row=>row.value!==4)},"30d").latestReleaseImpact.platforms.ios;
+ expect(missing.crashReports.value).toBeNull();
+ expect(missing.crashReports.sparkline).toEqual([]);
+});
+
+
+it("does not attribute old or unknown version reviews or store ratings to a new release", () => {
+ const data={...demoDashboardData,
+ releases:demoDashboardData.releases.map(row=>({...row,version:"2.27.05",releasedAt:"2025-05-10T00:00:00Z"})),
+ reviews:demoDashboardData.reviews.map(row=>({...row,version:"2.27.00",reviewedAt:"2025-05-10T01:00:00Z"})),
+ };
+ const result=buildDashboardSummary(data,"30d").latestReleaseImpact.platforms;
+ for(const platform of ["android","ios"] as const){
+  expect(result[platform].reviewCount.after).toBeNull();
+  expect(result[platform].rating.after).toBeNull();
+  expect(result[platform].negativeReviews.after).toBeNull();
+  expect(result[platform].sparklines.rating).toEqual([]);
+  expect(result[platform].sparklines.reviewCount).toEqual([]);
+ }
+});
+
+it("includes only matching version reviews in release metrics and sparklines", () => {
+ const base=demoDashboardData.reviews[0];
+ const data={...demoDashboardData,
+ releases:demoDashboardData.releases.map(row=>({...row,version:"2.27.05",releasedAt:"2025-05-10T00:00:00Z"})),
+ reviews:[{...base,platform:"android" as const,version:"2.27.05",rating:2,reviewedAt:"2025-05-10T01:00:00Z"},{...base,platform:"android" as const,version:"2.27.00",rating:5,reviewedAt:"2025-05-10T01:00:00Z"},{...base,platform:"android" as const,version:null,rating:5,reviewedAt:"2025-05-10T01:00:00Z"}],
+ };
+ const impact=buildDashboardSummary(data,"30d").latestReleaseImpact.platforms.android;
+ expect(impact.reviewCount.after).toBe(1);
+ expect(impact.rating.after).toBe(2);
+ expect(impact.negativeReviews.after).toBe(100);
+ expect(impact.sparklines).toMatchObject({rating:[2],negativeReviews:[100],reviewCount:[1]});
 });

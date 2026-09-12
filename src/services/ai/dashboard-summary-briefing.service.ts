@@ -86,7 +86,7 @@ export async function generateDashboardSummaryBriefing(
       rating: review.rating,
       content: review.content,
       platform: review.platform,
-      topics: review.aiTopics,
+      topics: review.aiTopicPaths ?? review.aiTopics,
     })),
     recentReleases: data.releases.slice(0, 3).map((release) => ({
       version: release.version,

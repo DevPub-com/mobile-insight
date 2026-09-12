@@ -10,8 +10,13 @@ export function parseAppleCrashRows(appId: string, appleAppId: string, rows: Rec
     const count = Number(row.Crashes);
     if (!Number.isSafeInteger(count) || count < 0) continue;
     totals.set(row.Date, (totals.get(row.Date) ?? 0) + count);
+    const version = row['App Version']?.trim();
+    if (version) {
+      const key = `${row.Date}|${version}`;
+      totals.set(key, (totals.get(key) ?? 0) + count);
+    }
   }
-  return [...totals].sort(([a],[b])=>a.localeCompare(b)).map(([date,value])=>({appId, platform:'ios', date, metricKey:'crash_report_count', value, source:'app_store_analytics', quality:'estimated', observedAt, description:'App Store App Crashes · 공유 동의 사용자 기준 · 개인정보 보호 임계값 적용 · 신규 고유 이슈 수가 아님'}));
+  return [...totals].sort(([a],[b])=>a.localeCompare(b)).map(([key,value])=>({appId, platform:'ios', date:key.split('|')[0], metricKey:key.includes('|') ? `crash_report_count:version:${key.split('|')[1]}` : 'crash_report_count', value, source:'app_store_analytics', quality:'estimated', observedAt, description:'App Store App Crashes · 공유 동의 사용자 기준 · 개인정보 보호 임계값 적용 · 신규 고유 이슈 수가 아님'}));
 }
 
 export async function fetchAppleCrashCounts(appId: string, appleAppId: string, appleJson: AppleAnalyticsJson, options: AppleAnalyticsOptions = {}) {

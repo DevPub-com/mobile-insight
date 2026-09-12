@@ -1,5 +1,5 @@
 import { calculateNegativeReviewRate } from "@/domain/reviews/review.service";
-import type { DailyMetric, DashboardData, Platform } from "@/domain/types";
+import type { DailyMetric, DashboardData, MetricObservation, Platform } from "@/domain/types";
 import {
   combineConnectedDownloads,
   downloadValue,
@@ -68,6 +68,26 @@ export function buildDownloadTrendForRange(
 }
 
 export type DownloadDataStatus = "available" | "missing" | "delayed";
+
+export function buildFirstOpenTrend(
+  observations: MetricObservation[],
+  appId: string,
+  range: MetricDateRange,
+) {
+  const rows = new Map<string, { date: string; android: number | null; ios: number | null }>();
+  for (let date = range.startDate; date <= range.endDate; date = shiftDate(date, 1)) {
+    rows.set(date, { date, android: null, ios: null });
+  }
+  for (const observation of [...observations].sort((a, b) => a.observedAt.localeCompare(b.observedAt))) {
+    if (observation.appId !== appId || observation.source !== "firebase" || observation.metricKey !== "first_open" || observation.quality !== "exact" || observation.value === null) continue;
+    const row = rows.get(observation.date);
+    if (row) row[observation.platform] = observation.value;
+  }
+  return [...rows.values()].map((row) => ({
+    ...row,
+    total: row.android === null && row.ios === null ? null : (row.android ?? 0) + (row.ios ?? 0),
+  }));
+}
 
 export function latestDownloadDate(data: DashboardData, platform: Platform): string | null {
   return data.metrics.reduce<string | null>((latest, metric) => {

@@ -9,6 +9,7 @@ import type {
   AppInfo,
   DailyMetric,
   DeviceDailyRecord,
+  MetricObservation,
   Platform,
 } from "@/domain/types";
 import { normalizeDate, rollingDateRange } from "@/lib/date";
@@ -87,6 +88,29 @@ export function normalizeGa4Report(
 const dimensionLabel = (value: string | undefined) =>
   value?.trim() || "(empty)";
 
+export function normalizeGa4FirstOpenReport(
+  appId: string,
+  response: GoogleAnalyticsReportResponse,
+  observedAt: string,
+): MetricObservation[] {
+  return (response.rows ?? []).flatMap((row) => {
+    const platform = normalizePlatform(row.dimensionValues?.[1]?.value);
+    if (!platform) return [];
+    const date = normalizeDate(row.dimensionValues?.[0]?.value);
+    const timestamp = date ? Date.parse(`${date}T00:00:00Z`) : NaN;
+    const raw = row.metricValues?.[0]?.value;
+    const value = raw?.trim() ? Number(raw) : NaN;
+    if (!date || !Number.isFinite(timestamp) || new Date(timestamp).toISOString().slice(0, 10) !== date || !Number.isSafeInteger(value) || value < 0) {
+      throw new Error("GA4 first_open report contains an invalid date or event count.");
+    }
+    return [{
+      appId, platform, date, metricKey: "first_open", value,
+      source: "firebase" as const, quality: "exact" as const, observedAt,
+      description: `GA4 Data API eventCount filtered to first_open; first launch after installation or reinstallation, not store downloads. Property time zone: ${response.metadata?.timeZone ?? "unknown"}.`,
+    }];
+  });
+}
+
 export function normalizeGa4DeviceReport(
   appId: string,
   response: GoogleAnalyticsReportResponse,
@@ -116,6 +140,12 @@ export function normalizeGa4DeviceReport(
 }
 
 type Ga4ReportRequest = {
+  dimensionFilter?: {
+    filter: {
+      fieldName: string;
+      stringFilter: { matchType: "EXACT"; value: string; caseSensitive: boolean };
+    };
+  };
   dateRanges?: Array<{ startDate: string; endDate: string }>;
   dimensions: Array<{ name: string }>;
   metrics: Array<{ name: string }>;
@@ -285,6 +315,28 @@ export class Ga4Adapter {
       },
     });
     return normalizeGa4Report(app.id, response.data);
+  }
+
+  async fetchFirstOpens(app: AppInfo, days = 35): Promise<MetricObservation[]> {
+    const client = this.createAuth(app);
+    if (!client) return [];
+    const { auth, propertyId } = client;
+    const response = await fetchPaginatedGa4Report(
+      (options) => auth.request(options),
+      `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+      {
+        dateRanges: [{ startDate: `${days}daysAgo`, endDate: "yesterday" }],
+        dimensions: [{ name: "date" }, { name: "platform" }],
+        metrics: [{ name: "eventCount" }],
+        dimensionFilter: { filter: {
+          fieldName: "eventName",
+          stringFilter: { matchType: "EXACT", value: "first_open", caseSensitive: true },
+        } },
+        keepEmptyRows: true,
+        orderBys: [{ dimension: { dimensionName: "date" } }],
+      },
+    );
+    return normalizeGa4FirstOpenReport(app.id, response, new Date().toISOString());
   }
 
   async fetchDeviceActiveUsers(

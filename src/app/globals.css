@@ -1927,7 +1927,7 @@ body {
 .mi-table-head,
 .mi-table-row {
   display: grid;
-  grid-template-columns: 1.4fr repeat(4, 1fr);
+  grid-template-columns: 1.1fr repeat(2, minmax(0, 1.6fr));
   align-items: center;
   min-height: 46px;
   padding: 0 20px;
@@ -3515,7 +3515,7 @@ body {
   min-height: 320px;
 }
 .mi-download-summary {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 .mi-download-summary article {
@@ -3650,12 +3650,14 @@ body {
 }
 .mi-rating-distribution-stack {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 14px;
   min-width: 0;
 }
 .mi-rating-distribution-stack .mi-rating-card {
   min-width: 0;
+  width: 100%;
 }
 .mi-rating-distributions > .mi-voc-summary {
   min-width: 0;
@@ -4557,33 +4559,34 @@ body {
 }
 .mi-review-device {
   display: inline-flex;
-  overflow: hidden;
   flex: 0 1 auto;
   min-width: 0;
-  max-width: 132px;
   align-items: center;
   gap: 3px;
   margin-left: 5px;
   color: var(--mi-muted);
   font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
-.mi-review-device .koboyo-icon {
+.mi-review-device svg {
   flex: 0 0 auto;
 }
 
-.mi-ai-sentiment-badge.is-positive {
+.mi-ai-sentiment-badge.is-positive,
+.mi-review-ai-tags.is-positive .mi-ai-topic-chip {
   background: var(--mi-success-soft);
   color: #166534;
 }
 
-.mi-ai-sentiment-badge.is-neutral {
+.mi-ai-sentiment-badge.is-neutral,
+.mi-review-ai-tags.is-neutral .mi-ai-topic-chip {
   background: var(--mi-warning-soft);
   color: #92400e;
 }
 
-.mi-ai-sentiment-badge.is-negative {
+.mi-ai-sentiment-badge.is-negative,
+.mi-review-ai-tags.is-negative .mi-ai-topic-chip {
   background: var(--mi-danger-soft);
   color: #991b1b;
 }
@@ -4617,10 +4620,23 @@ body {
   gap: 10px;
 }
 .mi-dashboard-overall-card {
-  min-height: 156px;
+  min-height: 144px;
+  padding: 8px 15px;
+}
+.mi-dashboard-overall-card .mi-dashboard-download-value {
+  margin-top: 6px;
+}
+.mi-dashboard-overall-card .mi-dashboard-platform-split {
+  margin-top: 2px;
+}
+.mi-dashboard-overall-card .mi-platform-metric > strong {
+  margin-top: 5px;
+}
+.mi-dashboard-overall-card .mi-platform-delta {
+  margin-top: 3px;
 }
 .mi-dashboard-overall-note {
-  margin: 12px 4px 0;
+  margin: 6px 4px 0;
   color: var(--mi-text-secondary);
   font-size: 12px;
   line-height: 1.5;
@@ -4654,13 +4670,13 @@ body {
   width: 100%;
 }
 .mi-dashboard-overall-card .mi-platform-metric > .mi-sparkline {
-  height: 58px;
-  min-height: 58px;
-  margin-top: 12px;
+  height: 24px;
+  min-height: 24px;
+  margin-top: 4px;
 }
 @media (max-width: 1100px) {
   .mi-dashboard-overall-download { padding-right: 15px; }
-  .mi-overall-download-chart { position: static; width: 100%; height: 64px; margin-top: 12px; }
+  .mi-overall-download-chart { position: static; width: 100%; height: 36px; margin-top: 6px; }
 }
 
 @media (min-width: 981px) and (max-width: 1400px) {
@@ -4712,3 +4728,40 @@ body {
 .mi-keyword-legend .is-positive { background: #22a447; }
 .mi-keyword-legend .is-neutral { background: #f59e0b; }
 .mi-keyword-legend .is-negative { background: #ef4444; }
+
+.mi-audience-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.mi-audience-values > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.mi-audience-values > div > span:first-child {
+  font-weight: 700;
+}
+.mi-audience-values strong {
+  font-size: clamp(16px, 1.65vw, 28px);
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.mi-audience-sparkline { margin-top: 12px; min-width: 0; }
+.mi-audience-sparkline .mi-sparkline { width: 100%; height: 52px; }
+
+.mi-audience-values--divided > div + div {
+  border-left: 1px solid #e4e9f1;
+  padding-left: 12px;
+}
+
+.mi-dashboard-kpi-grid > .mi-store-rating-card { grid-column: span 2; }
+.mi-rating-summary-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; min-width: 0; }
+@media (max-width: 640px) {
+  .mi-dashboard-kpi-grid > .mi-store-rating-card { grid-column: 1 / -1; }
+  .mi-rating-summary-pair { grid-template-columns: minmax(0, 1fr); }
+}

@@ -117,14 +117,36 @@ export function buildReleaseMarkers(
     }));
 }
 
+export function buildFirstOpenSeries(dates: string[], rows: ChartRow[]) {
+  const byDate = new Map(rows.map((row) => [row.date, row]));
+  return ([
+    ["android", "#0284C7"],
+    ["ios", "#EA580C"],
+  ] as const).map(([platform, color]) => ({
+    name: `${platformLabel[platform]} 최초 실행`,
+    type: "line" as const,
+    data: dates.map((date) => byDate.get(date)?.[platform] ?? null),
+    connectNulls: false,
+    smooth: 0.2,
+    symbol: "diamond",
+    symbolSize: 6,
+    lineStyle: { color, width: 2.25, type: "dashed" as const },
+    itemStyle: { color },
+  }));
+}
+
 export function DownloadChart({
   data,
   releases,
   versionMappings = [],
+  metric = "downloads",
+  firstOpenData,
 }: {
   data: ChartRow[];
   releases: AppRelease[];
   versionMappings?: ReleaseVersionMapping[];
+  metric?: "downloads" | "first_open";
+  firstOpenData?: ChartRow[];
 }) {
   const option = useMemo<EChartsCoreOption>(() => {
     const releaseMarkers = buildReleaseMarkers(
@@ -135,12 +157,11 @@ export function DownloadChart({
     const xAxisLabelInterval = Math.max(0, Math.ceil(data.length / 8) - 1);
     const series = (
       [
-        ["전체", "total", "#8993A7"],
-        ["Android", "android", "#16B84E"],
-        ["iOS", "ios", "#8B3DFF"],
+        ["Android 일별 사용자 설치", "android", "#16B84E"],
+        ["iOS 총 다운로드", "ios", "#8B3DFF"],
       ] as const
     ).map(([name, key, color]) => ({
-      name,
+      name: metric === "first_open" ? `${platformLabel[key]} 최초 실행` : name,
       type: "line" as const,
       data: data.map((row) => row[key]),
       connectNulls: false,
@@ -151,7 +172,7 @@ export function DownloadChart({
       lineStyle: { color, width: 2.25, type: "solid" as const },
       itemStyle: { color, borderColor: color, borderWidth: 0 },
       markLine:
-        name === "전체" && releaseMarkers.length
+        name === "Android 일별 사용자 설치" && releaseMarkers.length
           ? {
               silent: true,
               symbol: "none",
@@ -179,8 +200,8 @@ export function DownloadChart({
     return {
       animationDuration: 350,
       aria: { enabled: true },
-      color: ["#8993A7", "#16B84E", "#8B3DFF"],
-      grid: { top: 62, right: 22, bottom: 38, left: 50 },
+      color: ["#16B84E", "#8B3DFF"],
+      grid: { top: firstOpenData ? 88 : 62, right: 22, bottom: 38, left: 50 },
       legend: {
         top: 12,
         left: 12,
@@ -224,15 +245,15 @@ export function DownloadChart({
         },
         splitLine: { lineStyle: { color: "#e8edf5", type: "dashed" } },
       },
-      series,
+      series: [...series, ...(firstOpenData ? buildFirstOpenSeries(data.map((row) => row.date), firstOpenData) : [])],
     };
-  }, [data, releases, versionMappings]);
+  }, [data, releases, versionMappings, metric, firstOpenData]);
 
   if (!data.length)
     return (
       <div className="chart-empty">
-        선택한 기간의 다운로드 데이터가 없습니다.
+        선택한 기간의 {metric === "first_open" ? "최초 실행" : "다운로드"} 데이터가 없습니다.
       </div>
     );
-  return <EChart option={option} ariaLabel="Android 및 iOS 다운로드 추이" />;
+  return <EChart option={option} ariaLabel={metric === "first_open" ? "Firebase 최초 실행 추이" : "플랫폼별 획득 추이"} />;
 }

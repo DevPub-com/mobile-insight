@@ -84,6 +84,9 @@ const reviews: AppReview[] = [
   author: null,
   version: "2.0.0",
   reviewedAt: `${day(Number(offset))}T12:00:00.000Z`,
+  aiTopicPaths: index % 2 === 0
+    ? [{ major: "로그인·인증", middle: "로그인", minor: "로그인 실패" }]
+    : [{ major: "UI/UX", middle: "화면 구성", minor: "메뉴" }],
 }));
 
 const data: DashboardData = {
@@ -185,6 +188,10 @@ describe("buildReleaseImpactWorkspace", () => {
     expect(view.stability.crashRate).toMatchObject({ before: 0.3, after: 0.27, changePoints: -0.03 });
     expect(view.daily).toHaveLength(15);
     expect(view.platforms).toEqual(["android"]);
+    expect(view.voc.find((item) => item.label === "로그인·인증")).toMatchObject({
+      before: 1,
+      after: 2,
+    });
   });
 
   it("includes today for the latest version even when collection lags", () => {
@@ -212,5 +219,19 @@ describe("buildReleaseImpactWorkspace", () => {
     const other = { ...next, id: "ios", platform: "ios" as const, releasedAt: `${day(2)}T00:00:00Z` };
     const view = buildReleaseImpactWorkspace({ ...actual, releases: [...actual.releases, other] }, release, day(10));
     expect(view.windows.after.to).toBe(day(7));
+  });
+
+  it("does not infer VOC topics from review text when analysis is missing", () => {
+    const withoutTopics = {
+      ...actual,
+      reviews: actual.reviews.map((review) => ({
+        ...review,
+        content: "로그인 속도와 UI가 불편해요",
+        aiTopicPaths: null,
+      })),
+    };
+
+    const view = buildReleaseImpactWorkspace(withoutTopics, release, day(10));
+    expect(view.voc.every((item) => item.before === 0 && item.after === 0)).toBe(true);
   });
 });

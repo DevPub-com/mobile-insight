@@ -13,7 +13,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import type { DeviceMetadata } from "@/domain/types";
+import type { DeviceMetadata, ReviewTopicPath } from "@/domain/types";
 
 export const platformEnum = pgEnum("platform", ["android", "ios"]);
 export const syncTypeEnum = pgEnum("sync_type", [
@@ -151,23 +151,16 @@ export const ratingSnapshots = pgTable(
       .references(() => apps.id, { onDelete: "cascade" })
       .notNull(),
     platform: platformEnum("platform").notNull(),
-    territory: text("territory").default("GLOBAL").notNull(),
     date: date("date", { mode: "string" }).notNull(),
     averageRating: doublePrecision("average_rating").notNull(),
     ratingCount: integer("rating_count"),
-    source: metricSourceEnum("source").notNull(),
-    quality: metricQualityEnum("quality").notNull(),
-    observedAt: timestamp("observed_at", timestampConfig).notNull(),
-    description: text("description"),
     ...timestamps,
   },
   (table) => [
     uniqueIndex("rating_daily_records_identity_uidx").on(
       table.appId,
       table.platform,
-      table.territory,
       table.date,
-      table.source,
     ),
     index("rating_daily_records_app_date_idx").on(table.appId, table.date),
   ],
@@ -187,22 +180,15 @@ export const reviews = pgTable(
     content: text("content").notNull(),
     author: text("author"),
     version: text("version"),
-    territory: text("territory"),
     device: text("device"),
     deviceMetadata: jsonb("device_metadata").$type<DeviceMetadata>(),
     androidOsVersion: integer("android_os_version"),
-    appVersionCode: integer("app_version_code"),
-    reviewerLanguage: text("reviewer_language"),
     thumbsUpCount: integer("thumbs_up_count"),
     thumbsDownCount: integer("thumbs_down_count"),
-    source: metricSourceEnum("source").default("mobile_insight").notNull(),
-    quality: metricQualityEnum("quality").default("unavailable").notNull(),
-    observedAt: timestamp("observed_at", timestampConfig).defaultNow().notNull(),
-    description: text("description"),
     reviewedAt: timestamp("reviewed_at", timestampConfig).notNull(),
     aiSentiment: text("ai_sentiment"),
     aiTopics: jsonb("ai_topics").$type<string[]>(),
-    aiSummary: text("ai_summary"),
+    aiTopicPaths: jsonb("ai_topic_paths").$type<ReviewTopicPath[]>(),
     ...timestamps,
   },
   (table) => [
@@ -225,17 +211,8 @@ export const releases = pgTable(
     platform: platformEnum("platform").notNull(),
     version: text("version").notNull(),
     releasedAt: timestamp("released_at", timestampConfig).notNull(),
-    releaseDateSource: text("release_date_source")
-      .default("store_release_date")
-      .notNull(),
-    releaseDateEstimated: boolean("release_date_estimated").default(false).notNull(),
-    status: text("status"),
-    track: text("track"),
     buildNumber: text("build_number"),
     releaseNotes: text("release_notes"),
-    rolloutFraction: doublePrecision("rollout_fraction"),
-    phasedReleaseState: text("phased_release_state"),
-    phasedReleaseDay: integer("phased_release_day"),
     ...timestamps,
   },
   (table) => [

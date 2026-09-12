@@ -1,7 +1,7 @@
 import type { AppReview } from "@/domain/types";
 import { summarizeReviewRatings } from "@/domain/reviews/review.service";
 
-export function ReviewRatingSummary({ reviews, periodLabel }: { reviews: AppReview[]; periodLabel: string }) {
+export function ReviewRatingSummary({ reviews }: { reviews: AppReview[]; periodLabel?: string }) {
   const summary = summarizeReviewRatings(reviews.map((review) => review.rating));
   const groups = [
     { label: "긍정 (4~5점)", count: summary.positive, color: "#22A447" },
@@ -16,12 +16,10 @@ export function ReviewRatingSummary({ reviews, periodLabel }: { reviews: AppRevi
     <section className="mi-review-summary" aria-label="전체 리뷰 평점 요약">
       <article className="mi-review-summary-card">
         <h3>전체 평균 평점 (Android · iPhone)</h3>
-        <p>{periodLabel} · 수집 리뷰 {summary.total.toLocaleString("ko-KR")}건 기준</p>
         <strong className="mi-review-summary-average">{summary.average === null ? "—" : summary.average.toFixed(2)} <small>/ 5점</small></strong>
       </article>
       <article className="mi-review-summary-card">
         <h3>긍정 · 부정 리뷰 비율</h3>
-        <p>{periodLabel} · 수집 리뷰 기준</p>
         {summary.total === 0 ? <p>선택 기간에 수집된 리뷰가 없습니다.</p> : (
           <div className="mi-review-sentiment">
             <div className="mi-review-pie" role="img" aria-label={groups.map((group) => `${group.label} ${percentage(group.count).toFixed(1)}%`).join(", ")} style={{ background: `conic-gradient(#22A447 0% ${positiveEnd}%, #8993A7 ${positiveEnd}% ${neutralEnd}%, #EF4444 ${neutralEnd}% 100%)` }} />

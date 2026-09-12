@@ -42,9 +42,9 @@ describe("metric sparkline identity colors", () => {
     );
   });
 
-  it("uses graphite for total mini charts and total increases", () => {
-    expect(dashboardSource).toContain('scope="total"');
-    expect(dashboardSource).toContain('color="#8993A7"');
+  it("uses graphite for MAU and orange for DAU", () => {
+    expect(dashboardSource).toContain('color="#F97316"');
+    expect(dashboardSource).toContain('color="#4B5563"');
   });
 
   it("uses semantic trend colors only for release-impact mini charts", () => {

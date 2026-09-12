@@ -14,7 +14,6 @@ import {
 } from "./schema";
 import * as schema from "./schema";
 import {
-  pruneNonProductionAndroidReleases,
   replaceDeviceDailyRecords,
   upsertDailyMetrics,
   upsertDeviceDailyRecords,
@@ -45,6 +44,8 @@ beforeEach(async () => {
     "0012_plain_table_names.sql",
     "0013_android_reporting_and_distribution.sql",
     "0014_ai_review_insights_and_cache.sql",
+    "0016_hierarchical_review_topics.sql",
+    "0020_remove_rating_metadata.sql",
   ]) {
     const migration = await readFile(new URL(`../../drizzle/${name}`, import.meta.url), "utf8");
     await client.exec(migration.replaceAll("--> statement-breakpoint", ""));
@@ -247,7 +248,7 @@ describe("dashboard upserts", () => {
     expect(rows[0]).toMatchObject({ value: 120, source: "google_play_gcs", quality: "exact" });
   });
 
-  it("stores one overview rating snapshot per territory, date, and source", async () => {
+  it("stores one overview rating snapshot per app, platform, and date", async () => {
     const schemaTables = schema as unknown as Record<string, typeof dailyMetrics>;
     const functions = upserts as unknown as Record<
       string,
@@ -268,7 +269,7 @@ describe("dashboard upserts", () => {
 
     const rows = await db.select().from(schemaTables.ratingSnapshots);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ averageRating: 4.2, ratingCount: 23, territory: "KR" });
+    expect(rows[0]).toMatchObject({ averageRating: 4.2, ratingCount: 23 });
   });
 
 
@@ -378,9 +379,6 @@ describe("dashboard upserts", () => {
     expect(rows[0]).toMatchObject({
       rating: 4,
       content: "수정됐습니다.",
-      territory: "KOR",
-      source: "app_store_reviews",
-      quality: "exact",
     });
   });
 
@@ -438,8 +436,68 @@ describe("dashboard upserts", () => {
         ramMb: 12288,
       },
       androidOsVersion: 34,
-      appVersionCode: 61042,
-      reviewerLanguage: "ko",
+    });
+  });
+
+  it("stores and preserves hierarchical review topics on a partial sync with unchanged content", async () => {
+    const base = {
+      appId,
+      platform: "android" as const,
+      externalId: "gp:review-topic-1",
+      rating: 2,
+      title: null,
+      content: "위젯 설정이 안 됩니다.",
+      reviewedAt: new Date("2026-09-12T00:00:00.000Z"),
+    };
+    const topicPaths = [
+      { major: "기능", middle: "편의 기능", minor: "위젯" },
+    ];
+
+    await upsertReviews(db, [
+      { ...base, aiTopicPaths: topicPaths },
+    ]);
+    await upsertReviews(db, [
+      { ...base, rating: 3, aiTopicPaths: null },
+    ]);
+
+    const [row] = await db
+      .select()
+      .from(reviews)
+      .where(eq(reviews.externalId, base.externalId));
+    expect(row).toMatchObject({
+      rating: 3,
+      aiTopicPaths: topicPaths,
+    });
+  });
+
+  it("clears stale hierarchical topics when review content changes without a valid analysis", async () => {
+    const base = {
+      appId,
+      platform: "android" as const,
+      externalId: "gp:review-topic-changed",
+      rating: 2,
+      title: null,
+      content: "위젯 설정이 안 됩니다.",
+      reviewedAt: new Date("2026-09-12T00:00:00.000Z"),
+    };
+
+    await upsertReviews(db, [{
+      ...base,
+      aiTopicPaths: [{ major: "기능", middle: "편의 기능", minor: "위젯" }],
+    }]);
+    await upsertReviews(db, [{
+      ...base,
+      content: "로그인이 안 됩니다.",
+      aiTopicPaths: null,
+    }]);
+
+    const [row] = await db
+      .select()
+      .from(reviews)
+      .where(eq(reviews.externalId, base.externalId));
+    expect(row).toMatchObject({
+      content: "로그인이 안 됩니다.",
+      aiTopicPaths: null,
     });
   });
 
@@ -485,22 +543,22 @@ describe("dashboard upserts", () => {
     ]));
   });
 
-  it("removes stale non-production Android releases without touching iOS", async () => {
+  it("stores releases without persisted status or track", async () => {
     const releasedAt = new Date("2026-08-30T01:00:00.000Z");
     await upsertReleases(db, [
-      { appId, platform: "android", version: "1.0.0", track: "production", releasedAt },
-      { appId, platform: "android", version: "1.1.0", track: "internal", releasedAt },
-      { appId, platform: "android", version: "1.2.0", track: null, releasedAt },
-      { appId, platform: "ios", version: "1.1.0", track: null, releasedAt },
+      { appId, platform: "android", version: "1.0.0", releasedAt },
+      { appId, platform: "ios", version: "1.1.0", releasedAt },
     ]);
-
-    await pruneNonProductionAndroidReleases(db, appId);
 
     const rows = await db.select().from(releases);
-    expect(rows.map((row) => [row.platform, row.version, row.track])).toEqual([
-      ["android", "1.0.0", "production"],
-      ["ios", "1.1.0", null],
+    expect(rows.map((row) => [row.platform, row.version])).toEqual([
+      ["android", "1.0.0"],
+      ["ios", "1.1.0"],
     ]);
+    for (const row of rows) {
+      expect(row).not.toHaveProperty("status");
+      expect(row).not.toHaveProperty("track");
+    }
   });
 
   it("upserts expanded engagement and usage metrics into the overview summary", async () => {

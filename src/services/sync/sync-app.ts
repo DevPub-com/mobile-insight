@@ -1,9 +1,9 @@
+import { isProductionRelease } from "@/services/mobile/common/production-release";
 import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { apps, syncRuns } from "@/db/schema";
 import {
-  pruneNonProductionAndroidReleases,
   upsertAndroidDistribution,
   upsertDailyMetrics,
   replaceDeviceDailyRecords,
@@ -112,6 +112,15 @@ export async function syncAllApps(scope: SyncScope = "all", appId?: string) {
       const analytics = await fetchGa4SyncData(ga4Adapter, appInfo);
       analyticsErrors.push(...analytics.errors);
       try {
+        await upsertMetricObservations(db, analytics.firstOpens.map((item) => ({
+          ...item, observedAt: new Date(item.observedAt),
+        })));
+      } catch (error) {
+        analyticsErrors.push(
+          `analytics_first_opens: ${error instanceof Error ? error.message : "Unknown first_open persistence error"}`,
+        );
+      }
+      try {
         if (analytics.metrics.length) {
           await upsertDailyMetrics(db, analytics.metrics);
         }
@@ -137,7 +146,7 @@ export async function syncAllApps(scope: SyncScope = "all", appId?: string) {
         }
       }
       const analyticsRecords =
-        analytics.metrics.length + (analytics.devices?.records.length ?? 0);
+        analytics.metrics.length + (analytics.devices?.records.length ?? 0) + analytics.firstOpens.length;
       if (analyticsErrors.length) {
         logger.error("ga4_sync_failed", {
           app: app.code,
@@ -193,10 +202,7 @@ export async function syncAllApps(scope: SyncScope = "all", appId?: string) {
         if (payload.ratingSnapshots?.length) {
           await upsertRatingSnapshots(
             db,
-            payload.ratingSnapshots.map((item) => ({
-              ...item,
-              observedAt: new Date(item.observedAt),
-            })),
+            payload.ratingSnapshots.map(({ appId, platform, date, averageRating, ratingCount }) => ({ appId, platform, date, averageRating, ratingCount })),
           );
         }
         if (payload.androidDistribution) {
@@ -218,25 +224,15 @@ export async function syncAllApps(scope: SyncScope = "all", appId?: string) {
         if (payload.releases.length) {
           await upsertReleases(
             db,
-            payload.releases.map((release) => ({
+            payload.releases.filter(isProductionRelease).map((release) => ({
               appId: release.appId,
               platform: release.platform,
               version: release.version,
               releasedAt: new Date(release.releasedAt),
-              releaseDateSource: release.releaseDateSource,
-              releaseDateEstimated: release.releaseDateEstimated,
-              status: release.status,
-              track: release.track,
               buildNumber: release.buildNumber,
               releaseNotes: release.releaseNotes,
-              rolloutFraction: release.rolloutFraction,
-              phasedReleaseState: release.phasedReleaseState,
-              phasedReleaseDay: release.phasedReleaseDay,
             })),
           );
-        }
-        if (adapter.platform === "android" && targetSyncTypes.includes("releases")) {
-          await pruneNonProductionAndroidReleases(db, app.id);
         }
 
         const recordsCount =

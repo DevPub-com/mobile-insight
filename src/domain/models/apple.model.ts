@@ -34,7 +34,6 @@ export type AppleVersionResource = {
   };
   relationships?: {
     appStoreVersionLocalizations?: { data?: Array<{ id: string }> };
-    appStoreVersionPhasedRelease?: { data?: { id: string } | null };
     build?: { data?: { id: string } | null };
   };
 };
@@ -45,9 +44,6 @@ export type AppleIncludedResource = {
   attributes?: {
     locale?: string;
     whatsNew?: string | null;
-    phasedReleaseState?: string;
-    currentDayNumber?: number;
-    startDate?: string;
     version?: string;
   };
 };

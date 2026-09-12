@@ -1,3 +1,4 @@
+import { displayReleaseVersion } from "./common/release-version";
 import { latestNegativeReviews } from "@/domain/reviews/review.service";
 import type {
   AppRelease,
@@ -67,7 +68,7 @@ function ratingQuality(
       item.date <= range.endDate,
   );
   return snapshots.length
-    ? worstQuality(snapshots.map((item) => item.quality))
+    ? worstQuality(snapshots.map((item) => item.quality ?? "derived"))
     : "unavailable";
 }
 
@@ -291,6 +292,7 @@ export function buildDashboardSummaryForRange(
       change: number | null;
       changePercent: number | null;
     };
+    sparklines: { rating: number[]; negativeReviews: number[]; reviewCount: number[]; downloads: number[] };
     crashIssues: (typeof crashIssues)[Platform];
     crashReports: ReturnType<typeof buildCrashHistory>["android"] & { sparkline: number[] };
     windows: ReleaseImpact["windows"] | null;
@@ -317,7 +319,13 @@ export function buildDashboardSummaryForRange(
           )
         : null;
       const releaseRange = { startDate: releaseDate ?? dataThrough, endDate: dataThrough };
-      const reports = buildCrashHistory(data, releaseRange);
+      const reports = buildCrashHistory({ ...data, metricObservations: (data.metricObservations ?? [])
+        .filter(row => row.metricKey === `crash_report_count:version:${release?.version}`)
+        .map(row => ({ ...row, metricKey: "crash_report_count" })) }, releaseRange);
+      const dailyImpact = reports.trend.map(point => {
+        const reviews = data.reviews.filter(row => row.platform === platform && row.version != null && release != null && displayReleaseVersion(platform, row.version) === displayReleaseVersion(platform, release.version) && row.reviewedAt.slice(0, 10) === point.date);
+        return { date: point.date, reviews };
+      });
       const collectedDownloads = data.metrics.filter((metric) =>
         metric.platform === platform && metric.date >= releaseRange.startDate && metric.date <= releaseRange.endDate,
       ).flatMap((metric) => metric.downloads === null ? [] : [metric.downloads]);
@@ -349,8 +357,8 @@ export function buildDashboardSummaryForRange(
           },
           reviewCount: {
             before: impact?.newReviews.before ?? null,
-            after: impact?.newReviews.after ?? null,
-            change: impact && comparisonWindowComplete
+            after: impact?.newReviews.after ? impact.newReviews.after : null,
+            change: impact && impact.newReviews.after > 0 && impact.newReviews.before > 0 && comparisonWindowComplete
               ? impact.newReviews.after - impact.newReviews.before
               : null,
             changePercent: comparisonWindowComplete
@@ -367,6 +375,12 @@ export function buildDashboardSummaryForRange(
               comparisonWindowComplete && downloadCoverageComplete
                 ? (impact?.downloads.changePercent ?? null)
                 : null,
+          },
+          sparklines: {
+            rating: dailyImpact.flatMap(({reviews}) => reviews.length ? [reviews.reduce((sum, row) => sum + row.rating, 0) / reviews.length] : []),
+            negativeReviews: dailyImpact.flatMap(({reviews}) => reviews.length ? [reviews.filter(row => row.rating <= 2).length / reviews.length * 100] : []),
+            reviewCount: dailyImpact.flatMap(({reviews}) => reviews.length ? [reviews.length] : []),
+            downloads: collectedDownloads,
           },
           crashIssues: crashIssues[platform],
           crashReports: { ...reports[platform], sparkline: reports.trend.flatMap((point) => point[platform] === null ? [] : [point[platform]]) },

@@ -119,13 +119,20 @@ describe("store lifecycle views", () => {
 
   it("counts VOC keywords only from negative reviews", () => {
     const keywords = buildVocKeywords([
-      { id: "1", appId: app.id, platform: "android", externalId: "1", rating: 1, title: null, content: "로그인이 느려요", author: null, version: null, reviewedAt: "2026-08-30T00:00:00Z" },
-      { id: "2", appId: app.id, platform: "ios", externalId: "2", rating: 5, title: null, content: "로그인이 빨라요", author: null, version: null, reviewedAt: "2026-08-30T00:00:00Z" },
+      { id: "1", appId: app.id, platform: "android", externalId: "1", rating: 1, title: null, content: "분석 결과만 집계합니다", author: null, version: null, reviewedAt: "2026-08-30T00:00:00Z", aiTopicPaths: [
+        { major: "로그인·인증", middle: "로그인", minor: "로그인 실패" },
+        { major: "속도·성능", middle: "응답 속도", minor: "지연" },
+      ] },
+      { id: "2", appId: app.id, platform: "ios", externalId: "2", rating: 5, title: null, content: "로그인과 속도가 불편해요", author: null, version: null, reviewedAt: "2026-08-30T00:00:00Z", aiTopicPaths: [
+        { major: "로그인·인증", middle: "로그인", minor: "로그인 실패" },
+        { major: "속도·성능", middle: "응답 속도", minor: "지연" },
+      ] },
+      { id: "3", appId: app.id, platform: "android", externalId: "3", rating: 1, title: null, content: "로그인이라는 단어만 있는 미분석 리뷰", author: null, version: null, reviewedAt: "2026-08-30T00:00:00Z" },
     ]);
 
     expect(keywords.slice(0, 2)).toEqual([
-      { label: "로그인", count: 1 },
-      { label: "속도", count: 1 },
+      { label: "로그인·인증", count: 1 },
+      { label: "속도·성능", count: 1 },
     ]);
   });
 });

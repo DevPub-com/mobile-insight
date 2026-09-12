@@ -9,6 +9,14 @@ export type {
   AppleVersionResource,
 } from "@/domain/models/apple.model";
 
+export function isPublishedAppleVersion(state: string | undefined): boolean {
+  return state !== undefined && [
+    "READY_FOR_SALE",
+    "READY_FOR_DISTRIBUTION",
+    "REPLACED_WITH_NEW_VERSION",
+  ].includes(state);
+}
+
 export function normalizeAppleReleases(
   appId: string,
   versions: AppleVersionResource[],
@@ -23,6 +31,7 @@ export function normalizeAppleReleases(
     const releasedAt = storeReleaseDate ?? version.attributes.createdDate;
     if (
       version.attributes.platform !== "IOS" ||
+      !isPublishedAppleVersion(version.attributes.appStoreState) ||
       !version.attributes.versionString ||
       !releasedAt
     ) {
@@ -33,12 +42,6 @@ export function normalizeAppleReleases(
       version.relationships?.appStoreVersionLocalizations?.data?.[0]?.id;
     const localization = localizationId
       ? includedById.get(localizationId)
-      : undefined;
-
-    const phasedReleaseId =
-      version.relationships?.appStoreVersionPhasedRelease?.data?.id;
-    const phasedRelease = phasedReleaseId
-      ? includedById.get(phasedReleaseId)
       : undefined;
 
     const buildId = version.relationships?.build?.data?.id;
@@ -59,10 +62,6 @@ export function normalizeAppleReleases(
         track: "production",
         buildNumber: build?.attributes?.version ?? null,
         releaseNotes: localization?.attributes?.whatsNew ?? null,
-        rolloutFraction: null,
-        phasedReleaseState:
-          phasedRelease?.attributes?.phasedReleaseState ?? null,
-        phasedReleaseDay: phasedRelease?.attributes?.currentDayNumber ?? null,
       },
     ];
   });

@@ -106,6 +106,69 @@
       "when": 1788800000000,
       "tag": "0014_ai_review_insights_and_cache",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1789173600000,
+      "tag": "0015_normalize_android_release_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1789174800000,
+      "tag": "0016_hierarchical_review_topics",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789176600000,
+      "tag": "0017_remove_review_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789230000000,
+      "tag": "0018_remove_review_ai_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789230600000,
+      "tag": "0019_remove_review_version_language",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789231200000,
+      "tag": "0020_remove_release_date_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789231200001,
+      "tag": "0020_remove_rating_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1789232400000,
+      "tag": "0022_remove_release_status_track",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1789233000000,
+      "tag": "0023_remove_release_phased_metadata",
+      "breakpoints": true
     }
   ]
 }

@@ -1,8 +1,14 @@
-import type { AppReview, ReviewSentiment } from "@/domain/types";
+import type {
+  AppReview,
+  ReviewSentiment,
+  ReviewTopicPath,
+} from "@/domain/types";
 
 type ReviewAnalysis = {
   sentiment: ReviewSentiment;
   topics: string[];
+  topicPaths?: ReviewTopicPath[] | null;
+  taxonomyVersion?: number | null;
   summary: string;
 };
 
@@ -10,6 +16,8 @@ export function toReviewInsertValue(
   review: AppReview,
   analysis?: ReviewAnalysis,
 ) {
+  const hasVersionedTaxonomy = analysis?.taxonomyVersion != null;
+
   return {
     appId: review.appId,
     platform: review.platform,
@@ -19,21 +27,14 @@ export function toReviewInsertValue(
     content: review.content,
     author: review.author,
     version: review.version,
-    territory: review.territory,
     device: review.device,
     deviceMetadata: review.deviceMetadata,
     androidOsVersion: review.androidOsVersion,
-    appVersionCode: review.appVersionCode,
-    reviewerLanguage: review.reviewerLanguage,
     thumbsUpCount: review.thumbsUpCount,
     thumbsDownCount: review.thumbsDownCount,
-    source: review.source,
-    quality: review.quality,
-    observedAt: review.observedAt ? new Date(review.observedAt) : undefined,
-    description: review.description,
     reviewedAt: new Date(review.reviewedAt),
     aiSentiment: analysis?.sentiment ?? null,
     aiTopics: analysis?.topics ?? null,
-    aiSummary: analysis?.summary ?? null,
+    aiTopicPaths: hasVersionedTaxonomy ? analysis?.topicPaths ?? null : null,
   };
 }

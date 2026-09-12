@@ -1,11 +1,13 @@
 "use client";
 
+import { displayReleaseVersion } from "@/services/mobile/common/release-version";
+import { DpBadge } from "@/components/ui/dp/DpBadge";
+
 import { useMemo, useState, type ReactNode } from "react";
 
 import { PlatformIcon } from "@/components/dashboard/platform-icon";
 import { ReleaseImpactTrendChart } from "@/components/dashboard/release-impact-trend-chart";
 import { ReleaseImpactAiBriefingCard } from "@/components/dashboard/release-impact-ai-briefing";
-import { DpBadge } from "@/components/ui/dp/DpBadge";
 import { DpButton } from "@/components/ui/dp/DpButton";
 import { DpCard } from "@/components/ui/dp/DpCard";
 import { DpLayout } from "@/components/ui/dp/DpLayout";
@@ -421,7 +423,7 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
           <dl>
             <div>
               <dt>버전</dt>
-              <dd>v{release.version.replace(/^v/, "")}</dd>
+              <dd>v{displayReleaseVersion(release.platform, release.version)}</dd>
             </div>
             <div>
               <dt>분석 기간</dt>
@@ -452,29 +454,9 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
                 {changeLabels[versionChange]} <small>버전 비교</small>
               </dd>
             </div>
-            <div>
-              <dt>배포 채널</dt>
-              <dd>
-                {release.platform === "android"
-                  ? release.track === "production"
-                    ? "Production"
-                    : (release.track ?? "Production")
-                  : "App Store"}
-              </dd>
-            </div>
-            <div>
-              <dt>상태</dt>
-              <dd>
-                <DpBadge className="ri-status">
-                  <KoboyoIcon name="star" size={12} /> {release.status ?? "상태 미수집"}
-                </DpBadge>
-              </dd>
-            </div>
           </dl>
           <DpText as="small" className="ri-summary-note">
-            {release.releaseDateEstimated
-              ? "스토어가 정확한 배포일을 제공하지 않아 버전 생성일 또는 최초 관측일을 기준으로 분석했습니다."
-              : "같은 OS의 이전 배포 기간과 선택 버전의 배포 기간을 비교합니다."}
+            저장된 기준일로 이전 버전과 비교합니다. 기준일은 실제 배포일, 버전 생성일 또는 최초 관측일일 수 있으며 현재 데이터에서는 구분되지 않습니다.
           </DpText>
         </DpCard>
       </DpLayout>
@@ -552,7 +534,7 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
               <DpText as="span">
                 <Delta
                   value={item.changePercent}
-                  lowerIsBetter={item.label === "안정성"}
+                  lowerIsBetter={item.label === "앱 안정성"}
                 />
               </DpText>
             </DpLayout>

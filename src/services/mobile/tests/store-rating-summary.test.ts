@@ -29,3 +29,17 @@ describe("store rating summary", () => {
     expect(buildStoreRatingSummary({ ...data, metricObservations: observations }).android?.value).toBe(4.386);
   });
 });
+
+it("uses one latest public observation per day within the selected range without mixing manual values", () => {
+ const row={...confirmed,metricKey:"google_play_public_rating_kr",source:"mobile_insight" as const};
+ const result=buildStoreRatingSummary({...data,metricObservations:[confirmed,{...row,date:"2026-09-10",value:4.1},{...row,date:"2026-09-11",value:4.2},{...row,date:"2026-09-11",value:4.3,observedAt:"2026-09-11T12:00:00Z"}]},{startDate:"2026-09-11",endDate:"2026-09-12"});
+ expect(result.android?.trend).toEqual([4.3]);
+ expect(result.android?.change).toBeNull();
+});
+
+it('preserves missing calendar days and small real rating changes', () => {
+ const row=data.ratingSnapshots![1];
+ const result=buildStoreRatingSummary({...data,ratingSnapshots:[{...row,date:'2026-09-09',averageRating:2.94467},{...row,date:'2026-09-12',averageRating:2.94562}]});
+ expect(result.ios?.trend).toEqual([2.94467,null,null,2.94562]);
+ expect(result.ios?.change).toBeCloseTo(0.00095,5);
+});

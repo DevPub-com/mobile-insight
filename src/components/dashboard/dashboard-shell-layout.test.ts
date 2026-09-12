@@ -13,6 +13,10 @@ const dateRangePickerSource = readFileSync(
   new URL("./date-range-picker.tsx", import.meta.url),
   "utf8",
 );
+const downloadChartSource = readFileSync(
+  new URL("./download-chart.tsx", import.meta.url),
+  "utf8",
+);
 const releaseImpactSource = readFileSync(
   new URL("./release-impact-workspace.tsx", import.meta.url),
   "utf8",
@@ -31,7 +35,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("릴리즈");
     expect(source).toContain("릴리즈 임팩트");
     expect(source).toContain("앱 관리");
-    expect(source).toContain("일별 다운로드");
+    expect(source).toContain("플랫폼별 일별 상세");
     expect(source).toContain("수집 리뷰 별점 분포");
     expect(source).toContain("최근 업데이트 후 달라진 점");
     expect(source).toContain("앱 목록");
@@ -57,7 +61,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("부정 리뷰 비율");
     expect(source).not.toContain("부정 평가 비율");
     expect(source).toContain('className="mi-dashboard-bottom-grid"');
-    expect(source).toContain("부정 리뷰 Top 10");
+    expect(source).toContain("최근 부정 리뷰");
     expect(source).toContain("최근 업데이트 후 달라진 점");
     expect(source).toContain("전체보기");
     expect(source).toContain("상세보기");
@@ -73,14 +77,14 @@ describe("Mobile Insight dashboard shell layout", () => {
   });
 
   it("renders KPI changes from the selected real-data period instead of placeholders", () => {
-    expect(source).toContain("최근 {periodLabel} 다운로드");
+    expect(source).toContain("audienceDailyDifference");
     expect(source).toContain("const [dateRange, setDateRange] = useState");
     expect(source).not.toContain('buildPeriodSummary(data, "30d")');
     expect(source).not.toContain('buildDownloadTrend(data, "30d")');
     expect(source).not.toContain('buildRatingTrend(data, "30d")');
     expect(source).not.toContain('buildReviewRateTrend(data, "30d")');
-    expect(source).toContain("periodSummary.downloads");
-    expect(source).toContain("periodSummary.downloadChangePercent");
+    expect(source).toContain("audience.latest");
+    expect(source).toContain("crashIssue.dailyChange");
     expect(source).toContain("periodSummary.androidRatingChange");
     expect(source).toContain("periodSummary.iosRatingChange");
     expect(source).toContain("androidNegativeReviews.change");
@@ -100,8 +104,8 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain('name="minus"');
     expect(source).toContain('className={value < 0 ? "is-down" : undefined}');
     expect(source).toContain('name="minus" size={9}');
-    expect(source).not.toContain('value > 0 ? "▲" : value < 0 ? "▼" : "—"');
-    expect(source).toContain("(vs. 이전 {periodLabel})");
+    expect(source).toContain('value > 0 ? "▲" : value < 0 ? "▼" : "—"');
+    expect(source).toContain("전날 대비");
     expect(source).toMatch(/value\s*>\s*0\s*\?\s*"mi-change--increase"/s);
     expect(source).toMatch(
       /value\s*<\s*0\s*\?\s*"mi-change--decrease"\s*:\s*"mi-change--flat"/s,
@@ -133,7 +137,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("performancePeriodViews.has(view)");
     expect(source).toContain("reviewedAt >= dateRange.startDate");
     expect(source).not.toContain("const firstDate = trend.at(0)?.date");
-    expect(source).not.toContain("(최근 28일)");
+    expect(source).toContain("MAU · DAU 추이");
 
     const dashboardCharts = source.slice(
       source.indexOf(
@@ -197,7 +201,6 @@ describe("Mobile Insight dashboard shell layout", () => {
   });
 
   it("matches the download reference information architecture", () => {
-    expect(source).toContain("순증 설치");
     expect(source).toContain("설치 vs 삭제 추이");
     expect(source).toContain('className="mi-install-bars"');
     expect(source).toContain("CSV 다운로드");
@@ -205,6 +208,18 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("데이터 없음");
     expect(source).toContain("수집 지연");
     expect(source).toContain('className={`mi-data-status mi-data-status--${status}`}');
+  });
+
+  it("omits incomparable cross-platform totals and device-model rankings", () => {
+    expect(source).not.toContain("DownloadOsShare");
+    expect(source).not.toContain("DownloadModels");
+    expect(source).not.toContain("OS별 다운로드 점유율");
+    expect(source).not.toContain("모델별 다운로드 · 설치");
+    expect(source).not.toContain('label: "전체 다운로드"');
+    expect(source).not.toContain('<DpText as="span">합계</DpText>');
+    expect(source).toContain('label: "Android 일별 사용자 설치"');
+    expect(source).toContain('label: "iOS 총 다운로드"');
+    expect(downloadChartSource).not.toContain('["전체", "total"');
   });
 
   it("matches the review reference information architecture", () => {
@@ -215,7 +230,8 @@ describe("Mobile Insight dashboard shell layout", () => {
 
   it("shows sentiment on keywords and includes period review highlights", () => {
     expect(source).not.toContain('className={`mi-ai-sentiment-badge');
-    expect(source).toContain("reviewKeywords(item)");
+    expect(source).toContain('className={`mi-review-ai-tags is-${item.aiSentiment');
+    expect(source).toContain("reviewTopicChips(item)");
     expect(source).toContain("summarizeReviewKeywords(periodReviews)");
     expect(source).toContain("설정 기간 리뷰 수");
     expect(source).toContain("설정 기간 평점");
@@ -224,14 +240,14 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("<ReviewDevice review={item} />");
   });
 
-  it("shows up to ten negative reviews on the dashboard and links to the review tab", () => {
+  it("shows up to five negative reviews on the dashboard and links to the review tab", () => {
     expect(source.match(/mi-panel-head--compact/g)).toHaveLength(1);
     expect(source).not.toContain('<DpText as="b">{item.rating}점</DpText>');
     expect(source).toContain("latestNegativeReviews(data.reviews)");
     expect(source).not.toContain("latestNegativeReviews(data.reviews, 10)");
-    expect(source).toContain("dashboardSummary.negativeReviewsTop10");
+    expect(source).toContain("dashboardSummary.negativeReviewsTop10.slice(0, 5)");
     expect(source).toContain('"부정 리뷰" : "최근 리뷰"');
-    expect(source).not.toContain("최근 부정 리뷰");
+    expect(source).toContain("최근 부정 리뷰");
     expect(source).not.toContain("평점 1~2점의 최신 의견입니다.");
     expect(source).not.toContain("mi-review-head--compact");
     expect(source).toContain('className="mi-review-more"');
@@ -305,14 +321,14 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).not.toContain('className="mi-release-complete"');
     expect(source).not.toContain('className="mi-release-type-filter"');
     expect(globalStyles).toMatch(/\.mi-release-notes\s*\{[^}]*white-space:\s*pre-line;/s);
-    expect(source).toContain("releaseDateEstimated");
+    expect(source).not.toContain("releaseDateEstimated");
     expect(source).toContain("item.buildNumber");
     expect(source).not.toContain("classifyVersionChange");
     expect(source).not.toContain("Major");
     expect(source).not.toContain("Minor");
     expect(source).not.toContain("Patch");
     expect(source).not.toContain('patch > 0 ? "patch" : "major"');
-    expect(source).toContain("추정");
+    expect(source).toContain("기준일");
     expect(source).toContain("buildReleaseCadence(releases, releaseToday)");
     expect(source).toContain("releaseSearch");
     expect(source).toContain("releasePlatform");
@@ -336,11 +352,11 @@ describe("Mobile Insight dashboard shell layout", () => {
 
   it("shows current platform impact values together with their absolute changes", () => {
     expect(source).toContain("releaseImpact.rating.after");
-    expect(source).toContain("releaseImpact.negativeReviews.after");
+    expect(source).toContain("releaseImpact?.negativeReviews.after");
     expect(source).toContain('label: "리뷰 건수"');
-    expect(source).toContain("releaseImpact.reviewCount.after");
+    expect(source).toContain("releaseImpact?.reviewCount.after");
     expect(source).toContain('label: "배포 후 다운로드"');
-    expect(source).toContain("releaseImpact.downloads.after");
+    expect(source).toContain("releaseImpact?.downloads.after");
     expect(source).toContain("current: crashIssue?.value ?? null");
     expect(source).toContain("change: crashIssue?.change ?? null");
     expect(source).toContain('className="mi-dashboard-impact-values"');

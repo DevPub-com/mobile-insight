@@ -170,16 +170,11 @@ export async function upsertRatingSnapshots<TQueryResult extends PgQueryResultHK
     target: [
       ratingSnapshots.appId,
       ratingSnapshots.platform,
-      ratingSnapshots.territory,
       ratingSnapshots.date,
-      ratingSnapshots.source,
     ],
     set: {
       averageRating: sql`excluded.average_rating`,
       ratingCount: sql`excluded.rating_count`,
-      quality: sql`excluded.quality`,
-      observedAt: sql`excluded.observed_at`,
-      description: sql`excluded.description`,
       updatedAt: new Date(),
     },
   });
@@ -201,22 +196,20 @@ export async function upsertReviews<TQueryResult extends PgQueryResultHKT>(
         content: sql`excluded.content`,
         author: sql`coalesce(excluded.author, ${reviews.author})`,
         version: sql`coalesce(excluded.version, ${reviews.version})`,
-        territory: sql`coalesce(excluded.territory, ${reviews.territory})`,
         device: sql`coalesce(excluded.device, ${reviews.device})`,
         deviceMetadata: sql`coalesce(excluded.device_metadata, ${reviews.deviceMetadata})`,
         androidOsVersion: sql`coalesce(excluded.android_os_version, ${reviews.androidOsVersion})`,
-        appVersionCode: sql`coalesce(excluded.app_version_code, ${reviews.appVersionCode})`,
-        reviewerLanguage: sql`coalesce(excluded.reviewer_language, ${reviews.reviewerLanguage})`,
         thumbsUpCount: sql`coalesce(excluded.thumbs_up_count, ${reviews.thumbsUpCount})`,
         thumbsDownCount: sql`coalesce(excluded.thumbs_down_count, ${reviews.thumbsDownCount})`,
-        source: sql`excluded.source`,
-        quality: sql`excluded.quality`,
-        observedAt: sql`excluded.observed_at`,
-        description: sql`excluded.description`,
         reviewedAt: sql`excluded.reviewed_at`,
         aiSentiment: sql`coalesce(excluded.ai_sentiment, ${reviews.aiSentiment})`,
         aiTopics: sql`coalesce(excluded.ai_topics, ${reviews.aiTopics})`,
-        aiSummary: sql`coalesce(excluded.ai_summary, ${reviews.aiSummary})`,
+        aiTopicPaths: sql`case
+          when excluded.content is distinct from ${reviews.content}
+            or excluded.title is distinct from ${reviews.title}
+          then excluded.ai_topic_paths
+          else coalesce(excluded.ai_topic_paths, ${reviews.aiTopicPaths})
+        end`,
         updatedAt: new Date(),
       },
     });
@@ -254,46 +247,10 @@ export async function upsertReleases<TQueryResult extends PgQueryResultHKT>(
     .onConflictDoUpdate({
       target: [releases.appId, releases.platform, releases.version],
       set: {
-        releasedAt: sql`case
-          when ${releases.releaseDateEstimated} = false and excluded.release_date_estimated = true
-            then ${releases.releasedAt}
-          when ${releases.releaseDateSource} = 'first_observed_at'
-            and excluded.release_date_source = 'first_observed_at'
-            then ${releases.releasedAt}
-          else excluded.released_at
-        end`,
-        releaseDateSource: sql`case
-          when ${releases.releaseDateEstimated} = false and excluded.release_date_estimated = true
-            then ${releases.releaseDateSource}
-          else excluded.release_date_source
-        end`,
-        releaseDateEstimated: sql`case
-          when ${releases.releaseDateEstimated} = false and excluded.release_date_estimated = true
-            then false
-          else excluded.release_date_estimated
-        end`,
-        status: sql`coalesce(excluded.status, ${releases.status})`,
-        track: sql`coalesce(excluded.track, ${releases.track})`,
+        releasedAt: sql`${releases.releasedAt}`,
         buildNumber: sql`coalesce(excluded.build_number, ${releases.buildNumber})`,
         releaseNotes: sql`coalesce(excluded.release_notes, ${releases.releaseNotes})`,
-        rolloutFraction: sql`coalesce(excluded.rollout_fraction, ${releases.rolloutFraction})`,
-        phasedReleaseState: sql`coalesce(excluded.phased_release_state, ${releases.phasedReleaseState})`,
-        phasedReleaseDay: sql`coalesce(excluded.phased_release_day, ${releases.phasedReleaseDay})`,
         updatedAt: new Date(),
       },
     });
-}
-
-export async function pruneNonProductionAndroidReleases<
-  TQueryResult extends PgQueryResultHKT,
->(db: Database<TQueryResult>, appId: string) {
-  await db
-    .delete(releases)
-    .where(
-      and(
-        eq(releases.appId, appId),
-        eq(releases.platform, "android"),
-        sql`${releases.track} is distinct from 'production'`,
-      ),
-    );
 }

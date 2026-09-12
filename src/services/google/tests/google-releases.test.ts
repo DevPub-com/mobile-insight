@@ -8,6 +8,40 @@ import {
 } from "../google-releases";
 
 describe("normalizeGoogleReleases", () => {
+  it("excludes test tracks and production drafts before storage", () => {
+    const releases = normalizeGoogleReleases("app", [
+      {track: "internal", releases: [{name: "test", status: "completed"}]},
+      {track: "production", releases: [{name: "draft", status: "draft"}, {name: "live", status: "inProgress"}]},
+    ]);
+    expect(releases.map(release => release.version)).toEqual(["live"]);
+    const summaries = normalizeGoogleReleaseSummaries("app", [
+      {track: "production", releaseName: "pending", releaseLifecycleState: "RELEASE_LIFECYCLE_STATE_APPROVED_NOT_PUBLISHED"},
+      {track: "beta", releaseName: "test", releaseLifecycleState: "RELEASE_LIFECYCLE_STATE_PUBLISHED"},
+      {track: "production", releaseName: "live", releaseLifecycleState: "RELEASE_LIFECYCLE_STATE_PUBLISHED"},
+    ]);
+    expect(summaries.map(release => release.version)).toEqual(["live"]);
+  });
+  it.each([
+    ["26091008 (2.27.05)", "2.27.05"],
+    [" 26091008 ( 2.27.05 ) ", "2.27.05"],
+    ["2.27.05", "2.27.05"],
+    ["September (production)", "September (production)"],
+    [undefined, "26091008"],
+  ])("normalizes %s consistently in active and historical releases", (name, version) => {
+    const active = normalizeGoogleReleases("app-1", [{
+      track: "production",
+      releases: [{ status: "completed", name, versionCodes: ["26091008"] }],
+    }]);
+    const historical = normalizeGoogleReleaseSummaries("app-1", [{
+      releaseName: name,
+      releaseLifecycleState: "RELEASE_LIFECYCLE_STATE_PUBLISHED",
+      activeArtifacts: [{ versionCode: 26091008 }],
+    }]);
+    for (const releases of [active, historical]) {
+      expect(releases[0]).toMatchObject({ version, buildNumber: "26091008" });
+    }
+  });
+
   it("maps the production track release and marks its first-observed date as estimated", () => {
     const releases = normalizeGoogleReleases(
       "app-1",
@@ -71,8 +105,8 @@ describe("normalizeGoogleReleases", () => {
     const historical = normalizeGoogleReleaseSummaries(
       "app-1",
       [
-        { releaseName: "1.5.0", track: "production", activeArtifacts: [{ versionCode: 15000 }] },
-        { releaseName: "1.6.1", track: "production", activeArtifacts: [{ versionCode: 16100 }] },
+        { releaseLifecycleState: "RELEASE_LIFECYCLE_STATE_PUBLISHED", releaseName: "1.5.0", track: "production", activeArtifacts: [{ versionCode: 15000 }] },
+        { releaseLifecycleState: "RELEASE_LIFECYCLE_STATE_PUBLISHED", releaseName: "1.6.1", track: "production", activeArtifacts: [{ versionCode: 16100 }] },
       ],
       new Date("2026-08-31T13:00:00Z"),
     );
@@ -80,6 +114,7 @@ describe("normalizeGoogleReleases", () => {
       "app-1",
       [{ track: "production", releases: [{
         name: "1.6.1",
+        status: "completed",
         versionCodes: ["16100"],
         releaseNotes: [{ language: "ko-KR", text: "안정성 개선" }],
       }] }],
@@ -176,7 +211,7 @@ describe("normalizeGoogleReleases", () => {
         data: {
           tracks: [{
             track: "production",
-            releases: [{ name: "1.6.1", versionCodes: ["16100"] }],
+            releases: [{ name: "1.6.1", versionCodes: ["16100"], status: "completed" }],
           }],
         } as T,
       };

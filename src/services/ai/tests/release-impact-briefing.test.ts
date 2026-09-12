@@ -70,7 +70,7 @@ describe("Release Impact Briefing Service", () => {
     },
     daily: [],
     insights: [],
-    voc: [{ label: "로그인", before: 5, after: 1, changePercent: -80 }],
+    voc: [{ label: "로그인·인증", before: 5, after: 1, changePercent: -80 }],
     representativeReviews: [],
     platforms: ["android"],
     coverage: {

@@ -7,6 +7,7 @@ import {
   latestNegativeReviews,
   reviewAuthorLabel,
   reviewDeviceLabel,
+  reviewDeviceSpecs,
   summarizeReviewRatings,
   reviewTimeLabel,
 } from "./review.service";
@@ -93,5 +94,15 @@ describe("calculateNegativeReviewRate", () => {
   it("weights the average by review count and keeps neutral ratings separate", () => {
     expect(summarizeReviewRatings([1, 2, 3, 4, 5])).toEqual({ average: 3, total: 5, positive: 2, neutral: 1, negative: 2 });
     expect(summarizeReviewRatings([])).toEqual({ average: null, total: 0, positive: 0, neutral: 0, negative: 0 });
+  });
+});
+
+ describe("review device specs", () => {
+  it("converts API level and preserves pixel dimensions and reported RAM", () => {
+    expect(reviewDeviceSpecs({ platform: "android", androidOsVersion: 34, deviceMetadata: { screenWidthPx: 1080, screenHeightPx: 2400, ramMb: 8192 } })).toEqual(["Android 14", "1080 × 2400 px", "RAM 8,192 MB"]);
+  });
+  it("does not invent missing specs or unknown Android versions", () => {
+    expect(reviewDeviceSpecs({ platform: "ios" })).toEqual(["OS —", "화면 —", "RAM —"]);
+    expect(reviewDeviceSpecs({ platform: "android", androidOsVersion: 99, deviceMetadata: { screenWidthPx: 1080, screenHeightPx: 0, ramMb: 0 } })).toEqual(["Android API 99", "화면 —", "RAM —"]);
   });
 });

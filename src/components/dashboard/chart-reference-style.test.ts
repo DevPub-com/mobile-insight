@@ -45,12 +45,9 @@ describe("reference dashboard chart style", () => {
   });
 
   it("matches the reference legend order, palette, solid lines, and filled circle markers", () => {
-    expect(source).toContain('["전체", "total", "#8993A7"]');
-    expect(source).toContain('["Android", "android", "#16B84E"]');
-    expect(source).toContain('["iOS", "ios", "#8B3DFF"]');
-    expect(source.indexOf('["전체", "total"')).toBeLessThan(
-      source.indexOf('["Android", "android"'),
-    );
+    expect(source).not.toContain('["전체", "total", "#8993A7"]');
+    expect(source).toContain('["Android 일별 사용자 설치", "android", "#16B84E"]');
+    expect(source).toContain('["iOS 총 다운로드", "ios", "#8B3DFF"]');
     expect(ratingSource).toContain('["Android", "android", "#16B84E"]');
     expect(ratingSource).toContain('["iOS", "ios", "#8B3DFF"]');
     expect(source).toContain("symbolSize: 5");
@@ -172,8 +169,8 @@ describe("reference dashboard chart style", () => {
     expect(sparklineSource).toContain("data: chartValues");
     expect(sparklineSource).toContain("boundaryGap: false");
     expect(sparklineSource).toContain("const flatPadding = 1");
-    expect(sparklineSource).toContain("min: chartValues[0] - flatPadding");
-    expect(sparklineSource).toContain("max: chartValues[0] + flatPadding");
+    expect(sparklineSource).toContain("min: chartValues[0]! - flatPadding");
+    expect(sparklineSource).toContain("max: chartValues[0]! + flatPadding");
     expect(sparklineSource).toContain('origin: "start"');
     expect(sparklineSource).toContain("smooth: smooth ? 0.4 : false");
     expect(sparklineSource).toContain('symbol: singlePoint && values.length === 1 ? "circle" : "none"');

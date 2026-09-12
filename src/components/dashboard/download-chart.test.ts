@@ -126,3 +126,14 @@ describe("buildReleaseMarkers", () => {
     expect(markers[0]?.label).toBe("Android · v5.12.0");
   });
 });
+
+it("aligns first-open series by date without substituting downloads or filling gaps", async () => {
+  const { buildFirstOpenSeries } = await import("./download-chart");
+  const series = buildFirstOpenSeries(["2026-09-10", "2026-09-11", "2026-09-12"], [
+    { date: "2026-09-11", android: 4641, ios: 1583, total: 6224 },
+  ]);
+  expect(series.map(({ name, data, lineStyle }) => ({ name, data, type: lineStyle.type }))).toEqual([
+    { name: "Android 최초 실행", data: [null, 4641, null], type: "dashed" },
+    { name: "iOS 최초 실행", data: [null, 1583, null], type: "dashed" },
+  ]);
+});

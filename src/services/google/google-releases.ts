@@ -1,3 +1,4 @@
+import { isProductionRelease } from "@/services/mobile/common/production-release";
 import type {
   GoogleReleaseSummary,
   GoogleTrack,
@@ -72,6 +73,12 @@ export function normalizeAndroidDistribution(
   };
 }
 
+function normalizeGoogleReleaseVersion(name: string | undefined): string | undefined {
+  const trimmed = name?.trim();
+  // Play release names can contain both the build code and the version name.
+  return trimmed?.match(/^\d+\s*\(\s*([^()]+?)\s*\)$/)?.[1] || trimmed || undefined;
+}
+
 export function normalizeGoogleReleases(
   appId: string,
   tracks: GoogleTrack[],
@@ -87,9 +94,9 @@ export function normalizeGoogleReleases(
     );
   const byTrackAndVersion = new Map<string, AppRelease>();
   for (const { track, release } of candidates) {
-    const version = release.name?.trim() || release.versionCodes?.at(-1);
+    const version = normalizeGoogleReleaseVersion(release.name) || release.versionCodes?.at(-1);
     const identity = `${track}\u0000${version}`;
-    if (!version || byTrackAndVersion.has(identity)) {
+    if (!version || byTrackAndVersion.has(identity) || !isProductionRelease({ platform: "android", track, status: release.status })) {
       continue;
     }
     const notes = release.releaseNotes ?? [];
@@ -109,9 +116,6 @@ export function normalizeGoogleReleases(
         notes.find((item) => item.language === "ko-KR")?.text ??
         notes.find((item) => item.text)?.text ??
         null,
-      rolloutFraction: release.userFraction ?? null,
-      phasedReleaseState: null,
-      phasedReleaseDay: null,
     });
   }
   return [...byTrackAndVersion.values()];
@@ -123,12 +127,12 @@ export function normalizeGoogleReleaseSummaries(
   observedAt = new Date(),
 ): AppRelease[] {
   return summaries
-    .filter((summary) => (summary.track ?? "production") === "production")
+    .filter((summary) => isProductionRelease({ platform: "android", track: summary.track ?? "production", status: summary.releaseLifecycleState }))
     .flatMap((summary) => {
       const versionCodes = (summary.activeArtifacts ?? []).flatMap((artifact) =>
         artifact.versionCode == null ? [] : [String(artifact.versionCode)],
       );
-      const version = summary.releaseName?.trim() || versionCodes.at(-1);
+      const version = normalizeGoogleReleaseVersion(summary.releaseName) || versionCodes.at(-1);
       if (!version) {
         return [];
       }
@@ -145,9 +149,6 @@ export function normalizeGoogleReleaseSummaries(
           track: "production",
           buildNumber: versionCodes.join(", ") || null,
           releaseNotes: null,
-          rolloutFraction: null,
-          phasedReleaseState: null,
-          phasedReleaseDay: null,
         },
       ];
     });

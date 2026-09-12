@@ -3,7 +3,17 @@ import { describe, expect, it } from "vitest";
 import {
   classifyVersionChange,
   compareVersionsDescending,
+  displayReleaseVersion,
 } from "../common/release-version";
+
+it.each([
+  ["android", "26091008 (2.27.05)", "2.27.05"],
+  ["android", "v26091008 (2.27.05)", "2.27.05"],
+  ["android", "2.27.05", "2.27.05"],
+  ["ios", "2.28.00", "2.28.00"],
+] as const)("formats %s version %s", (platform, version, expected) => {
+  expect(displayReleaseVersion(platform, version)).toBe(expected);
+});
 
 describe("classifyVersionChange", () => {
   it.each([

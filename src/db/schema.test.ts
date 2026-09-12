@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { getTableName } from "drizzle-orm";
+import { getTableColumns, getTableName } from "drizzle-orm";
 
 import {
   apps,
@@ -13,6 +13,12 @@ import {
 import * as schema from "./schema";
 
 describe("table naming policy", () => {
+  it("does not expose unused phased release columns", () => {
+    const columns = getTableColumns(releases);
+    expect(columns).not.toHaveProperty("rolloutFraction");
+    expect(columns).not.toHaveProperty("phasedReleaseState");
+    expect(columns).not.toHaveProperty("phasedReleaseDay");
+  });
   it("uses predictable snake_case names for each table", () => {
     const tables = schema as unknown as Record<string, Parameters<typeof getTableName>[0]>;
     const expectedNames = {
@@ -66,8 +72,8 @@ describe("timestamp schema precision", () => {
   });
 
   it("stores release date provenance", () => {
-    expect(releases.releaseDateSource.name).toBe("release_date_source");
-    expect(releases.releaseDateEstimated.name).toBe("release_date_estimated");
+    expect(releases).not.toHaveProperty("releaseDateSource");
+    expect(releases).not.toHaveProperty("releaseDateEstimated");
   });
 
   it("stores platform-native build identifier", () => {
@@ -87,17 +93,19 @@ describe("timestamp schema precision", () => {
     expect(tables.metricObservations.observedAt.name).toBe("observed_at");
     expect(tables.androidDistributionSnapshots.countryCodes.name).toBe("country_codes");
     expect(tables.androidDistributionSnapshots.deviceTypes.name).toBe("device_types");
-    expect(tables.reviews.territory.name).toBe("territory");
+    for (const field of ["territory", "source", "quality", "observedAt", "description"]) {
+      expect(tables.reviews).not.toHaveProperty(field);
+    }
     expect(tables.reviews.device.name).toBe("device");
     expect(tables.reviews.deviceMetadata.name).toBe("device_metadata");
     expect(tables.reviews.androidOsVersion.name).toBe("android_os_version");
-    expect(tables.reviews.appVersionCode.name).toBe("app_version_code");
-    expect(tables.reviews.reviewerLanguage.name).toBe("reviewer_language");
+    expect(tables.reviews).not.toHaveProperty("appVersionCode");
+    expect(tables.reviews).not.toHaveProperty("reviewerLanguage");
     expect(tables.reviews.thumbsUpCount.name).toBe("thumbs_up_count");
     expect(tables.reviews.thumbsDownCount.name).toBe("thumbs_down_count");
-    expect(tables.reviews.source.name).toBe("source");
-    expect(tables.reviews.quality.name).toBe("quality");
-    expect(tables.reviews.observedAt.name).toBe("observed_at");
+    expect(tables.reviews.aiTopicPaths.name).toBe("ai_topic_paths");
+    expect(tables.reviews).not.toHaveProperty("aiTaxonomyVersion");
+    expect(tables.reviews).not.toHaveProperty("aiSummary");
   });
 });
 
@@ -124,4 +132,11 @@ describe("migration manifest", () => {
 
     expect(journal.entries.map((entry) => entry.tag).sort()).toEqual(sqlTags);
   });
+});
+
+it("removes rating snapshot metadata columns", () => {
+  const columns = getTableColumns(schema.ratingSnapshots);
+  for (const key of ["territory", "source", "quality", "observedAt", "description"]) {
+    expect(columns).not.toHaveProperty(key);
+  }
 });

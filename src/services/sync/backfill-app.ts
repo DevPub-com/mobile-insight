@@ -1,9 +1,9 @@
+import { isProductionRelease } from "@/services/mobile/common/production-release";
 import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { apps } from "@/db/schema";
 import {
-  pruneNonProductionAndroidReleases,
   replaceDeviceDailyRecords,
   upsertAndroidDistribution,
   upsertDailyMetrics,
@@ -50,10 +50,7 @@ async function persistPayload(payload: StoreSyncPayload) {
   if (payload.ratingSnapshots?.length) {
     await upsertRatingSnapshots(
       db,
-      payload.ratingSnapshots.map((item) => ({
-        ...item,
-        observedAt: new Date(item.observedAt),
-      })),
+      payload.ratingSnapshots.map(({ appId, platform, date, averageRating, ratingCount }) => ({ appId, platform, date, averageRating, ratingCount })),
     );
   }
   if (payload.androidDistribution) {
@@ -68,30 +65,16 @@ async function persistPayload(payload: StoreSyncPayload) {
   for (const reviews of chunks(reviewValues)) {
     await upsertReviews(db, reviews);
   }
-  const releaseValues = payload.releases.map((release) => ({
+  const releaseValues = payload.releases.filter(isProductionRelease).map((release) => ({
     appId: release.appId,
     platform: release.platform,
     version: release.version,
     releasedAt: new Date(release.releasedAt),
-    releaseDateSource: release.releaseDateSource,
-    releaseDateEstimated: release.releaseDateEstimated,
-    status: release.status,
-    track: release.track,
     buildNumber: release.buildNumber,
     releaseNotes: release.releaseNotes,
-    rolloutFraction: release.rolloutFraction,
-    phasedReleaseState: release.phasedReleaseState,
-    phasedReleaseDay: release.phasedReleaseDay,
   }));
   for (const releases of chunks(releaseValues)) {
     await upsertReleases(db, releases);
-  }
-  for (const appId of new Set(
-    payload.releases
-      .filter((release) => release.platform === "android")
-      .map((release) => release.appId),
-  )) {
-    await pruneNonProductionAndroidReleases(db, appId);
   }
 }
 

@@ -35,7 +35,7 @@ export function MetricSparkline({
   singlePoint = false,
   smooth = true,
 }: {
-  values: number[];
+  values: Array<number | null>;
   color: string;
   singlePoint?: boolean;
   smooth?: boolean;
@@ -43,7 +43,7 @@ export function MetricSparkline({
   const option = useMemo<EChartsCoreOption>(
     () => {
       const isFlat =
-        values.length > 0 &&
+        values.length > 0 && values[0] !== null &&
         values.every((value) => value === values[0]);
       const chartValues = isFlat && !(singlePoint && values.length === 1) ? [values[0], values[0]] : values;
       const chartColor = resolveSparklineColor(color);
@@ -62,14 +62,15 @@ export function MetricSparkline({
               type: "value",
               show: false,
               scale: true,
-              min: chartValues[0] - flatPadding,
-              max: chartValues[0] + flatPadding,
+              min: chartValues[0]! - flatPadding,
+              max: chartValues[0]! + flatPadding,
             }
           : { type: "value", show: false, scale: true },
         series: [
           {
             type: "line",
             data: chartValues,
+            connectNulls: false,
             smooth: smooth ? 0.4 : false,
             symbol: singlePoint && values.length === 1 ? "circle" : "none",
             showSymbol: singlePoint && values.length === 1,

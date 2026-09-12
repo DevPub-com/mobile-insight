@@ -236,20 +236,33 @@ export function buildReviewRateTrendForRange(
   return points;
 }
 
-export function buildStoreRatingSummary(data: DashboardData) {
+export function buildStoreRatingSummary(data: DashboardData, range?: {startDate:string;endDate:string}) {
+  const inRange = (date:string) => !range || (date >= range.startDate && date <= range.endDate);
+  const hasPublicRating = (data.metricObservations ?? []).some(item => item.appId === data.app.id && item.metricKey === "google_play_public_rating_kr" && item.value != null && item.quality !== "unavailable");
   const androidPoints = (data.metricObservations ?? [])
-    .filter((item) => item.platform === "android" && item.metricKey === "google_play_rating"
+    .filter((item) => item.appId === data.app.id && inRange(item.date) && item.platform === "android" && item.metricKey === (hasPublicRating ? "google_play_public_rating_kr" : "google_play_rating")
       && item.quality !== "unavailable" && item.value !== null && item.value >= 1 && item.value <= 5)
     .toSorted((a, b) => a.date.localeCompare(b.date) || a.observedAt.localeCompare(b.observedAt));
   const iosPoints = (data.ratingSnapshots ?? [])
-    .filter((item) => item.platform === "ios" && item.quality !== "unavailable"
+    .filter((item) => item.appId === data.app.id && inRange(item.date) && item.platform === "ios" && item.quality !== "unavailable"
       && item.averageRating >= 1 && item.averageRating <= 5)
-    .toSorted((a, b) => a.date.localeCompare(b.date) || a.observedAt.localeCompare(b.observedAt));
+    .toSorted((a, b) => a.date.localeCompare(b.date) || (a.observedAt ?? "").localeCompare(b.observedAt ?? ""));
   const android = androidPoints.at(-1);
   const ios = iosPoints.at(-1);
-  const androidTrend = [...new Map(androidPoints.map((item) => [item.date, item.value!])).values()];
-  const iosTrend = [...new Map(iosPoints.map((item) => [item.date, item.averageRating])).values()];
-  const change = (values: number[]) => values.length < 2 ? null : Number((values.at(-1)! - values.at(-2)!).toFixed(2));
+  const dailyTrend = (points: Array<{date:string;value:number}>) => {
+    const byDate = new Map(points.map(point => [point.date, point.value]));
+    const dates = [...byDate.keys()].sort();
+    const values: Array<number | null> = [];
+    if (!dates.length) return values;
+    for (let date = dates[0]; date <= dates.at(-1)!; date = shiftDate(date, 1)) values.push(byDate.get(date) ?? null);
+    return values;
+  };
+  const androidTrend = dailyTrend(androidPoints.map(item => ({date:item.date,value:item.value!})));
+  const iosTrend = dailyTrend(iosPoints.map(item => ({date:item.date,value:item.averageRating})));
+  const change = (values: Array<number | null>) => {
+    const observed = values.filter((value): value is number => value !== null);
+    return observed.length < 2 ? null : Number((observed.at(-1)! - observed.at(-2)!).toFixed(5));
+  };
   return {
     android: android ? { value: android.value!, date: android.date, source: android.source, trend: androidTrend, change: change(androidTrend) } : null,
     ios: ios ? { value: ios.averageRating, date: ios.date, source: ios.source, trend: iosTrend, change: change(iosTrend) } : null,

@@ -18,8 +18,8 @@ const columns = await db.execute(sql`
   from information_schema.columns
   where table_name in ('overview_daily_summary', 'release_summary')
     and column_name in (
-      'installs', 'uninstalls', 'release_notes', 'status',
-      'release_date_source', 'release_date_estimated', 'build_number'
+      'installs', 'uninstalls', 'release_notes',
+      'build_number'
     )
   order by column_name
 `);
@@ -50,10 +50,7 @@ const reviewCoverage = await db.execute(sql`
 const releaseCoverage = await db.execute(sql`
   select a.code, r.platform, count(r.id) as releases,
     count(*) filter (where r.release_notes is not null) as releases_with_notes,
-    count(*) filter (where r.status is not null) as releases_with_status,
-    count(*) filter (where r.release_date_estimated = true) as estimated_releases,
-    count(*) filter (where r.build_number is not null) as releases_with_build_number,
-    string_agg(distinct r.release_date_source, ', ' order by r.release_date_source) as date_sources
+    count(*) filter (where r.build_number is not null) as releases_with_build_number
   from app_master a
   left join release_summary r on r.app_id = a.id
   group by a.code, r.platform

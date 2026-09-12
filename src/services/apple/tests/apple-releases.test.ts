@@ -5,17 +5,25 @@ import { describe, expect, it } from "vitest";
 import { normalizeAppleReleases } from "../apple-releases";
 
 describe("normalizeAppleReleases", () => {
+  it("excludes unpublished versions even when a release date exists", () => {
+    const states = ["READY_FOR_SALE", "READY_FOR_DISTRIBUTION", "REPLACED_WITH_NEW_VERSION", "PREPARE_FOR_SUBMISSION", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "PENDING_APPLE_RELEASE", "PREORDER_READY_FOR_SALE", undefined];
+    const result = normalizeAppleReleases("app-1", states.map((state, index) => ({
+      id: String(index), attributes: {platform: "IOS", versionString: String(index), appStoreState: state, earliestReleaseDate: "2026-09-01T00:00:00Z"},
+    })), []);
+    expect(result.map(release => release.version)).toEqual(["0", "1", "2"]);
+  });
   it("requests localization, build, and release method metadata", () => {
     const adapterSource = readFileSync(
       new URL("../adapter/app-store.adapter.ts", import.meta.url),
       "utf8",
     );
-    expect(adapterSource).toContain("appStoreVersionLocalizations,build,appStoreVersionPhasedRelease");
+    expect(adapterSource).toContain("include=appStoreVersionLocalizations,build&");
+    expect(adapterSource).not.toContain("appStoreVersionPhasedRelease");
     expect(adapterSource).toContain("releaseType");
     expect(adapterSource).toContain("fields[builds]=version");
   });
 
-  it("joins version, localized release notes, and phased release metadata", () => {
+  it("joins version, localized release notes, and build metadata", () => {
     const releases = normalizeAppleReleases(
       "app-1",
       [
@@ -30,7 +38,6 @@ describe("normalizeAppleReleases", () => {
           },
           relationships: {
             appStoreVersionLocalizations: { data: [{ id: "loc-ko" }] },
-            appStoreVersionPhasedRelease: { data: { id: "phase-1" } },
             build: { data: { id: "build-1" } },
           },
         },
@@ -46,15 +53,6 @@ describe("normalizeAppleReleases", () => {
           id: "build-1",
           attributes: { version: "61042" },
         },
-        {
-          type: "appStoreVersionPhasedReleases",
-          id: "phase-1",
-          attributes: {
-            phasedReleaseState: "ACTIVE",
-            currentDayNumber: 3,
-            startDate: "2026-08-20",
-          },
-        },
       ],
       new Date("2026-08-31T00:00:00Z"),
     );
@@ -65,8 +63,6 @@ describe("normalizeAppleReleases", () => {
         version: "6.1.0",
         status: "READY_FOR_SALE",
         releaseNotes: "로그인 성능을 개선했습니다.",
-        phasedReleaseState: "ACTIVE",
-        phasedReleaseDay: 3,
         buildNumber: "61042",
       }),
     ]);

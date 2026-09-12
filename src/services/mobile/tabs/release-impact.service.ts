@@ -1,8 +1,9 @@
+import { displayReleaseVersion } from "../common/release-version";
 import { calculateReleaseImpact } from "@/domain/releases/release-impact";
 import type { AppRelease, DashboardData, Platform } from "@/domain/types";
 import { addDays } from "@/lib/date";
 import { calculateAverage } from "@/lib/number";
-import { contentMatchesTerms, VOC_GROUPS } from "../common/voc-keywords";
+import { reviewHasMajorTopic, VOC_GROUPS } from "../common/voc-keywords";
 
 const dayCount = (from: string, to: string) =>
   Math.max(0, Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1);
@@ -90,7 +91,7 @@ export function buildReleaseImpact(
       point.downloads += downloads;
       point.hasDownloads = true;
     }
-    if (metric.rating !== null) point.ratings.push(metric.rating);
+    // Store-wide rating snapshots cannot be attributed to this release.
     byDate.set(metric.date, point);
   }
 
@@ -108,7 +109,7 @@ export function buildReleaseImpact(
         : null,
     })),
     reviews: data.reviews
-      .filter((review) => review.platform === platform)
+      .filter((review) => review.platform === platform && review.version != null && displayReleaseVersion(platform, review.version) === displayReleaseVersion(platform, version))
       .map((review) => ({
         reviewedAt: review.reviewedAt.slice(0, 10),
         rating: review.rating,
@@ -136,7 +137,7 @@ export function buildReleaseImpactWorkspace(
   // All cards, reviews and trends use the selected app and OS.
   data = { ...data,
     metrics: data.metrics.filter((item) => item.appId === release.appId && item.platform === release.platform),
-    reviews: data.reviews.filter((item) => item.appId === release.appId && item.platform === release.platform),
+    reviews: data.reviews.filter((item) => item.appId === release.appId && item.platform === release.platform && item.version != null && displayReleaseVersion(item.platform, item.version) === displayReleaseVersion(release.platform, release.version)),
   };
 
   const metricsIn = (from: string, to: string) =>
@@ -168,12 +169,8 @@ export function buildReleaseImpactWorkspace(
       ? values.reduce((total, value) => total + value, 0)
       : null;
   };
-  const ratingAverage = (rows: typeof data.metrics, platform: Platform) =>
-    calculateAverage(
-      rows.flatMap((item) =>
-        item.platform === platform && item.rating !== null ? [item.rating] : [],
-      ),
-    );
+  const ratingAverage = (rows: typeof data.reviews, platform: Platform) =>
+    calculateAverage(rows.filter(row => row.platform === platform).map(row => row.rating));
   const negativeRate = (rows: typeof data.reviews) =>
     rows.length
       ? (rows.filter((item) => item.rating <= 2).length / rows.length) * 100
@@ -191,12 +188,12 @@ export function buildReleaseImpactWorkspace(
   };
   const ratings = {
     android: comparison(
-      ratingAverage(beforeMetrics, "android"),
-      ratingAverage(afterMetrics, "android"),
+      ratingAverage(beforeReviews, "android"),
+      ratingAverage(afterReviews, "android"),
     ),
     ios: comparison(
-      ratingAverage(beforeMetrics, "ios"),
-      ratingAverage(afterMetrics, "ios"),
+      ratingAverage(beforeReviews, "ios"),
+      ratingAverage(afterReviews, "ios"),
     ),
   };
   const negativeReviews = comparison(
@@ -254,15 +251,15 @@ export function buildReleaseImpactWorkspace(
     return { offset, date, downloads: downloadTotal(rows) };
   });
 
-  const voc = VOC_GROUPS.map(({ label, terms }) => {
+  const voc = VOC_GROUPS.map(({ label }) => {
     const before = beforeReviews.reduce(
       (total, item) =>
-        total + (contentMatchesTerms(item.content, terms) ? 1 : 0),
+        total + (reviewHasMajorTopic(item, label) ? 1 : 0),
       0,
     );
     const after = afterReviews.reduce(
       (total, item) =>
-        total + (contentMatchesTerms(item.content, terms) ? 1 : 0),
+        total + (reviewHasMajorTopic(item, label) ? 1 : 0),
       0,
     );
     return {

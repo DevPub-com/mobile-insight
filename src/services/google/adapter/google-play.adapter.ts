@@ -1,3 +1,4 @@
+import { fetchGoogleStoreRating } from "../google-store-rating";
 import { Storage } from "@google-cloud/storage";
 import { JWT } from "google-auth-library";
 import { parse } from "csv-parse/sync";
@@ -197,6 +198,10 @@ export class GooglePlayAdapter implements StoreAdapter {
       : { releases: [], distribution: null, distributionError: null };
     if (releaseData.distributionError) {
       errors.push(`distribution: ${releaseData.distributionError}`);
+    }
+    if (shouldSync("ratings")) {
+      try { normalized.observations.push(await fetchGoogleStoreRating(app)); }
+      catch (error) { errors.push(`ratings: ${error instanceof Error ? error.message : String(error)}`); }
     }
     const releases = releaseData.releases;
     const vitals = vitalsResult.status === "fulfilled" ? vitalsResult.value : [];

@@ -1,5 +1,12 @@
 export type VersionChange = "major" | "minor" | "patch" | "unknown";
 
+export function displayReleaseVersion(platform: string, version: string): string {
+  const normalized = version.trim().replace(/^v/i, "");
+  return platform === "android"
+    ? normalized.match(/^\d+\s*\(\s*([^()]+?)\s*\)$/)?.[1] ?? normalized
+    : normalized;
+}
+
 function numericVersion(version: string): number[] | null {
   const normalized = version.trim().replace(/^v/i, "");
   if (!/^\d+(?:\.\d+){1,2}$/.test(normalized)) return null;

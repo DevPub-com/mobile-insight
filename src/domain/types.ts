@@ -26,13 +26,13 @@ export type MetricObservation = {
 export type RatingSnapshot = {
   appId: string;
   platform: Platform;
-  territory: string;
+  territory?: string;
   date: string;
   averageRating: number;
   ratingCount: number | null;
-  source: MetricSource;
-  quality: MetricQuality;
-  observedAt: string;
+  source?: MetricSource;
+  quality?: MetricQuality;
+  observedAt?: string;
   description?: string | null;
 };
 
@@ -92,6 +92,12 @@ export type DeviceMetadata = {
 
 export type ReviewSentiment = "positive" | "neutral" | "negative";
 
+export type ReviewTopicPath = {
+  major: string;
+  middle: string | null;
+  minor: string | null;
+};
+
 export type AppReview = {
   id: string;
   appId: string;
@@ -117,7 +123,7 @@ export type AppReview = {
   reviewedAt: string;
   aiSentiment?: ReviewSentiment | null;
   aiTopics?: string[] | null;
-  aiSummary?: string | null;
+  aiTopicPaths?: ReviewTopicPath[] | null;
 };
 
 export type AppRelease = {
@@ -133,9 +139,6 @@ export type AppRelease = {
   track?: string | null;
   buildNumber?: string | null;
   releaseNotes?: string | null;
-  rolloutFraction?: number | null;
-  phasedReleaseState?: string | null;
-  phasedReleaseDay?: number | null;
 };
 
 export type AndroidDeviceType =

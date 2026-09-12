@@ -1,5 +1,10 @@
 # 다운로드 탭 모델별 분석
 
+> 상태: 2026-09-12에 화면 제공을 중단했다. Android의 일별 사용자 설치와
+> iOS의 총 다운로드는 동일한 측정량이 아니므로 OS 점유율로 비교하지 않으며,
+> 기기 모델 순위도 기본 대시보드 응답과 UI에서 제외한다. 아래 내용은 당시
+> 수집·저장 검증 기록으로만 보존한다.
+
 ## 변경
 
 - 모델별 다운로드·설치 상세, 설치 상위/하위 5개, 모델 검색과 설치 수 정렬을 추가했다.
@@ -31,5 +36,5 @@
 - [Google Play 보고서 규격](https://support.google.com/googleplay/android-developer/answer/6135870?hl=en)
 - `src/services/google/google-device-installs.ts`
 - `src/services/mobile/tabs/download-breakdown.service.ts`
-- `src/components/dashboard/download-models.tsx`
-- `src/components/dashboard/download-os-share.tsx`
+- 삭제된 UI: `src/components/dashboard/download-models.tsx`
+- 삭제된 UI: `src/components/dashboard/download-os-share.tsx`

@@ -1,71 +1,150 @@
 import { describe, expect, it } from "vitest";
-import type { AppReview } from "@/domain/types";
-import { reviewKeywords, summarizeReviewKeywords, keywordChartRows, matchesKeyword } from "./review-keywords";
+import type { AppReview, ReviewTopicPath } from "@/domain/types";
+import {
+  keywordChartRows,
+  matchesKeyword,
+  reviewKeywords,
+  reviewTopicChips,
+  summarizeReviewKeywords,
+} from "./review-keywords";
 
-const review = (id: string, topics: string[], extra: Partial<AppReview> = {}) => ({
-  id, aiTopics: topics, rating: 2, content: "로그인 오류", reviewedAt: "2026-09-01", ...extra,
+const path = (
+  major: ReviewTopicPath["major"],
+  middle: string | null,
+  minor: string | null,
+): ReviewTopicPath => ({ major, middle, minor });
+
+const review = (
+  id: string,
+  paths: ReviewTopicPath[] | null,
+  extra: Partial<AppReview> = {},
+) => ({
+  id,
+  appId: "app",
+  platform: "android",
+  externalId: id,
+  aiTopicPaths: paths,
+  aiTopics: ["legacy-topic-must-not-be-guessed"],
+  rating: 2,
+  title: null,
+  content: "본문 단어로 토픽을 추론하지 않습니다",
+  author: null,
+  version: null,
+  reviewedAt: "2026-09-01",
+  ...extra,
 }) as AppReview;
 
-describe("review keywords", () => {
-  it("stacks identical keywords across sentiments and reranks the selected sentiment", () => {
-    const groups = summarizeReviewKeywords([
-      review("1", ["로그인", "로그인"], { rating: 5 }),
-      review("2", ["로그인"]), review("3", ["속도"]),
-      review("4", ["속도"]), review("5", ["로그인"], { rating: 3 }),
+describe("review topic hierarchy", () => {
+  it("returns minor topics for VOC aggregation with the full path key", () => {
+    expect(reviewKeywords(review("1", [
+      path("로그인·인증", "생체 인증", "지문 인증"),
+    ]))).toEqual([{
+      label: "지문 인증",
+      key: '["로그인·인증","생체 인증","지문 인증"]',
+      level: "minor",
+      grade: "negative",
+    }]);
+  });
+
+  it("exposes every available hierarchy level independently of sentiment", () => {
+    expect(reviewTopicChips(review("1", [
+      path("기타", null, "위젯"),
+    ], { aiSentiment: "positive" }))).toEqual([
+      {
+        label: "기타",
+        key: '["기타"]',
+        level: "major",
+        grade: "positive",
+      },
+      {
+        label: "위젯",
+        key: '["기타",null,"위젯"]',
+        level: "minor",
+        grade: "positive",
+      },
     ]);
-    expect(keywordChartRows(groups, "all")[0]).toEqual({ label: "로그인", total: 3, positive: 1, neutral: 1, negative: 1 });
-    expect(keywordChartRows(groups, "negative").map(({ label, total }) => [label, total])).toEqual([["속도", 2], ["로그인", 1]]);
-    expect(keywordChartRows([], "all")).toEqual([]);
   });
-  it("opens reviews matching the exact keyword and its topic sentiment, regardless of star rating", () => {
-    const item = review("1", ["로그인_오류", "사용성_만족"], { rating: 5 });
-    expect(matchesKeyword(item, { label: "로그인_오류", grade: "negative" })).toBe(true);
-    expect(matchesKeyword(item, { label: "로그인_오류", grade: "positive" })).toBe(false);
-    expect(matchesKeyword(item, { label: "로그인", grade: "all" })).toBe(false);
-    expect(matchesKeyword(item, null)).toBe(true);
+
+  it("does not infer a hierarchy from review text or legacy flat topics", () => {
+    const item = review("1", null, {
+      content: "로그인과 위젯이 작동하지 않아요",
+      aiTopics: ["로그인_오류", "위젯"],
+    });
+    expect(reviewTopicChips(item)).toEqual([{
+      label: "기타",
+      key: '["기타"]',
+      level: "major",
+      grade: "negative",
+    }]);
+    expect(reviewKeywords(item)).toEqual([]);
   });
-  it("classifies individual topics before falling back to overall sentiment", () => {
-    expect(reviewKeywords(review("1", ["로그인_오류", "기능_추가", "사용성_만족", "UI"], { aiSentiment: "positive" })).map((item) => item.grade))
-      .toEqual(["negative", "neutral", "positive", "positive"]);
+
+  it("keeps identical minor labels distinct when their parent paths differ", () => {
+    const groups = summarizeReviewKeywords([
+      review("1", [path("로그인·인증", "생체 인증", "오류")]),
+      review("2", [path("앱 안정성", "앱 실행", "오류")]),
+    ]);
+    expect(groups.map(({ label, key }) => ({ label, key }))).toEqual([
+      { label: "오류", key: '["로그인·인증","생체 인증","오류"]' },
+      { label: "오류", key: '["앱 안정성","앱 실행","오류"]' },
+    ]);
   });
-  it("counts each review once per keyword and separates opposing sentiments", () => {
-    const first = review("1", ["로그인", "로그인"]);
-    const groups = summarizeReviewKeywords([first, first, review("2", ["로그인"], { reviewedAt: "2026-09-02" }), review("3", ["로그인"], { rating: 5 })]);
-    expect(groups.map(({ grade, count }) => ({ grade, count }))).toEqual([{ grade: "positive", count: 1 }, { grade: "negative", count: 2 }]);
+
+  it("counts each review once per full path and separates sentiments", () => {
+    const login = path("로그인·인증", "로그인", "로그인 실패");
+    const first = review("1", [login, login]);
+    const groups = summarizeReviewKeywords([
+      first,
+      first,
+      review("2", [login], { reviewedAt: "2026-09-02" }),
+      review("3", [login], { rating: 5 }),
+    ]);
+
+    expect(groups.map(({ grade, count }) => ({ grade, count }))).toEqual([
+      { grade: "positive", count: 1 },
+      { grade: "negative", count: 2 },
+    ]);
     expect(groups[1].review.id).toBe("2");
-    expect(summarizeReviewKeywords([])).toEqual([]);
   });
-  it("uses content keywords when analysis is absent", () => {
-    expect(reviewKeywords(review("1", []))).toContainEqual({ label: "로그인", grade: "negative" });
-  });
-  it("orders satisfaction, improvements, and complaints before frequency", () => {
-    const groups = summarizeReviewKeywords([
-      review("1", ["로그인 오류"]),
-      review("2", ["로그인 오류"]),
-      review("3", ["기능 개선"]),
-      review("4", ["사용성 만족"]),
-    ]);
-    expect(groups.map(({ grade }) => grade)).toEqual(["positive", "neutral", "negative"]);
+
+  it("filters by the full hierarchy key without colliding on labels", () => {
+    const item = review("1", [path("로그인·인증", "생체 인증", "오류")]);
+    expect(matchesKeyword(item, {
+      label: "오류",
+      key: '["로그인·인증","생체 인증","오류"]',
+      level: "minor",
+      grade: "negative",
+    })).toBe(true);
+    expect(matchesKeyword(item, {
+      label: "오류",
+      key: '["앱 안정성","앱 실행","오류"]',
+      level: "minor",
+      grade: "all",
+    })).toBe(false);
   });
 });
 
+describe("VOC keyword chart rows", () => {
+  it("stacks matching full paths across sentiments", () => {
+    const login = path("로그인·인증", "로그인", "로그인 실패");
+    const groups = summarizeReviewKeywords([
+      review("1", [login], { rating: 5 }),
+      review("2", [login]),
+      review("3", [path("속도·성능", "응답 속도", "지연")]),
+      review("4", [path("속도·성능", "응답 속도", "지연")]),
+      review("5", [login], { rating: 3 }),
+    ]);
 
-describe("keyword synonym grouping", () => {
-  it("groups launch errors across reviews and counts each review once", () => {
-    const items = [review("1", ["앱실행_오류", "앱 실행 불가", "어플 구동 실패"]),
-      review("2", ["앱 실행시 튕김"]), review("3", ["로그인 실패"])];
-    const groups = summarizeReviewKeywords(items);
-    expect(groups.find((group) => group.label === "앱실행_오류")?.count).toBe(2);
-    expect(groups.find((group) => group.label === "로그인_오류")?.count).toBe(1);
-    expect(matchesKeyword(items[1], { label: "앱실행_오류", grade: "negative" })).toBe(true);
-    expect(matchesKeyword(items[0], { label: "앱 실행 불가", grade: "all" })).toBe(true);
-  });
-  it("preserves distinct features and positive or improvement topics", () => {
-    const labels = reviewKeywords(review("1", ["앱 실행 만족", "앱 실행 개선", "주문 오류", "지문인증 오류"])).map((item) => item.label);
-    expect(labels).toEqual(["앱_실행_만족", "앱_실행_개선", "주문_오류", "지문인증_오류"]);
-  });
-  it("combines latency and notification synonyms", () => {
-    expect(reviewKeywords(review("1", ["로딩 지연", "응답 느림", "푸시 미수신", "알림 안옴"])))
-      .toEqual([{ label: "속도_지연", grade: "negative" }, { label: "알림_미수신", grade: "negative" }]);
+    expect(keywordChartRows(groups, "all")[0]).toEqual({
+      label: "로그인 실패",
+      key: '["로그인·인증","로그인","로그인 실패"]',
+      total: 3,
+      positive: 1,
+      neutral: 1,
+      negative: 1,
+    });
+    expect(keywordChartRows(groups, "negative").map(({ label, total }) => [label, total]))
+      .toEqual([["지연", 2], ["로그인 실패", 1]]);
+    expect(keywordChartRows([], "all")).toEqual([]);
   });
 });

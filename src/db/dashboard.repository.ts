@@ -1,7 +1,6 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, notLike, or } from "drizzle-orm";
 
 import type { DashboardData } from "@/domain/types";
-import { modelMetricPrefix } from "@/domain/model-downloads";
 import { publicSyncError } from "@/services/sync/sync-errors";
 
 import { getDb } from "./index";
@@ -43,7 +42,6 @@ export async function getDashboardData(appCode: string): Promise<DashboardData |
     observationRows,
     snapshotRows,
     reviewRows,
-    releaseVersionRows,
     releaseRows,
     syncRows,
     distributionRows,
@@ -59,6 +57,7 @@ export async function getDashboardData(appCode: string): Promise<DashboardData |
       .where(
         and(
           eq(metricObservations.appId, selected.id),
+          notLike(metricObservations.metricKey, "device_downloads:%"),
           or(
             gte(metricObservations.date, observationCutoffDate),
             inArray(metricObservations.metricKey, ["daily_user_installs", "total_downloads", "google_play_rating"]),
@@ -82,21 +81,6 @@ export async function getDashboardData(appCode: string): Promise<DashboardData |
       .where(eq(reviews.appId, selected.id))
       .orderBy(desc(reviews.reviewedAt))
       .limit(reviewPageLimit),
-    db
-      .select({
-        appVersionCode: reviews.appVersionCode,
-        version: reviews.version,
-      })
-      .from(reviews)
-      .where(
-        and(
-          eq(reviews.appId, selected.id),
-          eq(reviews.platform, "android"),
-          isNotNull(reviews.appVersionCode),
-          isNotNull(reviews.version),
-        ),
-      )
-      .groupBy(reviews.appVersionCode, reviews.version),
     db
       .select()
       .from(releases)
@@ -168,13 +152,9 @@ export async function getDashboardData(appCode: string): Promise<DashboardData |
       content: review.content,
       author: review.author,
       version: review.version,
-      territory: review.territory,
       device: review.device,
       deviceMetadata: review.deviceMetadata ?? null,
-      source: review.source,
-      quality: review.quality,
-      observedAt: review.observedAt.toISOString(),
-      description: review.description,
+      androidOsVersion: review.androidOsVersion ?? null,
       reviewedAt: review.reviewedAt.toISOString(),
       aiSentiment:
         review.aiSentiment === "positive" ||
@@ -183,14 +163,16 @@ export async function getDashboardData(appCode: string): Promise<DashboardData |
           ? review.aiSentiment
           : null,
       aiTopics: review.aiTopics ?? null,
-      aiSummary: review.aiSummary ?? null,
+      aiTopicPaths: review.aiTopicPaths ?? null,
     })),
     reviewDataTruncated: reviewRows.length === reviewPageLimit,
-    releaseVersionMappings: releaseVersionRows.flatMap((row) => {
+    releaseVersionMappings: releaseRows.flatMap((row) => {
       const version = row.version?.trim();
-      return row.appVersionCode == null || !version
+      const build = row.buildNumber?.trim() ?? "";
+      const appVersionCode = Number(build);
+      return row.platform !== "android" || !/^\d+$/.test(build) || !Number.isSafeInteger(appVersionCode) || !version
         ? []
-        : [{ platform: "android" as const, appVersionCode: row.appVersionCode, version }];
+        : [{ platform: "android" as const, appVersionCode, version }];
     }),
     releases: releaseRows.map((release) => ({
       id: release.id,
@@ -198,24 +180,10 @@ export async function getDashboardData(appCode: string): Promise<DashboardData |
       platform: release.platform,
       version: release.version,
       releasedAt: release.releasedAt.toISOString(),
-      releaseDateSource: release.releaseDateSource as
-        | "store_release_date"
-        | "version_created_at"
-        | "first_observed_at",
-      releaseDateEstimated: release.releaseDateEstimated,
-      status: release.status,
-      track: release.track,
       buildNumber: release.buildNumber,
       releaseNotes: release.releaseNotes,
-      rolloutFraction: release.rolloutFraction,
-      phasedReleaseState: release.phasedReleaseState,
-      phasedReleaseDay: release.phasedReleaseDay,
     })),
-    modelDownloadObservations: observationRows.filter((item) => item.metricKey.startsWith(modelMetricPrefix)).map((item) => ({
-      appId: item.appId, platform: item.platform, date: item.date,
-      metricKey: item.metricKey, value: item.value, quality: item.quality,
-    })),
-    metricObservations: observationRows.filter((item) => !item.metricKey.startsWith(modelMetricPrefix)).map((item) => ({
+    metricObservations: observationRows.map((item) => ({
       appId: item.appId,
       platform: item.platform,
       date: item.date,
@@ -229,14 +197,9 @@ export async function getDashboardData(appCode: string): Promise<DashboardData |
     ratingSnapshots: snapshotRows.map((item) => ({
       appId: item.appId,
       platform: item.platform,
-      territory: item.territory,
       date: item.date,
       averageRating: item.averageRating,
       ratingCount: item.ratingCount,
-      source: item.source,
-      quality: item.quality,
-      observedAt: item.observedAt.toISOString(),
-      description: item.description,
     })),
     syncRuns: syncRows.map((run) => ({
       platform: run.platform,

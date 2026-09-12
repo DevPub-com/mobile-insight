@@ -23,7 +23,6 @@ import {
   fetchAppleDownloadAnalytics,
   fetchAppleInstallAnalyticsReport,
 } from "../apple-installs";
-import { isoDate } from "@/lib/date";
 import { fetchAppleCrashCounts } from "../apple-crashes";
 import { getEnvironmentVariable } from "@/lib/env";
 
@@ -235,7 +234,7 @@ export class AppStoreAdapter implements StoreAdapter {
     if (payload.resultCount < 1 || !payload.results[0]) return null;
     return toAppleRatingReport(
       app.id,
-      isoDate(new Date()),
+      new Intl.DateTimeFormat("sv-SE", {timeZone:"Asia/Seoul"}).format(new Date()),
       "KOR",
       payload.results[0],
     );
@@ -248,7 +247,7 @@ export class AppStoreAdapter implements StoreAdapter {
     const versions: AppleVersionResponse["data"] = [];
     const included: AppleIncludedResource[] = [];
     let next: string | undefined =
-      `/v1/apps/${encodeURIComponent(app.iosAppId!)}/appStoreVersions?limit=200&include=appStoreVersionLocalizations,build,appStoreVersionPhasedRelease&fields[appStoreVersions]=platform,versionString,earliestReleaseDate,createdDate,appStoreState,releaseType,appStoreVersionLocalizations,build,appStoreVersionPhasedRelease&fields[appStoreVersionLocalizations]=locale,whatsNew&fields[builds]=version&fields[appStoreVersionPhasedReleases]=phasedReleaseState,startDate,totalPauseDuration,currentDayNumber&limit[appStoreVersionLocalizations]=50`;
+      `/v1/apps/${encodeURIComponent(app.iosAppId!)}/appStoreVersions?limit=200&include=appStoreVersionLocalizations,build&fields[appStoreVersions]=platform,versionString,earliestReleaseDate,createdDate,appStoreState,releaseType,appStoreVersionLocalizations,build&fields[appStoreVersionLocalizations]=locale,whatsNew&fields[builds]=version&limit[appStoreVersionLocalizations]=50`;
     while (next) {
       const response: AppleVersionResponse = await appleJson<AppleVersionResponse>(next, token);
       versions.push(...response.data);

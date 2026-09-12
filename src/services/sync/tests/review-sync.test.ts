@@ -29,6 +29,12 @@ const review: AppReview = {
 };
 
 describe("review sync mapping", () => {
+  it("omits removed review storage columns", () => {
+    const value = toReviewInsertValue({ ...review, territory: "KOR", source: "app_store_reviews", quality: "exact", observedAt: "2026-09-12T00:00:00Z", description: "metadata" });
+    for (const field of ["territory", "source", "quality", "observedAt", "description", "appVersionCode", "reviewerLanguage"]) {
+      expect(value).not.toHaveProperty(field);
+    }
+  });
   it("preserves device and review metadata for database storage", () => {
     expect(toReviewInsertValue(review)).toEqual(
       expect.objectContaining({
@@ -38,8 +44,6 @@ describe("review sync mapping", () => {
           manufacturer: "Samsung",
         }),
         androidOsVersion: 35,
-        appVersionCode: 22700,
-        reviewerLanguage: "ko",
         thumbsUpCount: 3,
         thumbsDownCount: 0,
       }),
@@ -51,6 +55,10 @@ describe("review sync mapping", () => {
       toReviewInsertValue(review, {
         sentiment: "positive",
         topics: ["성능"],
+        topicPaths: [
+          { major: "품질", middle: "성능", minor: "속도" },
+        ],
+        taxonomyVersion: 1,
         summary: "빠르다는 평가",
       }),
     ).toEqual(
@@ -58,9 +66,23 @@ describe("review sync mapping", () => {
         device: "star2qltechn",
         aiSentiment: "positive",
         aiTopics: ["성능"],
-        aiSummary: "빠르다는 평가",
+        aiTopicPaths: [
+          { major: "품질", middle: "성능", minor: "속도" },
+        ],
       }),
     );
+  });
+
+  it("does not persist fallback paths without a taxonomy version", () => {
+    expect(toReviewInsertValue(review, {
+      sentiment: "positive",
+      topics: ["기타"],
+      topicPaths: [{ major: "기타", middle: null, minor: null }],
+      taxonomyVersion: null,
+      summary: "좋아요",
+    })).toEqual(expect.objectContaining({
+      aiTopicPaths: null,
+    }));
   });
 });
 
