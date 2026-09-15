@@ -19,6 +19,7 @@ export async function generateReleaseImpactBriefing(
 제공된 앱 릴리즈 배포 전후(Before vs After) 지표와 사용자 리뷰(VoC) 데이터를 바탕으로 C-Level 및 개발팀을 위한 '릴리즈 임팩트 진단 리포트'를 작성하라.
 
 기간 길이가 서로 다를 수 있으므로 합계 변화만으로 성과 개선을 단정하지 말라. 누락된 데이터로 안정성을 판단하지 말라. 다운로드 판단에는 수집이 완전한 일평균 변화를 사용하라. 크래시 보고 건수의 scope가 platform이면 전체 버전 합계이며 선택 버전의 결함으로 단정하지 말라. 리뷰 수는 표본 규모이며 증가 자체가 개선을 뜻하지 않는다.
+부정 리뷰 수와 비율(%)을 구분하고 비율 차이는 %p로 표현하라. 영향받은 사용자 수를 날짜나 버전 간 합산하지 말라.
 출력 규칙:
 1. headline: 배포 결과를 한눈에 파악할 수 있는 임팩트 있는 1문장 요약
 2. summary: 배포 전후 주요 성과와 발생한 부작용/리스크를 2~3문장으로 간결하고 전문적으로 설명
@@ -36,6 +37,7 @@ export async function generateReleaseImpactBriefing(
     downloads: view.downloads,
     downloadDailyAverage: view.downloadDailyAverage,
     crashReports: view.crashReports,
+    anrReports: view.anrReports,
     previousVersion: view.previousRelease?.version ?? null,
     ratings: view.ratings,
     negativeReviews: view.negativeReviews,

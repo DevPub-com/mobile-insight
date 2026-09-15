@@ -161,6 +161,7 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
       ],
     ];
     rows.push(["일평균 다운로드", view.downloadDailyAverage.before, view.downloadDailyAverage.after, view.downloadDailyAverage.change]);
+    rows.push(["ANR 보고 건수 (버전별)", view.anrReports.before, view.anrReports.after, null]);
     rows.push([`크래시 보고 건수 (${view.crashReports.scope})`, view.crashReports.before, view.crashReports.after, view.crashReports.change]);
     const csv = rows.filter(row => row[0] !== (release.platform === "android" ? "iOS 평점" : "Android 평점") && (release.platform === "android" || !["비정상 종료율", "ANR 발생률"].includes(String(row[0]))))
       .map((row) => row.map((cell) => cell ?? "").join(","))
@@ -180,6 +181,7 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
     ...view.voc.flatMap((item) => [item.before, item.after]),
   );
   const comparisonRows = [
+    ...(release.platform === "android" ? [{ label: "ANR 보고 건수 (버전별)", before: formatNumber(view.anrReports.before), after: formatNumber(view.anrReports.after), change: "—", percent: null, direction: null, lowerIsBetter: true }] : []),
     { label: `크래시 보고 건수 (${view.crashReports.scope === "version" ? "버전별" : "앱 전체"})`, before: formatNumber(view.crashReports.before), after: formatNumber(view.crashReports.after), change: signed(view.crashReports.change, "건"), percent: null, direction: null, lowerIsBetter: true },
     {
       label: "일평균 다운로드 (앱 전체)",
@@ -286,7 +288,7 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
 
       <ReleaseImpactAiBriefingCard
         appCode={data.app.code}
-        key={`${data.app.code}:${release.id}`}
+        key={`${data.app.code}:${release.id}:${data.syncRuns.map(run => run.finishedAt ?? "").sort().at(-1) ?? ""}`}
         releaseId={release.id}
       />
 
@@ -306,17 +308,18 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
       </DpLayout>
 
       <DpLayout as="section" className="ri-main-grid ri-two-column-grid">
-        {(["rating", "crashes"] as const).map(metric => (
+        {(release.platform === "android" ? ["rating", "crashes", "anrs", "crashUsers", "anrUsers"] as const : ["rating", "crashes"] as const).map(metric => (
           <DpCard className="ri-card ri-trend-card" key={metric}>
             <DpLayout className="ri-card-head">
-              <DpText as="h3">{metric === "rating" ? "평균 리뷰 평점" : "크래시 보고 건수"}</DpText>
+              <DpText as="h3">{{rating: "평균 리뷰 평점", crashes: "크래시 보고 건수", anrs: "ANR 보고 건수", crashUsers: "크래시 영향받은 사용자", anrUsers: "ANR 영향받은 사용자"}[metric]}</DpText>
               <DpText>이전 {view.previousRelease ? `v${displayReleaseVersion(release.platform, view.previousRelease.version)}` : "버전 없음"} / 선택 v{displayReleaseVersion(release.platform, release.version)} · 각 버전 배포일 0일 기준</DpText>
             </DpLayout>
+            {metric !== "rating" && release.platform === "android" && <DpText>Google Play 전체 보고 · 미국 LA 일별 기준{metric.endsWith('Users') ? ' · 일별 사용자 수, 기간 합산 불가' : ''}</DpText>}
             {view.daily.some(point => point[metric] !== null) ? (
               <ReleaseImpactTrendChart data={view.daily} metric={metric}
                 beforeLabel={view.previousRelease ? `v${displayReleaseVersion(release.platform, view.previousRelease.version)}` : "이전 버전"}
                 afterLabel={`v${displayReleaseVersion(release.platform, release.version)}`} />
-            ) : <DpText className="ri-chart-empty">{metric === "rating" ? "비교 기간에 해당 버전의 리뷰가 없습니다." : "해당 버전의 크래시 보고서가 수집되지 않았습니다."}</DpText>}
+            ) : <DpText className="ri-chart-empty">{metric === "rating" ? "비교 기간에 해당 버전의 리뷰가 없습니다." : "해당 버전의 보고서가 수집되지 않았습니다."}</DpText>}
           </DpCard>
         ))}
       </DpLayout>

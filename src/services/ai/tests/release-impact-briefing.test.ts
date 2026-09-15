@@ -25,6 +25,7 @@ describe("Release Impact Briefing Service", () => {
     },
     previousRelease: null,
     downloadDailyAverage: { before: 1000 / 7, after: 1200 / 7, change: 200 / 7, changePercent: 20 },
+    anrReports: { before: null, after: null },
     crashReports: { before: null, after: null, scope: "platform", afterDays: 0, latestDate: null, change: null },
     releasedAt: "2026-08-25T00:00:00Z",
     windows: {

@@ -33,7 +33,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("다운로드");
     expect(source).toContain("평점 & 리뷰");
     expect(source).toContain("릴리즈");
-    expect(source).toContain("릴리즈 임팩트");
+    expect(source).toContain("배포 후 변화");
     expect(source).toContain("앱 관리");
     expect(source).toContain("플랫폼별 일별 상세");
     expect(source).toContain("수집 리뷰 별점 분포");

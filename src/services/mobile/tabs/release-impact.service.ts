@@ -202,11 +202,27 @@ export function buildReleaseImpactWorkspace(
     downloadDailyAverage.change = null;
     downloadDailyAverage.changePercent = null;
   }
+  const versionPoints = (metric: string, version: string | undefined) => {
+    const codes = new Set(data.releases.filter(r => r.platform === release.platform && r.appId === release.appId &&
+      version !== undefined && displayReleaseVersion(r.platform, r.version) === displayReleaseVersion(r.platform, version))
+      .flatMap(r => (r.buildNumber ?? '').split(',').map(code => code.trim())));
+    const latest = new Map<string, NonNullable<DashboardData['metricObservations']>[number]>();
+    for (const row of [...(data.metricObservations ?? [])].sort((a,b) => a.observedAt.localeCompare(b.observedAt))) {
+      const matches = version !== undefined && (
+        (row.metricKey.startsWith(`${metric}:version:`) && displayReleaseVersion(release.platform, row.metricKey.slice(`${metric}:version:`.length)) === displayReleaseVersion(release.platform, version)) ||
+        (row.metricKey.startsWith(`${metric}:version_code:`) && codes.has(row.metricKey.slice(`${metric}:version_code:`.length))));
+      if (row.appId === release.appId && row.platform === release.platform && matches && row.quality !== 'unavailable' &&
+        row.value !== null && Number.isSafeInteger(row.value) && row.value >= 0) latest.set(`${row.date}:${row.metricKey}`, row);
+    }
+    const groups = new Map<string, number[]>();
+    for (const row of latest.values()) groups.set(row.date, [...(groups.get(row.date) ?? []), row.value!]);
+    return new Map([...groups].flatMap(([date, values]) =>
+      metric.endsWith('affected_users') && values.length > 1 ? [] : [[date, values.reduce((a,b) => a+b,0)] as const]));
+  };
   const crashScope = "version";
-  const crashSummary = (version: string, range: { from: string; to: string }) => buildCrashHistory({ ...data,
-    metricObservations: (data.metricObservations ?? []).filter(row => row.appId === release.appId && row.platform === release.platform &&
-      row.metricKey.startsWith("crash_report_count:version:") && displayReleaseVersion(release.platform, row.metricKey.slice("crash_report_count:version:".length)) === displayReleaseVersion(release.platform, version))
-      .map(row => ({ ...row, metricKey: "crash_report_count" })),
+  const crashSummary = (version: string, range: { from: string; to: string }, metric = 'crash_report_count') => buildCrashHistory({ ...data,
+    metricObservations: [...versionPoints(metric, version)].map(([date, value]) => ({ appId: release.appId, platform: release.platform,
+      date, value, metricKey: 'crash_report_count', quality: 'exact' as const, source: 'google_play_api' as const, observedAt: date })),
   }, { startDate: range.from, endDate: range.to })[release.platform];
   const crashAfter = crashSummary(release.version, windows.after);
   const crashBefore = previous ? crashSummary(previous.version, windows.before) : null;
@@ -273,13 +289,14 @@ export function buildReleaseImpactWorkspace(
     anrRate: stabilityRate("user_perceived_anr_rate_28d"),
   };
 
-  const versionCrashPoints = (version: string | undefined) => new Map((data.metricObservations ?? [])
-    .filter(row => version !== undefined && row.appId === release.appId && row.platform === release.platform &&
-      row.metricKey.startsWith("crash_report_count:version:") && displayReleaseVersion(release.platform, row.metricKey.slice("crash_report_count:version:".length)) === displayReleaseVersion(release.platform, version) &&
-      row.quality !== "unavailable" && row.value !== null && Number.isSafeInteger(row.value) && row.value >= 0)
-    .sort((a, b) => a.observedAt.localeCompare(b.observedAt)).map(row => [row.date, row.value!]));
-  const currentCrashPoints = versionCrashPoints(release.version);
-  const previousCrashPoints = versionCrashPoints(previous?.version);
+  const currentCrashPoints = versionPoints('crash_report_count', release.version);
+  const previousCrashPoints = versionPoints('crash_report_count', previous?.version);
+  const anrPoints = [versionPoints('anr_report_count', previous?.version), versionPoints('anr_report_count', release.version)];
+  const crashUserPoints = [versionPoints('crash_affected_users', previous?.version), versionPoints('crash_affected_users', release.version)];
+  const anrUserPoints = [versionPoints('anr_affected_users', previous?.version), versionPoints('anr_affected_users', release.version)];
+  const anrAfter = crashSummary(release.version, windows.after, 'anr_report_count');
+  const anrBefore = previous ? crashSummary(previous.version, windows.before, 'anr_report_count') : null;
+  const anrReports = { before: anrBefore?.value ?? null, after: anrAfter.value };
   const daily = Array.from({ length: expectedBeforeDays + expectedAfterDays }, (_, index) => {
     const offset = index - expectedBeforeDays;
     const date = addDays(releasedAt, offset);
@@ -287,6 +304,9 @@ export function buildReleaseImpactWorkspace(
     const reviews = (offset < 0 ? beforeReviews : afterReviews).filter(row => row.reviewedAt.slice(0, 10) === date);
     return { offset, date, downloads: downloadTotal(rows),
       rating: calculateAverage(reviews.map(row => row.rating)),
+      anrs: anrPoints[offset < 0 ? 0 : 1].get(date) ?? null,
+      crashUsers: crashUserPoints[offset < 0 ? 0 : 1].get(date) ?? null,
+      anrUsers: anrUserPoints[offset < 0 ? 0 : 1].get(date) ?? null,
       crashes: (offset < 0 ? previousCrashPoints : currentCrashPoints).get(date) ?? null,
     };
   });
@@ -354,6 +374,7 @@ export function buildReleaseImpactWorkspace(
     downloads,
     downloadDailyAverage,
     crashReports,
+    anrReports,
     ratings,
     negativeReviews,
     newReviews,

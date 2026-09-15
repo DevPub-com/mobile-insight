@@ -258,3 +258,21 @@ it("prefers selected-version crash counts over platform totals", () => {
   expect(view.daily.find(point => point.date === day(2))?.crashes).toBeNull();
   expect(view.daily.find(point => point.date === day(1))?.rating).toBe(1);
 });
+
+it("maps Google build codes to versions and does not sum affected users across builds", () => {
+  const selected = { ...release, buildNumber: '101, 102' };
+  const row = { appId: app.id, platform: 'android' as const, date: day(1), source: 'google_play_api' as const, quality: 'exact' as const, observedAt: day(2) };
+  const view = buildReleaseImpactWorkspace({...actual, releases: [selected, previous, next], metricObservations: [
+    {...row, metricKey: 'crash_report_count:version_code:101', value: 30},
+    {...row, metricKey: 'crash_report_count:version_code:102', value: 10},
+    {...row, metricKey: 'anr_report_count:version_code:101', value: 44},
+    {...row, metricKey: 'crash_affected_users:version_code:101', value: 20},
+    {...row, metricKey: 'crash_affected_users:version_code:102', value: 5},
+    {...row, metricKey: 'anr_affected_users:version_code:101', value: 36},
+    {...row, metricKey: 'crash_report_count:version_code:999', value: 900},
+  ]}, selected, day(7));
+  expect(view.crashReports.after).toBe(40);
+  expect(view.anrReports.after).toBe(44);
+  expect(view.daily.find(point => point.date === day(1))).toMatchObject({crashes: 40, anrs: 44, crashUsers: null, anrUsers: 36});
+  expect(view.daily.find(point => point.date === day(2))?.anrs).toBeNull();
+});

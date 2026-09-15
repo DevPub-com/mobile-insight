@@ -6,12 +6,19 @@ describe('Google crash report counts', () => {
     const row = (type: string, value?: string) => ({ startTime: { year: 2026, month: 9, day: 8 }, dimensions: [{ dimension: 'reportType', stringValue: type }], metrics: [{ metric: 'errorReportCount', decimalValue: value }] });
     expect(normalizeGoogleCrashCounts('app', [row('CRASH', '12'), row('APPLICATION_NOT_RESPONDING', '5'), row('CRASH'), row('CRASH', '-1')], 'now')).toMatchObject([{ metricKey: 'crash_report_count', value: 12, date: '2026-09-08' }]);
   });
+  it('stores ANR and affected users under explicit version codes without conflating counts', () => {
+    const result = normalizeGoogleCrashCounts('app', [{startTime:{year:2026,month:9,day:13},
+      dimensions:[{dimension:'reportType',stringValue:'ANR'},{dimension:'versionCode',stringValue:'26091008'}],
+      metrics:[{metric:'errorReportCount',decimalValue:{value:'507'}},{metric:'distinctUsers',decimalValue:{value:'311'}}]}], 'now');
+    expect(result).toMatchObject([{metricKey:'anr_report_count:version_code:26091008',value:507}, {metricKey:'anr_affected_users:version_code:26091008',value:311,quality:'estimated'}]);
+  });
   it('uses daily freshness and retrieves all pages', async () => {
     const request = vi.fn().mockResolvedValueOnce({data: {freshnessInfo:{freshnesses:[{aggregationPeriod:'DAILY',latestEndTime:{year:2026,month:9,day:9,hours:4,timeZone:{id:"America/Los_Angeles"}}}]}}})
-      .mockResolvedValueOnce({data:{rows:[],nextPageToken:'next'}}).mockResolvedValueOnce({data:{rows:[]}});
+      .mockResolvedValueOnce({data:{rows:[],nextPageToken:'next'}}).mockResolvedValueOnce({data:{rows:[]}}).mockResolvedValueOnce({data:{rows:[]}});
     await fetchGoogleCrashCounts({id:'app',packageName:'com.example'}, request, new Date('2026-09-10T00:00:00Z'), 30);
-    expect(request.mock.calls[1][0].data).toMatchObject({dimensions:['reportType'],metrics:['errorReportCount'],timelineSpec:{aggregationPeriod:'DAILY',endTime:{year:2026,month:9,day:9}}});
+    expect(request.mock.calls[1][0].data).toMatchObject({dimensions:['reportType'],metrics:['errorReportCount','distinctUsers'],timelineSpec:{aggregationPeriod:'DAILY',endTime:{year:2026,month:9,day:9}}});
     expect(request.mock.calls[1][0].data.timelineSpec.endTime).not.toHaveProperty('hours');
     expect(request.mock.calls[2][0].data.pageToken).toBe('next');
+    expect(request.mock.calls[3][0].data.dimensions).toEqual(['reportType','versionCode']);
   });
 });

@@ -64,7 +64,7 @@ const viewCopy: Record<View, [string, string]> = {
   reviews: ["평점 & 리뷰", "앱의 평점과 리뷰 데이터를 종합적으로 확인하세요."],
   releases: ["릴리즈", "앱의 버전 배포 현황과 변경사항을 한눈에 확인하세요."],
   impact: [
-    "릴리즈 임팩트",
+    "배포 후 변화",
     "특정 버전의 배포 전후 성과 변화를 한눈에 분석하세요.",
   ],
   apps: ["앱 관리", "연결된 앱과 스토어를 관리하고 동기화 상태를 확인하세요."],
@@ -521,7 +521,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
     ],
     [
       "impact",
-      "릴리즈 임팩트",
+      "배포 후 변화",
       <KoboyoIcon name="bar-chart" size={17} key="impact" />,
     ],
   ];
@@ -1244,7 +1244,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
             justify="end"
             className="mi-header-tools"
           >
-            <SyncButton key={data.app.id} appId={data.app.id} />
+            <SyncButton key={data.app.id} appId={data.app.id} revision={data.syncRuns.map(run => run.finishedAt).filter((value): value is string => !!value).sort().at(-1) ?? null} />
             {performancePeriodViews.has(view) && (
               <DashboardDateRangePicker
                 value={dateRange}

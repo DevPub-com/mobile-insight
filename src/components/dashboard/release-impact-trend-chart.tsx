@@ -5,9 +5,9 @@ import { useMemo } from "react";
 
 import { EChart } from "@/components/dashboard/echart";
 
-type Point = { offset: number; date: string; downloads: number | null; rating?: number | null; crashes?: number | null };
+type Point = { offset: number; date: string; downloads: number | null; rating?: number | null; crashes?: number | null; anrs?: number | null; crashUsers?: number | null; anrUsers?: number | null };
 
-export function ReleaseImpactTrendChart({ data, metric = "downloads", beforeLabel = "배포 전", afterLabel = "배포 후" }: { data: Point[]; metric?: "downloads" | "rating" | "crashes"; beforeLabel?: string; afterLabel?: string }) {
+export function ReleaseImpactTrendChart({ data, metric = "downloads", beforeLabel = "배포 전", afterLabel = "배포 후" }: { data: Point[]; metric?: "downloads" | "rating" | "crashes" | "anrs" | "crashUsers" | "anrUsers"; beforeLabel?: string; afterLabel?: string }) {
   const option = useMemo<EChartsCoreOption>(() => {
     const previousPoints = data.filter(point => point.offset < 0).sort((a, b) => a.offset - b.offset);
     const currentPoints = data.filter(point => point.offset >= 0).sort((a, b) => a.offset - b.offset);
@@ -38,7 +38,7 @@ export function ReleaseImpactTrendChart({ data, metric = "downloads", beforeLabe
         valueFormatter: (value: unknown) =>
           value == null
             ? "데이터 없음"
-            : `${new Intl.NumberFormat("ko-KR").format(Number(value))}${metric === "rating" ? "점" : "건"}`,
+            : `${new Intl.NumberFormat("ko-KR").format(Number(value))}${metric === "rating" ? "점" : metric.endsWith("Users") ? "명" : "건"}`,
       },
       xAxis: {
         type: "category",
@@ -108,7 +108,7 @@ export function ReleaseImpactTrendChart({ data, metric = "downloads", beforeLabe
     <EChart
       option={option}
       className="ri-trend-chart"
-      ariaLabel={metric === "rating" ? "버전별 평균 리뷰 평점 추이" : metric === "crashes" ? "버전별 크래시 보고 건수 추이" : "릴리즈 배포 기간별 다운로드 추이"}
+      ariaLabel={metric === "rating" ? "버전별 평균 리뷰 평점 추이" : metric === "anrs" ? "버전별 ANR 보고 건수 추이" : metric === "crashUsers" ? "크래시 영향받은 사용자 추이" : metric === "anrUsers" ? "ANR 영향받은 사용자 추이" : metric === "crashes" ? "버전별 크래시 보고 건수 추이" : "릴리즈 배포 기간별 다운로드 추이"}
     />
   );
 }
