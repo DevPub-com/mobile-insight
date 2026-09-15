@@ -1,3 +1,4 @@
+import { appleRequestJson } from "../apple-request";
 import { importPKCS8, SignJWT } from "jose";
 
 import { getStoreCredentialProfile } from "@/config/store-config";
@@ -39,12 +40,10 @@ async function createToken(credentials: AppleCredentials): Promise<string> {
 
 async function appleJson<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
   const url = path.startsWith("http") ? path : `https://api.appstoreconnect.apple.com${path}`;
-  const response = await fetch(url, {
+  return appleRequestJson<T>(url, {
     ...init,
     headers: { Authorization: `Bearer ${token}`, ...init.headers },
   });
-  if (!response.ok) throw new Error(`App Store Connect ${response.status}: ${await response.text()}`);
-  return response.json() as Promise<T>;
 }
 
 export class AppStoreAdapter implements StoreAdapter {
@@ -247,7 +246,7 @@ export class AppStoreAdapter implements StoreAdapter {
     const versions: AppleVersionResponse["data"] = [];
     const included: AppleIncludedResource[] = [];
     let next: string | undefined =
-      `/v1/apps/${encodeURIComponent(app.iosAppId!)}/appStoreVersions?limit=200&include=appStoreVersionLocalizations,build&fields[appStoreVersions]=platform,versionString,earliestReleaseDate,createdDate,appStoreState,releaseType,appStoreVersionLocalizations,build&fields[appStoreVersionLocalizations]=locale,whatsNew&fields[builds]=version&limit[appStoreVersionLocalizations]=50`;
+      `/v1/apps/${encodeURIComponent(app.iosAppId!)}/appStoreVersions?limit=20&include=appStoreVersionLocalizations,build&fields[appStoreVersions]=platform,versionString,earliestReleaseDate,createdDate,appStoreState,releaseType,appStoreVersionLocalizations,build&fields[appStoreVersionLocalizations]=locale,whatsNew&fields[builds]=version&limit[appStoreVersionLocalizations]=50`;
     while (next) {
       const response: AppleVersionResponse = await appleJson<AppleVersionResponse>(next, token);
       versions.push(...response.data);

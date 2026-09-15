@@ -134,18 +134,24 @@ export async function fetchAppleReviewsWithVersions(
     .filter((version) => version.attributes.platform === "IOS" && version.attributes.versionString.trim())
     .map((version) => [version.id, version]));
 
-  for (const version of iosVersions.values()) {
-    let next: string | undefined = `/v1/appStoreVersions/${encodeURIComponent(version.id)}/customerReviews?limit=200&sort=-createdDate`;
-    while (next) {
-      const response = await request(next);
-      for (const review of toAppleVersionReviews(appId, version.attributes.versionString.trim(), response.data, observedAt)) {
-        // Keep the app-wide review's current content when both endpoints return it.
-        if (!reviewsById.has(review.externalId)) reviewsById.set(review.externalId, review);
-        const previous = versionByReviewId.get(review.externalId);
-        versionByReviewId.set(review.externalId,
-          previous === undefined || previous === review.version ? review.version : null);
+  const versionList = [...iosVersions.values()];
+  // Limit concurrent Apple requests, preserving version order when merging results.
+  for (let index = 0; index < versionList.length; index += 4) {
+    const batches = await Promise.all(versionList.slice(index, index + 4).map(async version => {
+      const reviews: AppReview[] = [];
+      let next: string | undefined = `/v1/appStoreVersions/${encodeURIComponent(version.id)}/customerReviews?limit=200&sort=-createdDate`;
+      while (next) {
+        const response = await request(next);
+        reviews.push(...toAppleVersionReviews(appId, version.attributes.versionString.trim(), response.data, observedAt));
+        next = response.links?.next;
       }
-      next = response.links?.next;
+      return reviews;
+    }));
+    for (const review of batches.flat()) {
+      if (!reviewsById.has(review.externalId)) reviewsById.set(review.externalId, review);
+      const previous = versionByReviewId.get(review.externalId);
+      versionByReviewId.set(review.externalId,
+        previous === undefined || previous === review.version ? review.version : null);
     }
   }
   return [...reviewsById.values()].map((review) => ({

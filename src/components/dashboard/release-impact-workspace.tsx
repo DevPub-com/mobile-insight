@@ -1,7 +1,6 @@
 "use client";
 
 import { displayReleaseVersion } from "@/services/mobile/common/release-version";
-import { DpBadge } from "@/components/ui/dp/DpBadge";
 
 import { useMemo, useState, type ReactNode } from "react";
 
@@ -17,7 +16,6 @@ import { KoboyoIcon } from "@/components/ui/koboyo-icon";
 import type { DashboardData } from "@/domain/types";
 import {
   buildReleaseImpactWorkspace,
-  classifyVersionChange,
   compareVersionsDescending,
 } from "@/services/mobile";
 
@@ -78,12 +76,12 @@ function KpiCard({
   tone: string;
 }) {
   return (
-    <DpCard as="article" className={`ri-kpi ri-kpi--${tone}`}>
-      <DpLayout align="center" justify="center" className="ri-kpi-icon">
-        {icon}
+    <DpCard as="article" className={`mi-dashboard-kpi-card ri-kpi ri-kpi--${tone}`}>
+      <DpLayout direction="row" align="center" className="ri-kpi-heading">
+        <span className="ri-kpi-icon" aria-hidden="true">{icon}</span>
+        <DpText as="h3">{title}</DpText>
       </DpLayout>
       <DpLayout className="ri-kpi-copy">
-        <DpText as="span">{title}</DpText>
         <DpText as="strong">{value}</DpText>
         <DpText as="small">{detail}</DpText>
       </DpLayout>
@@ -115,25 +113,6 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
       </DpCard>
     );
   }
-
-  const platformReleases = releases.filter(
-    (item) => item.platform === release.platform,
-  );
-  const releaseIndex = platformReleases.findIndex(
-    (item) => item.id === release.id,
-  );
-  const versionChange = classifyVersionChange(
-    release.version,
-    releaseIndex < 0
-      ? null
-      : (platformReleases[releaseIndex + 1]?.version ?? null),
-  );
-  const changeLabels = {
-    major: "Major",
-    minor: "Minor",
-    patch: "Patch",
-    unknown: "분류 불가",
-  };
 
   const exportCsv = () => {
     const rows = [
@@ -181,7 +160,9 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
         view.stability.anrRate.changePoints,
       ],
     ];
-    const csv = rows
+    rows.push(["일평균 다운로드", view.downloadDailyAverage.before, view.downloadDailyAverage.after, view.downloadDailyAverage.change]);
+    rows.push([`크래시 보고 건수 (${view.crashReports.scope})`, view.crashReports.before, view.crashReports.after, view.crashReports.change]);
+    const csv = rows.filter(row => row[0] !== (release.platform === "android" ? "iOS 평점" : "Android 평점") && (release.platform === "android" || !["비정상 종료율", "ANR 발생률"].includes(String(row[0]))))
       .map((row) => row.map((cell) => cell ?? "").join(","))
       .join("\n");
     const url = URL.createObjectURL(
@@ -199,13 +180,14 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
     ...view.voc.flatMap((item) => [item.before, item.after]),
   );
   const comparisonRows = [
+    { label: `크래시 보고 건수 (${view.crashReports.scope === "version" ? "버전별" : "앱 전체"})`, before: formatNumber(view.crashReports.before), after: formatNumber(view.crashReports.after), change: signed(view.crashReports.change, "건"), percent: null, direction: null, lowerIsBetter: true },
     {
-      label: "다운로드",
-      before: formatNumber(view.downloads.before),
-      after: formatNumber(view.downloads.after),
-      change: signed(view.downloads.change),
-      percent: view.downloads.changePercent,
-      direction: view.downloads.changePercent,
+      label: "일평균 다운로드 (앱 전체)",
+      before: formatNumber(view.downloadDailyAverage.before, 1),
+      after: formatNumber(view.downloadDailyAverage.after, 1),
+      change: signed(view.downloadDailyAverage.change, "건", 1),
+      percent: view.downloadDailyAverage.changePercent,
+      direction: view.downloadDailyAverage.changePercent,
       lowerIsBetter: false,
     },
     {
@@ -236,12 +218,12 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
       lowerIsBetter: true,
     },
     {
-      label: "신규 리뷰",
+      label: "수집 리뷰 수 (표본)",
       before: `${formatNumber(view.newReviews.before)}건`,
       after: `${formatNumber(view.newReviews.after)}건`,
       change: signed(view.newReviews.change, "건"),
       percent: view.newReviews.changePercent,
-      direction: view.newReviews.change,
+      direction: null,
       lowerIsBetter: false,
     },
     {
@@ -262,23 +244,8 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
       direction: view.stability.anrRate.changePoints,
       lowerIsBetter: true,
     },
-  ];
+  ].filter(row => row.label !== (release.platform === "android" ? "iOS 평점" : "Android 평점") && (release.platform === "android" || !["비정상 종료율", "ANR 발생률"].includes(row.label)));
 
-  const stabilityDetail = (metric: typeof view.stability.crashRate) => (
-    <>
-      <Delta
-        value={metric.changePoints}
-        suffix="%p"
-        lowerIsBetter
-        decimals={3}
-      />
-      <span className="ri-kpi-coverage">
-        {metric.afterAsOfDate
-          ? `${shortDate(metric.afterAsOfDate)} 기준 · 배포 후 ${metric.coverage.after}/${metric.coverage.expected}일`
-          : "배포 후 데이터 없음"}
-      </span>
-    </>
-  );
 
   return (
     <DpLayout className="ri-workspace">
@@ -324,151 +291,44 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
       />
 
       <DpLayout as="section" className="ri-kpi-grid">
-        <KpiCard
-          icon={<KoboyoIcon name="download" size={21} />}
-          title="다운로드 변화"
-          value={signed(view.downloads.change)}
-          detail={<Delta value={view.downloads.changePercent} />}
-          tone="blue"
-        />
-        <KpiCard
-          icon={<KoboyoIcon name="star" size={20} />}
-          title="평점 변화 (Android)"
-          value={signed(view.ratings.android.change, "", 2)}
-          detail={`${formatNumber(view.ratings.android.before, 2)} → ${formatNumber(view.ratings.android.after, 2)}`}
-          tone="green"
-        />
-        <KpiCard
-          icon={<KoboyoIcon name="star" size={20} />}
-          title="평점 변화 (iOS)"
-          value={signed(view.ratings.ios.change, "", 2)}
-          detail={`${formatNumber(view.ratings.ios.before, 2)} → ${formatNumber(view.ratings.ios.after, 2)}`}
-          tone="violet"
-        />
-        <KpiCard
-          icon={<KoboyoIcon name="shield-alert" size={20} />}
-          title="부정 리뷰 비율"
-          value={signed(view.negativeReviews.change, "%p", 1)}
-          detail={`${formatNumber(view.negativeReviews.before, 1)}% → ${formatNumber(view.negativeReviews.after, 1)}%`}
-          tone="orange"
-        />
-        <KpiCard
-          icon={<KoboyoIcon name="message-square" size={20} />}
-          title="신규 리뷰"
-          value={signed(view.newReviews.change)}
-          detail={<Delta value={view.newReviews.changePercent} />}
-          tone="blue"
-        />
-        <KpiCard
-          icon={<KoboyoIcon name="bug" size={20} />}
-          title="배포 후 비정상 종료율"
-          value={formatRate(view.stability.crashRate.after, 3)}
-          detail={stabilityDetail(view.stability.crashRate)}
-          tone="red"
-        />
-        <KpiCard
-          icon={<KoboyoIcon name="shield-alert" size={20} />}
-          title="배포 후 ANR 발생률"
-          value={formatRate(view.stability.anrRate.after, 3)}
-          detail={stabilityDetail(view.stability.anrRate)}
-          tone="red"
-        />
+        <KpiCard icon={<KoboyoIcon name="star" size={20} />} title="버전 리뷰 평점"
+          value={formatNumber(view.ratings[release.platform].after, 2)}
+          detail={<><Delta value={view.ratings[release.platform].change} suffix="점" decimals={2} /><span className="ri-kpi-coverage">수집 리뷰 {formatNumber(view.newReviews.after)}건 · 이전버전 대비</span></>} tone="green" />
+        <KpiCard icon={<KoboyoIcon name="message-square" size={20} />} title="부정 리뷰 비율"
+          value={formatRate(view.negativeReviews.after)}
+          detail={<><Delta value={view.negativeReviews.change} suffix="%p" lowerIsBetter /><span className="ri-kpi-coverage">해당 버전의 1~2점 리뷰 비율</span></>} tone="orange" />
+        <KpiCard icon={<KoboyoIcon name="bug" size={20} />} title="배포 후 크래시 보고 건수"
+          value={view.crashReports.after === null ? "미수집" : `${formatNumber(view.crashReports.after)}건`}
+          detail={<>{view.crashReports.scope === "version" ? "선택 버전" : "앱 전체 · 버전 구분 없음"}<span className="ri-kpi-coverage">{view.crashReports.latestDate ? `${shortDate(view.crashReports.latestDate)}까지 · ${view.crashReports.afterDays}일 수집` : "해당 기간 보고서 없음"}</span></>} tone="red" />
+        <KpiCard icon={<KoboyoIcon name="download" size={20} />} title="배포 후 다운로드"
+          value={view.downloads.after === null ? "미수집" : formatNumber(view.downloads.after)}
+          detail={<>앱 전체 · 일평균 {formatNumber(view.downloadDailyAverage.after, 1)}건<span className="ri-kpi-coverage">{view.coverage.afterDays}/{view.coverage.expectedDays}일 수집 · <Delta value={view.downloadDailyAverage.changePercent} /></span></>} tone="blue" />
       </DpLayout>
 
-      <DpLayout as="section" className="ri-main-grid">
-        <DpCard className="ri-card ri-trend-card">
-          <DpLayout className="ri-card-head">
-            <DpText as="h3">배포 전후 추이</DpText>
-            <DpText>
-              배포일을 0일로 맞춰 일별 다운로드 흐름을 비교합니다.
-            </DpText>
-          </DpLayout>
-          <ReleaseImpactTrendChart data={view.daily} />
-          <DpText as="small" className="ri-coverage">
-            수집 범위: 배포 전 {view.coverage.beforeDays}/{view.coverage.expectedBeforeDays}일 · 배포 후{" "}
-            {view.coverage.afterDays}/{view.coverage.expectedDays}일
-          </DpText>
-        </DpCard>
-
-        <DpCard className="ri-card ri-insights">
-          <DpLayout direction="row" align="center" className="ri-card-title">
-            <KoboyoIcon name="lightbulb" size={16} />{" "}
-            <DpText as="h3">핵심 인사이트</DpText>
-          </DpLayout>
-          {view.insights.map((insight, index) => (
-            <DpLayout as="article" direction="row" key={insight.title}>
-              <DpLayout
-                align="center"
-                justify="center"
-                className={`ri-insight-icon ri-insight-icon--${insight.tone}`}
-              >
-                {index === 0 ? (
-                  <KoboyoIcon name="trending-up" size={15} />
-                ) : index === 1 ? (
-                  <KoboyoIcon name="sparkles" size={15} />
-                ) : (
-                  <KoboyoIcon name="shield-alert" size={15} />
-                )}
-              </DpLayout>
-              <DpLayout>
-                <DpText as="strong">{insight.title}</DpText>
-                <DpText as="small">{insight.detail}</DpText>
-              </DpLayout>
+      <DpLayout as="section" className="ri-main-grid ri-two-column-grid">
+        {(["rating", "crashes"] as const).map(metric => (
+          <DpCard className="ri-card ri-trend-card" key={metric}>
+            <DpLayout className="ri-card-head">
+              <DpText as="h3">{metric === "rating" ? "평균 리뷰 평점" : "크래시 보고 건수"}</DpText>
+              <DpText>이전 {view.previousRelease ? `v${displayReleaseVersion(release.platform, view.previousRelease.version)}` : "버전 없음"} / 선택 v{displayReleaseVersion(release.platform, release.version)} · 각 버전 배포일 0일 기준</DpText>
             </DpLayout>
-          ))}
-        </DpCard>
-
-        <DpCard className="ri-card ri-summary">
-          <DpText as="h3">릴리즈 요약</DpText>
-          <dl>
-            <div>
-              <dt>버전</dt>
-              <dd>v{displayReleaseVersion(release.platform, release.version)}</dd>
-            </div>
-            <div>
-              <dt>분석 기간</dt>
-              <dd>{shortDate(view.windows.after.from)} ~ {shortDate(view.windows.after.to)}</dd>
-            </div>
-            <div>
-              <dt>플랫폼</dt>
-              <dd>
-                {view.platforms.map((platform) => (
-                  <span key={platform}>
-                    <PlatformIcon platform={platform} size={13} />
-                    {platform === "android" ? "Android" : "iOS"}
-                  </span>
-                ))}
-              </dd>
-            </div>
-            <div>
-              <dt>빌드 식별자</dt>
-              <dd>
-                {release.buildNumber
-                  ? `build ${release.buildNumber}`
-                  : "미수집"}
-              </dd>
-            </div>
-            <div>
-              <dt>변경 유형</dt>
-              <dd>
-                {changeLabels[versionChange]} <small>버전 비교</small>
-              </dd>
-            </div>
-          </dl>
-          <DpText as="small" className="ri-summary-note">
-            저장된 기준일로 이전 버전과 비교합니다. 기준일은 실제 배포일, 버전 생성일 또는 최초 관측일일 수 있으며 현재 데이터에서는 구분되지 않습니다.
-          </DpText>
-        </DpCard>
+            {view.daily.some(point => point[metric] !== null) ? (
+              <ReleaseImpactTrendChart data={view.daily} metric={metric}
+                beforeLabel={view.previousRelease ? `v${displayReleaseVersion(release.platform, view.previousRelease.version)}` : "이전 버전"}
+                afterLabel={`v${displayReleaseVersion(release.platform, release.version)}`} />
+            ) : <DpText className="ri-chart-empty">{metric === "rating" ? "비교 기간에 해당 버전의 리뷰가 없습니다." : "해당 버전의 크래시 보고서가 수집되지 않았습니다."}</DpText>}
+          </DpCard>
+        ))}
       </DpLayout>
 
-      <DpLayout as="section" className="ri-bottom-grid">
+      <DpLayout as="section" className="ri-bottom-grid ri-two-column-grid">
         <DpCard className="ri-card ri-comparison">
-          <DpText as="h3">Before vs After 비교</DpText>
+          <DpText as="h3">최근 업데이트 후 달라진 점</DpText>
           <div className="ri-table-scroll">
             <div className="ri-table ri-table-head">
               <span>지표</span>
-              <span>배포 전</span>
-              <span>배포 후</span>
+              <span>이전 버전 기간</span>
+              <span>선택 버전 기간</span>
               <span>변화</span>
               <span>판단</span>
             </div>
@@ -551,35 +411,7 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
           </DpLayout>
         </DpCard>
 
-        <DpCard className="ri-card ri-representative-reviews">
-          <DpText as="h3">대표 리뷰</DpText>
-          {view.representativeReviews.length ? (
-            view.representativeReviews.map((review) => (
-              <DpLayout as="article" key={review.id}>
-                <DpLayout
-                  direction="row"
-                  align="center"
-                  className="ri-review-meta"
-                >
-                  <DpText as="strong">
-                    {"★".repeat(review.rating)}
-                    <span>{"★".repeat(5 - review.rating)}</span>
-                  </DpText>
-                  <DpBadge>
-                    <PlatformIcon platform={review.platform} size={11} />
-                    {review.platform === "android" ? "Android" : "iOS"}
-                  </DpBadge>
-                  <DpText as="time">
-                    {shortDate(review.reviewedAt.slice(0, 10))}
-                  </DpText>
-                </DpLayout>
-                <DpText>{review.content}</DpText>
-              </DpLayout>
-            ))
-          ) : (
-            <DpText className="ri-muted">배포 후 리뷰가 없습니다.</DpText>
-          )}
-        </DpCard>
+
       </DpLayout>
     </DpLayout>
   );

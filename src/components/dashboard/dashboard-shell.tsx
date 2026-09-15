@@ -1124,10 +1124,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                           <DpText as="b">
                             v{displayReleaseVersion(platform, releaseImpact.release.version)}
                           </DpText>
-                          <DpText as="span">
-                            {releaseDate(releaseImpact.release)} ~{" "}
-                            {date(latestDate)}
-                          </DpText>
+                          <DpText as="span">이전버전 대비</DpText>
                         </>
                       ) : (
                         <DpText as="span">버전 정보 없음</DpText>
@@ -1142,7 +1139,9 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                         className="mi-dashboard-impact-row"
                         key={row.label}
                       >
-                        <DpText as="span">{row.label}</DpText>
+                        <DpText as="span" title={row.label === "배포 후 다운로드"
+                          ? "배포 이후 앱 전체의 다운로드입니다. 버전별 다운로드가 아니며 iOS는 최초 다운로드를 우선 사용합니다."
+                          : row.label === "배포 후 크래시 발생 건수" ? "현재 버전으로 식별된 크래시 보고서만 집계합니다. 버전별 보고서가 없으면 데이터 없음으로 표시합니다." : undefined}>{row.label}</DpText>
                         <DpLayout
                           direction="row"
                           align="center"
@@ -1329,7 +1328,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                         <DpText as="strong">{storeRatings[platform]?.value.toFixed(platform === "android" ? 3 : 2) ?? "—"}</DpText>
                         <DpText as="span" className={`mi-platform-delta ${metricTrendTone(storeRatings[platform]?.change ?? null)}`}
                           title={storeRatings[platform] ? `${date(storeRatings[platform].date)} · ${storeRatings[platform].source === "manual" ? "수동 확인" : "수집 기준"} · 직전 기록 대비` : "미수집"}>
-                          {storeRatings[platform]?.change == null ? "—" : `${storeRatings[platform].change > 0 ? "▲" : storeRatings[platform].change < 0 ? "▼" : "—"} ${Math.abs(storeRatings[platform].change) > 0 && Math.abs(storeRatings[platform].change) < 0.01 ? "0.01 미만" : Math.abs(storeRatings[platform].change).toFixed(2)}`}
+                          {storeRatings[platform]?.change == null ? "—" : `${storeRatings[platform].change > 0 ? "▲" : storeRatings[platform].change < 0 ? "▼" : "—"} ${Math.abs(storeRatings[platform].change).toFixed(3)}`}
                         </DpText>
                         <MetricSparkline values={storeRatings[platform]?.trend ?? []} color={platform === "android" ? "#22A447" : "#8B5CF6"} singlePoint smooth={false} />
                       </DpLayout>
@@ -1425,6 +1424,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
               </DpLayout>
           </>
         )}
+          {view === "reviews" && <ReviewRatingSummary reviews={periodReviews} />}
           {view === "reviews" && (
             <DpLayout as="section" className="mi-review-summary-grid">
               <DpCard className="mi-dashboard-kpi-card mi-review-platform-card">
@@ -1662,7 +1662,6 @@ export function DashboardShell({ data }: { data: DashboardData }) {
           )}
           {view === "reviews" && (
             <>
-              <ReviewRatingSummary reviews={periodReviews} />
               <DpLayout className="mi-rating-distributions">
                 <DpLayout className="mi-rating-distribution-stack">
                   {ratingDistribution.map(({ platform, rows, total }) => (

@@ -99,6 +99,23 @@ describe("Apple review version mapping", () => {
     expect(paths.some((path) => path.includes("/mac/"))).toBe(false);
   });
 
+  it("bounds concurrent version requests while retaining every version", async () => {
+    let active = 0;
+    let peak = 0;
+    const manyVersions = Array.from({length: 9}, (_, i) => ({id: `v${i}`, attributes: {platform: "IOS", versionString: `1.${i}.0`}}));
+    const result = await fetchAppleReviewsWithVersions("app-1", "123", manyVersions, async path => {
+      if (path.includes("/apps/")) return {data: []};
+      active++;
+      peak = Math.max(peak, active);
+      await new Promise(resolve => setTimeout(resolve, 1));
+      active--;
+      return {data: [review(path)]};
+    }, observedAt);
+    expect(peak).toBe(4);
+    expect(result).toHaveLength(9);
+    expect(result.map(item => item.version)).toEqual(manyVersions.map(item => item.attributes.versionString));
+  });
+
   it("leaves ambiguous version relationships unassigned", async () => {
     const result = await fetchAppleReviewsWithVersions("app-1", "123", versions,
       async () => ({ data: [review("same")] }), observedAt);

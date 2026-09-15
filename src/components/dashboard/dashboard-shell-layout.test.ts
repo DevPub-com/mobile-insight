@@ -149,10 +149,8 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(dashboardCharts).not.toContain("DashboardDateRangePicker");
   });
 
-  it("labels latest-release impact from the platform release date through the latest data date", () => {
-    expect(source).toMatch(
-      /\{releaseDate\(releaseImpact\.release\)\}\s*~\s*\{" "\}\s*\{date\(latestDate\)\}/s,
-    );
+  it("labels latest-release impact as a previous-version comparison", () => {
+    expect(source).toContain('<DpText as="span">이전버전 대비</DpText>');
   });
 
   it("keeps the reference dashboard compact", () => {
@@ -163,8 +161,8 @@ describe("Mobile Insight dashboard shell layout", () => {
     );
     expect(source).not.toContain("월간 활성 사용자");
     expect(source).not.toContain("activeUserSparkline");
-    expect(releaseImpactSource).toContain("배포 후 비정상 종료율");
-    expect(releaseImpactSource).toContain("배포 후 ANR 발생률");
+    expect(releaseImpactSource).toContain("비정상 종료율");
+    expect(releaseImpactSource).toContain("ANR 발생률");
     expect(releaseImpactSource).not.toContain("Firebase · Sentry 데이터 없음");
     expect(source).not.toContain("ActiveUserChart");
   });
@@ -345,7 +343,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain('label: "배포 후 크래시 발생 건수"');
     expect(source).not.toContain("새 충돌 문제");
     expect(source).toContain("releaseImpact.release.version");
-    expect(source).toContain("releaseDate(releaseImpact.release)");
+    expect(source).toContain("이전버전 대비");
     expect(source).toContain("platformImpacts[platform]");
     expect(source).toContain("releaseImpact?.crashReports");
   });
@@ -388,21 +386,21 @@ describe("Mobile Insight dashboard shell layout", () => {
       new URL("./release-impact-workspace.tsx", import.meta.url),
       "utf8",
     );
-    expect(workspace).toContain("다운로드 변화");
-    expect(workspace).toContain("평점 변화 (Android)");
-    expect(workspace).toContain("평점 변화 (iOS)");
+    expect(workspace).toContain("배포 후 다운로드");
+    expect(workspace).toContain("버전 리뷰 평점");
+    expect(workspace).toContain("view.ratings[release.platform]");
     expect(workspace).toContain("부정 리뷰 비율");
     expect(workspace).toContain("신규 리뷰");
-    expect(workspace).toContain("배포 후 비정상 종료율");
-    expect(workspace).toContain("배포 후 ANR 발생률");
+    expect(workspace).toContain("배포 후 크래시 보고 건수");
+    expect(workspace).toContain("일평균 다운로드 (앱 전체)");
     expect(workspace).toContain(
       'value === null ? "—" : `${formatNumber(value, decimals)}%`',
     );
-    expect(workspace).toContain("배포 전후 추이");
-    expect(workspace).toContain("핵심 인사이트");
-    expect(workspace).toContain("릴리즈 요약");
-    expect(workspace).toContain("Before vs After 비교");
+    expect(workspace).toContain("평균 리뷰 평점");
+    expect(workspace).not.toContain("핵심 인사이트");
+    expect(workspace).not.toContain("릴리즈 요약");
+    expect(workspace).toContain("최근 업데이트 후 달라진 점");
     expect(workspace).toContain("VOC 변화");
-    expect(workspace).toContain("대표 리뷰");
+    expect(workspace).not.toContain("대표 리뷰");
   });
 });

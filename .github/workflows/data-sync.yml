@@ -16,9 +16,17 @@ on:
           - voc
           - metrics
 
+permissions:
+  contents: read
+
+concurrency:
+  group: scheduled-data-sync
+  cancel-in-progress: false
+
 jobs:
   synchronize:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Determine Synchronization Scope
         id: determine-scope
@@ -31,13 +39,22 @@ jobs:
             echo "scope=voc" >> $GITHUB_OUTPUT
           fi
 
-      - name: Request Synchronization Endpoint
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Synchronize directly on the runner
         env:
-          TARGET_URL: ${{ secrets.APPLICATION_URL || secrets.APP_URL }}
-          BEARER_TOKEN: ${{ secrets.SYNCHRONIZATION_SECRET || secrets.SYNC_SECRET }}
-        run: |
-          CLEAN_TARGET_URL="${TARGET_URL%/}"
-          echo "Target Endpoint: ${CLEAN_TARGET_URL}/api/sync?type=${{ steps.determine-scope.outputs.scope }}"
-          curl --fail --show-error --silent --location \
-            --request POST "${CLEAN_TARGET_URL}/api/sync?type=${{ steps.determine-scope.outputs.scope }}" \
-            --header "Authorization: Bearer ${BEARER_TOKEN}"
+          SYNC_SCOPE: ${{ steps.determine-scope.outputs.scope }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GOOGLE_KIS_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_KIS_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_KIS_BUCKET_NAME: ${{ secrets.GOOGLE_KIS_BUCKET_NAME }}
+          APPLE_KIS_ISSUER_ID: ${{ secrets.APPLE_KIS_ISSUER_ID }}
+          APPLE_KIS_KEY_ID: ${{ secrets.APPLE_KIS_KEY_ID }}
+          APPLE_KIS_PRIVATE_KEY: ${{ secrets.APPLE_KIS_PRIVATE_KEY }}
+          APPLE_KIS_VENDOR_NUMBER: ${{ secrets.APPLE_KIS_VENDOR_NUMBER }}
+          GA4_KIS_PROPERTY_ID: ${{ secrets.GA4_KIS_PROPERTY_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node --import tsx scripts/sync.ts

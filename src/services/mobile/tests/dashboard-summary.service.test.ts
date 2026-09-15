@@ -50,13 +50,17 @@ describe("dashboard summary API view model", () => {
     const summary = buildDashboardSummary(demoDashboardData, "30d");
 
     for (const platform of ["android", "ios"] as const) {
+      const comparison = summary.latestReleaseImpact.platforms[platform];
+      const priorDays = comparison.previousRelease && comparison.release
+        ? Math.round((Date.parse(comparison.release.releasedAt.slice(0, 10)) - Date.parse(comparison.previousRelease.releasedAt.slice(0, 10))) / 86400000) : 0;
       const impact = buildReleaseImpact(
         demoDashboardData,
         "5.12.0",
         platform,
-        3,
+        priorDays,
         3,
         true,
+        comparison.previousRelease?.version,
       );
       expect(impact).not.toBeNull();
       if (impact === null) throw new Error("Expected release impact");
@@ -302,7 +306,7 @@ describe("dashboard summary API view model", () => {
     expect(
       latePeriod.latestReleaseImpact.platforms.android.windows,
     ).toEqual({
-      before: { from: "2025-05-05", to: "2025-05-07" },
+      before: { from: "2025-04-24", to: "2025-05-07" },
       after: { from: "2025-05-08", to: "2025-05-10" },
     });
   });
@@ -371,4 +375,26 @@ it("includes only matching version reviews in release metrics and sparklines", (
  expect(impact.rating.after).toBe(2);
  expect(impact.negativeReviews.after).toBe(100);
  expect(impact.sparklines).toMatchObject({rating:[2],negativeReviews:[100],reviewCount:[1]});
+});
+
+it("compares current-version reviews against the previous version's operating period", () => {
+  const appId = demoDashboardData.app.id;
+  const release = demoDashboardData.releases[0];
+  const review = demoDashboardData.reviews[0];
+  const data = { ...demoDashboardData, metrics: [], metricObservations: [], ratingSnapshots: [],
+    releases: [
+      { ...release, appId, id: "new", platform: "android" as const, version: "2.0.0", releasedAt: "2026-09-12T00:00:00Z" },
+      { ...release, appId, id: "old", platform: "android" as const, version: "1.0.0", releasedAt: "2026-09-01T00:00:00Z" },
+    ],
+    reviews: [
+      { ...review, appId, id: "a", platform: "android" as const, version: "1.0.0", rating: 5, reviewedAt: "2026-09-02T00:00:00Z" },
+      { ...review, appId, id: "b", platform: "android" as const, version: "2.0.0", rating: 1, reviewedAt: "2026-09-12T00:00:00Z" },
+      { ...review, appId, id: "c", platform: "android" as const, version: "1.0.0", rating: 3, reviewedAt: "2026-09-13T00:00:00Z" },
+    ],
+  };
+  const impact = buildDashboardSummaryForRange(data, { startDate: "2026-09-12", endDate: "2026-09-13" }).latestReleaseImpact.platforms.android;
+  expect(impact.previousRelease?.version).toBe("1.0.0");
+  expect(impact.rating).toEqual({ before: 5, after: 1, change: -4 });
+  expect(impact.reviewCount).toMatchObject({ before: 1, after: 1, change: 0 });
+  expect(impact.negativeReviews).toEqual({ before: 0, after: 100, changePoints: 100 });
 });

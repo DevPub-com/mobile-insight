@@ -2,7 +2,7 @@ import { isProductionRelease } from "@/services/mobile/common/production-release
 import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { apps, syncRuns } from "@/db/schema";
+import { apps, syncRuns, reviews } from "@/db/schema";
 import {
   upsertAndroidDistribution,
   upsertDailyMetrics,
@@ -60,17 +60,19 @@ async function recordTypeRuns({
   payload,
   failedMessage,
   startedAt,
+  syncTypes,
 }: {
   appId: string;
   adapter: StoreAdapter;
   payload?: StoreSyncPayload;
   failedMessage?: string;
   startedAt: Date;
+  syncTypes: readonly StoreSyncType[];
 }) {
   const db = getDb();
   const finishedAt = new Date();
   await db.insert(syncRuns).values(
-    adapter.syncTypes.map((syncType) => {
+    syncTypes.map((syncType) => {
       const typeError =
         failedMessage ?? payload?.errors.find((error) => error.startsWith(`${syncType}:`));
       return {
@@ -96,7 +98,9 @@ export async function syncAllApps(scope: SyncScope = "all", appId?: string) {
   const syncTypesToRun: readonly StoreSyncType[] | undefined =
     scope === "voc"
       ? (["reviews", "ratings", "releases"] as const)
-      : undefined;
+      : scope === "metrics"
+        ? (["downloads", "installs", "stability"] as const)
+        : undefined;
 
   for (const app of activeApps) {
     const appInfo = {
@@ -175,7 +179,7 @@ export async function syncAllApps(scope: SyncScope = "all", appId?: string) {
         .values({
           appId: app.id,
           platform: adapter.platform,
-          syncType: scope === "all" ? "all" : "reviews",
+          syncType: scope === "voc" ? "reviews" : "all",
           status: "running",
         })
         .returning({ id: syncRuns.id });
@@ -212,7 +216,16 @@ export async function syncAllApps(scope: SyncScope = "all", appId?: string) {
           });
         }
         if (payload.reviews.length) {
-          const analysisMap = await analyzeReviewsBatch(payload.reviews);
+          const stored = await db.select({ externalId: reviews.externalId, content: reviews.content, title: reviews.title, rating: reviews.rating, aiSentiment: reviews.aiSentiment, aiTopicPaths: reviews.aiTopicPaths })
+            .from(reviews).where(and(eq(reviews.appId, app.id), eq(reviews.platform, adapter.platform)));
+          const existing = new Map(stored.map(review => [review.externalId, review]));
+          // Persist source reviews before optional AI processing so they survive analysis failures.
+          await upsertReviews(db, payload.reviews.map(review => toReviewInsertValue(review)));
+          const pending = payload.reviews.filter(review => {
+            const previous = existing.get(review.externalId);
+            return !previous?.aiSentiment || previous.aiTopicPaths == null || previous.content !== review.content || previous.title !== review.title || previous.rating !== review.rating;
+          });
+          const analysisMap = await analyzeReviewsBatch(pending);
           await upsertReviews(
             db,
             payload.reviews.map((review) => {
@@ -252,7 +265,7 @@ export async function syncAllApps(scope: SyncScope = "all", appId?: string) {
             errorMessage: publicSyncError(payload.errors.join(" | ") || null),
           })
           .where(eq(syncRuns.id, run.id));
-        await recordTypeRuns({ appId: app.id, adapter, payload, startedAt });
+        await recordTypeRuns({ appId: app.id, adapter, payload, startedAt, syncTypes: targetSyncTypes });
         logger.info("sync_finished", {
           app: app.code,
           platform: adapter.platform,
@@ -269,7 +282,7 @@ export async function syncAllApps(scope: SyncScope = "all", appId?: string) {
           .update(syncRuns)
           .set({ status: "failed", finishedAt: new Date(), errorMessage: message })
           .where(eq(syncRuns.id, run.id));
-        await recordTypeRuns({ appId: app.id, adapter, failedMessage: message, startedAt });
+        await recordTypeRuns({ appId: app.id, adapter, failedMessage: message, startedAt, syncTypes: targetSyncTypes });
         logger.error("sync_failed", {
           app: app.code,
           platform: adapter.platform,

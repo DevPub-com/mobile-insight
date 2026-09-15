@@ -1,6 +1,7 @@
+import { buildCrashHistory } from "../crash-history.service";
 import { displayReleaseVersion } from "../common/release-version";
 import { calculateReleaseImpact } from "@/domain/releases/release-impact";
-import type { AppRelease, DashboardData, Platform } from "@/domain/types";
+import type { AppRelease, AppReview, DashboardData, Platform } from "@/domain/types";
 import { addDays } from "@/lib/date";
 import { calculateAverage } from "@/lib/number";
 import { reviewHasMajorTopic, VOC_GROUPS } from "../common/voc-keywords";
@@ -63,6 +64,7 @@ export function buildReleaseImpact(
   beforeDays = 7,
   afterDays = 7,
   includeReleaseDay = false,
+  previousVersion?: string,
 ) {
   const matching = data.releases.filter(
     (release) => release.version === version && release.platform === platform,
@@ -109,7 +111,12 @@ export function buildReleaseImpact(
         : null,
     })),
     reviews: data.reviews
-      .filter((review) => review.platform === platform && review.version != null && displayReleaseVersion(platform, review.version) === displayReleaseVersion(platform, version))
+      .filter((review) => {
+        const targetVersion = review.reviewedAt.slice(0, 10) < releasedAt
+          ? previousVersion ?? version : version;
+        return review.platform === platform && review.version != null &&
+          displayReleaseVersion(platform, review.version) === displayReleaseVersion(platform, targetVersion);
+      })
       .map((review) => ({
         reviewedAt: review.reviewedAt.slice(0, 10),
         rating: review.rating,
@@ -126,7 +133,7 @@ export function buildReleaseImpactWorkspace(
   const siblings = data.releases.filter((item) =>
     item.appId === release.appId && item.platform === release.platform,
   ).sort((a, b) => a.releasedAt.localeCompare(b.releasedAt));
-  const previous = siblings.filter((item) => item.releasedAt.slice(0, 10) < releasedAt).at(-1);
+  const previous = siblings.filter((item) => item.releasedAt.slice(0, 10) < releasedAt && displayReleaseVersion(item.platform, item.version) !== displayReleaseVersion(release.platform, release.version)).at(-1);
   const next = siblings.find((item) => item.releasedAt.slice(0, 10) > releasedAt);
   const windows = {
     before: { from: previous?.releasedAt.slice(0, 10) ?? releasedAt, to: addDays(releasedAt, -1) },
@@ -137,7 +144,7 @@ export function buildReleaseImpactWorkspace(
   // All cards, reviews and trends use the selected app and OS.
   data = { ...data,
     metrics: data.metrics.filter((item) => item.appId === release.appId && item.platform === release.platform),
-    reviews: data.reviews.filter((item) => item.appId === release.appId && item.platform === release.platform && item.version != null && displayReleaseVersion(item.platform, item.version) === displayReleaseVersion(release.platform, release.version)),
+    reviews: data.reviews.filter((item) => item.appId === release.appId && item.platform === release.platform && item.version != null),
   };
 
   const metricsIn = (from: string, to: string) =>
@@ -149,8 +156,9 @@ export function buildReleaseImpactWorkspace(
 
   const beforeMetrics = metricsIn(windows.before.from, windows.before.to);
   const afterMetrics = metricsIn(windows.after.from, windows.after.to);
-  const beforeReviews = reviewsIn(windows.before.from, windows.before.to);
-  const afterReviews = reviewsIn(windows.after.from, windows.after.to);
+  const matchesVersion = (review: AppReview, version: string) => displayReleaseVersion(review.platform, review.version!) === displayReleaseVersion(release.platform, version);
+  const beforeReviews = previous ? reviewsIn(windows.before.from, windows.before.to).filter(review => matchesVersion(review, previous.version)) : [];
+  const afterReviews = reviewsIn(windows.after.from, windows.after.to).filter(review => matchesVersion(review, release.version));
   const coverage = {
     beforeDays: new Set(beforeMetrics.filter((item) => item.downloads !== null).map((item) => item.date)).size,
     afterDays: new Set(afterMetrics.filter((item) => item.downloads !== null).map((item) => item.date)).size,
@@ -185,6 +193,27 @@ export function buildReleaseImpactWorkspace(
     changePercent: hasCompleteMetricWindows
       ? downloadsComparison.changePercent
       : null,
+  };
+  const downloadDailyAverage = {
+    ...comparison(coverage.beforeDays ? downloads.before! / coverage.beforeDays : null,
+      coverage.afterDays ? downloads.after! / coverage.afterDays : null),
+  };
+  if (!hasCompleteMetricWindows) {
+    downloadDailyAverage.change = null;
+    downloadDailyAverage.changePercent = null;
+  }
+  const crashScope = "version";
+  const crashSummary = (version: string, range: { from: string; to: string }) => buildCrashHistory({ ...data,
+    metricObservations: (data.metricObservations ?? []).filter(row => row.appId === release.appId && row.platform === release.platform &&
+      row.metricKey.startsWith("crash_report_count:version:") && displayReleaseVersion(release.platform, row.metricKey.slice("crash_report_count:version:".length)) === displayReleaseVersion(release.platform, version))
+      .map(row => ({ ...row, metricKey: "crash_report_count" })),
+  }, { startDate: range.from, endDate: range.to })[release.platform];
+  const crashAfter = crashSummary(release.version, windows.after);
+  const crashBefore = previous ? crashSummary(previous.version, windows.before) : null;
+  const crashReports = { before: crashBefore?.value ?? null, after: crashAfter.value,
+    scope: crashScope, afterDays: crashAfter.days, latestDate: crashAfter.latestDate,
+    change: crashBefore && crashBefore.days === expectedBeforeDays && crashAfter.days === expectedAfterDays
+      ? roundedDifference(crashBefore.value, crashAfter.value) : null,
   };
   const ratings = {
     android: comparison(
@@ -244,11 +273,22 @@ export function buildReleaseImpactWorkspace(
     anrRate: stabilityRate("user_perceived_anr_rate_28d"),
   };
 
+  const versionCrashPoints = (version: string | undefined) => new Map((data.metricObservations ?? [])
+    .filter(row => version !== undefined && row.appId === release.appId && row.platform === release.platform &&
+      row.metricKey.startsWith("crash_report_count:version:") && displayReleaseVersion(release.platform, row.metricKey.slice("crash_report_count:version:".length)) === displayReleaseVersion(release.platform, version) &&
+      row.quality !== "unavailable" && row.value !== null && Number.isSafeInteger(row.value) && row.value >= 0)
+    .sort((a, b) => a.observedAt.localeCompare(b.observedAt)).map(row => [row.date, row.value!]));
+  const currentCrashPoints = versionCrashPoints(release.version);
+  const previousCrashPoints = versionCrashPoints(previous?.version);
   const daily = Array.from({ length: expectedBeforeDays + expectedAfterDays }, (_, index) => {
     const offset = index - expectedBeforeDays;
     const date = addDays(releasedAt, offset);
     const rows = data.metrics.filter((item) => item.date === date);
-    return { offset, date, downloads: downloadTotal(rows) };
+    const reviews = (offset < 0 ? beforeReviews : afterReviews).filter(row => row.reviewedAt.slice(0, 10) === date);
+    return { offset, date, downloads: downloadTotal(rows),
+      rating: calculateAverage(reviews.map(row => row.rating)),
+      crashes: (offset < 0 ? previousCrashPoints : currentCrashPoints).get(date) ?? null,
+    };
   });
 
   const voc = VOC_GROUPS.map(({ label }) => {
@@ -266,7 +306,7 @@ export function buildReleaseImpactWorkspace(
       label,
       before,
       after,
-      changePercent: percentChange(before, after),
+      changePercent: beforeReviews.length && afterReviews.length ? percentChange(before, after) : null,
     };
   }).sort((a, b) => b.after - a.after || b.before - a.before);
 
@@ -275,22 +315,22 @@ export function buildReleaseImpactWorkspace(
       tone:
         hasCompleteMetricWindows &&
         downloads.change !== null &&
-        downloads.change >= 0
+        downloadDailyAverage.change! >= 0
           ? "good"
           : "warn",
       title: !hasCompleteMetricWindows
         ? "다운로드 비교 기간 미완료"
         : downloads.change === null
           ? "다운로드 비교 데이터 부족"
-          : `다운로드 ${downloads.change >= 0 ? "증가" : "감소"}`,
+          : `다운로드 ${downloadDailyAverage.change! >= 0 ? "증가" : "감소"}`,
       detail: !hasCompleteMetricWindows
         ? `배포 후 데이터가 ${coverage.afterDays}/${coverage.expectedDays}일 수집되어 증감률 판단을 보류합니다.`
         : downloads.change === null
           ? "스토어 다운로드 데이터가 충분히 쌓인 뒤 비교할 수 있습니다."
-          : `배포 전후 합계가 ${Math.abs(downloads.change).toLocaleString("ko-KR")}건 변했습니다.`,
+          : `수집된 일평균이 ${downloadDailyAverage.before?.toFixed(1)}건에서 ${downloadDailyAverage.after?.toFixed(1)}건으로 변했습니다. 앱 전체 지표입니다.`,
     },
     {
-      tone: "good",
+      tone: ratings[release.platform].change !== null && ratings[release.platform].change! >= 0 ? "good" : "warn",
       title: ratings[release.platform].change === null ? "평점 비교 데이터 부족" : "평점 변화",
       detail: `${release.platform === "android" ? "Android" : "iOS"} ${ratings[release.platform].change?.toFixed(2) ?? "—"}점 변화입니다.`,
     },
@@ -308,9 +348,12 @@ export function buildReleaseImpactWorkspace(
 
   return {
     release,
+    previousRelease: previous ?? null,
     releasedAt,
     windows,
     downloads,
+    downloadDailyAverage,
+    crashReports,
     ratings,
     negativeReviews,
     newReviews,

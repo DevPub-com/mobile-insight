@@ -1,11 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { POST } from "./route";
+import { getDashboardData } from "@/db/dashboard.repository";
+import { upsertAiInsightsCache } from "@/db/upsert";
+import { generateReleaseImpactBriefing } from "@/services/ai/release-impact-briefing.service";
+const cacheRows = vi.hoisted(() => ({ rows: [] as { payload: Record<string, unknown> }[] }));
+vi.mock("@/services/ai/release-impact-briefing.service", () => ({ generateReleaseImpactBriefing: vi.fn() }));
 
 vi.mock("@/db", () => ({
   getDb: vi.fn(() => ({
     select: vi.fn(() => ({
       from: vi.fn(() => ({
         where: vi.fn(() => Promise.resolve([])),
+        innerJoin: vi.fn(() => ({ where: vi.fn(() => Promise.resolve(cacheRows.rows)) })),
       })),
     })),
     insert: vi.fn(() => ({
@@ -83,7 +89,22 @@ describe("AI Briefing API Route", () => {
     expect(json.data.headline).toContain("한국투자");
   });
 
+  it("returns stored release text without loading metrics or generating AI", async () => {
+    cacheRows.rows = [{ payload: { headline: "Saved analysis" } }];
+    vi.mocked(getDashboardData).mockClear();
+    vi.mocked(generateReleaseImpactBriefing).mockClear();
+    const response = await POST(new Request("http://localhost/api/ai/briefing", {
+      method: "POST", body: JSON.stringify({appCode: "kis", type: "release_impact", releaseId: "rel-1", cacheOnly: true}),
+    }));
+    expect(await response.json()).toEqual({data: {headline: "Saved analysis"}, cached: true});
+    expect(getDashboardData).not.toHaveBeenCalled();
+    expect(generateReleaseImpactBriefing).not.toHaveBeenCalled();
+    cacheRows.rows = [];
+  });
+
   it("handles release impact briefing request", async () => {
+    const briefing = {headline: "Fresh", summary: "Summary", riskLevel: "low" as const, keyChanges: [], recommendations: [], analyzedAt: "2026-09-14"};
+    vi.mocked(generateReleaseImpactBriefing).mockResolvedValue(briefing);
     const request = new Request("http://localhost/api/ai/briefing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -98,6 +119,7 @@ describe("AI Briefing API Route", () => {
     expect(response.status).toBe(200);
 
     const json = await response.json();
-    expect(json.data).toBeDefined();
+    expect(json.data).toEqual(briefing);
+    expect(upsertAiInsightsCache).toHaveBeenCalledWith(expect.anything(), [expect.objectContaining({cacheKey: "release:rel-1", insightType: "release_impact", payload: briefing})]);
   });
 });

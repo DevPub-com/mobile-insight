@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { aiInsightsCache } from "@/db/schema";
+import { aiInsightsCache, apps } from "@/db/schema";
 import { upsertAiInsightsCache } from "@/db/upsert";
 import { getDefaultAppCode } from "@/lib/env";
 import { getDashboardData } from "@/db/dashboard.repository";
@@ -33,12 +33,21 @@ export async function POST(request: Request) {
       startDate?: string;
       endDate?: string;
       refresh?: boolean;
+      cacheOnly?: boolean;
     };
 
     const type = body.type ?? "dashboard_executive";
-    const cacheKey = body.cacheKey ?? "default";
+    const cacheKey = type === "release_impact" ? `release:${body.releaseId}` : body.cacheKey ?? "default";
     const refresh = body.refresh ?? false;
     const appCode = body.appCode ?? getDefaultAppCode();
+
+    if (type === "release_impact" && body.cacheOnly) {
+      const db = getDb();
+      const [cached] = await db.select({ payload: aiInsightsCache.payload })
+        .from(aiInsightsCache).innerJoin(apps, eq(apps.id, aiInsightsCache.appId))
+        .where(and(eq(apps.code, appCode), eq(aiInsightsCache.insightType, type), eq(aiInsightsCache.cacheKey, cacheKey)));
+      return NextResponse.json({ data: cached?.payload ?? null, cached: !!cached });
+    }
 
     const data = await getDashboardData(appCode);
     if (!data) {
@@ -80,6 +89,9 @@ export async function POST(request: Request) {
       const briefing: ReleaseImpactAiBriefing | null =
         await generateReleaseImpactBriefing(workspace);
 
+      if (briefing) {
+        await upsertAiInsightsCache(db, [{ appId: data.app.id, insightType: type, cacheKey, payload: { ...briefing } }]);
+      }
       return NextResponse.json({ data: briefing, cached: false });
     }
 

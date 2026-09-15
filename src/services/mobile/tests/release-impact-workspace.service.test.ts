@@ -82,7 +82,7 @@ const reviews: AppReview[] = [
   title: null,
   content: String(content),
   author: null,
-  version: "2.0.0",
+  version: Number(offset) < 0 ? "1.0.0" : "2.0.0",
   reviewedAt: `${day(Number(offset))}T12:00:00.000Z`,
   aiTopicPaths: index % 2 === 0
     ? [{ major: "로그인·인증", middle: "로그인", minor: "로그인 실패" }]
@@ -234,4 +234,27 @@ describe("buildReleaseImpactWorkspace", () => {
     const view = buildReleaseImpactWorkspace(withoutTopics, release, day(10));
     expect(view.voc.every((item) => item.before === 0 && item.after === 0)).toBe(true);
   });
+});
+
+it("does not substitute platform crash totals and normalizes downloads by collected days", () => {
+  const view = buildReleaseImpactWorkspace({ ...actual, metricObservations: [
+    { appId: app.id, platform: "android", date: day(1), metricKey: "crash_report_count", value: 19, source: "google_play_api", quality: "exact", observedAt: "2026-01-16T00:00:00Z" },
+  ] }, release, day(7));
+  expect(view.crashReports).toMatchObject({ after: null, scope: "version", afterDays: 0, change: null });
+  expect(view.downloadDailyAverage.before).toBe(20);
+  expect(view.downloadDailyAverage.after).toBe(315 / 8);
+  expect(view.ratings.android.before).toBe(1);
+  expect(view.ratings.android.after).toBe(3);
+});
+
+it("prefers selected-version crash counts over platform totals", () => {
+  const row = { appId: app.id, platform: "android" as const, date: day(1), source: "google_play_api" as const, quality: "exact" as const, observedAt: "2026-01-16T00:00:00Z" };
+  const view = buildReleaseImpactWorkspace({ ...actual, metricObservations: [
+    { ...row, metricKey: "crash_report_count", value: 100 },
+    { ...row, metricKey: "crash_report_count:version:2.0.0", value: 4 },
+  ] }, release, day(7));
+  expect(view.crashReports).toMatchObject({ after: 4, scope: "version", change: null });
+  expect(view.daily.find(point => point.date === day(1))?.crashes).toBe(4);
+  expect(view.daily.find(point => point.date === day(2))?.crashes).toBeNull();
+  expect(view.daily.find(point => point.date === day(1))?.rating).toBe(1);
 });

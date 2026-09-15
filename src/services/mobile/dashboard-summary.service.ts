@@ -15,6 +15,7 @@ import {
   metricQualityForRange,
   periodDateRange,
   previousDateRange,
+  shiftDate,
   reviewQualityForRange,
   type MetricDateRange,
   type Period,
@@ -270,6 +271,7 @@ export function buildDashboardSummaryForRange(
   type ReleaseImpact = NonNullable<ReturnType<typeof buildReleaseImpact>>;
   type ReleasePlatformSummary = {
     release: AppRelease | null;
+    previousRelease: AppRelease | null;
     rating: {
       before: number | null;
       after: number | null;
@@ -302,26 +304,39 @@ export function buildDashboardSummaryForRange(
     platforms.map((platform) => {
       const release =
         releases.find((item) => item.platform === platform) ?? null;
+      const previousRelease = release ? releases.find((item) => item.platform === platform &&
+        item.releasedAt.slice(0, 10) < release.releasedAt.slice(0, 10) &&
+        displayReleaseVersion(platform, item.version) !== displayReleaseVersion(platform, release.version)) ?? null : null;
       const dataThrough = latestDate(data);
       const releaseDate = release?.releasedAt.slice(0, 10) ?? null;
       const releaseWindowDays =
         releaseDate !== null && releaseDate <= dataThrough
           ? dateRangeDays({ startDate: releaseDate, endDate: dataThrough })
           : null;
+      const previousWindowDays = previousRelease && releaseDate
+        ? dateRangeDays({ startDate: previousRelease.releasedAt.slice(0, 10), endDate: shiftDate(releaseDate, -1) }) : 0;
       const impact = release && releaseWindowDays
         ? buildReleaseImpact(
             data,
             release.version,
             platform,
-            releaseWindowDays,
+            previousWindowDays,
             releaseWindowDays,
             true,
+            previousRelease?.version,
           )
         : null;
       const releaseRange = { startDate: releaseDate ?? dataThrough, endDate: dataThrough };
       const reports = buildCrashHistory({ ...data, metricObservations: (data.metricObservations ?? [])
         .filter(row => row.metricKey === `crash_report_count:version:${release?.version}`)
         .map(row => ({ ...row, metricKey: "crash_report_count" })) }, releaseRange);
+      const previousReports = previousRelease && releaseDate ? buildCrashHistory({ ...data,
+        metricObservations: (data.metricObservations ?? []).filter(row =>
+          row.metricKey === `crash_report_count:version:${previousRelease.version}`)
+          .map(row => ({ ...row, metricKey: "crash_report_count" })),
+      }, { startDate: previousRelease.releasedAt.slice(0, 10), endDate: shiftDate(releaseDate, -1) }) : null;
+      const crashChange = previousReports && reports[platform].days === releaseWindowDays && previousReports[platform].days === previousWindowDays
+        ? difference(previousReports[platform].value, reports[platform].value, 0) : null;
       const dailyImpact = reports.trend.map(point => {
         const reviews = data.reviews.filter(row => row.platform === platform && row.version != null && release != null && displayReleaseVersion(platform, row.version) === displayReleaseVersion(platform, release.version) && row.reviewedAt.slice(0, 10) === point.date);
         return { date: point.date, reviews };
@@ -343,6 +358,7 @@ export function buildDashboardSummaryForRange(
         platform,
         {
           release,
+          previousRelease,
           rating: {
             before: impact?.rating.before ?? null,
             after: impact?.rating.after ?? null,
@@ -383,7 +399,7 @@ export function buildDashboardSummaryForRange(
             downloads: collectedDownloads,
           },
           crashIssues: crashIssues[platform],
-          crashReports: { ...reports[platform], sparkline: reports.trend.flatMap((point) => point[platform] === null ? [] : [point[platform]]) },
+          crashReports: { ...reports[platform], change: crashChange, sparkline: reports.trend.flatMap((point) => point[platform] === null ? [] : [point[platform]]) },
           windows: impact?.windows ?? null,
           coverage: impact?.coverage ?? null,
         },

@@ -23,6 +23,9 @@ describe("Release Impact Briefing Service", () => {
       version: "2.4.0",
       releasedAt: "2026-08-25T00:00:00Z",
     },
+    previousRelease: null,
+    downloadDailyAverage: { before: 1000 / 7, after: 1200 / 7, change: 200 / 7, changePercent: 20 },
+    crashReports: { before: null, after: null, scope: "platform", afterDays: 0, latestDate: null, change: null },
     releasedAt: "2026-08-25T00:00:00Z",
     windows: {
       before: { from: "2026-08-18", to: "2026-08-24" },

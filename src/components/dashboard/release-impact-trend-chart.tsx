@@ -5,16 +5,19 @@ import { useMemo } from "react";
 
 import { EChart } from "@/components/dashboard/echart";
 
-type Point = { offset: number; date: string; downloads: number | null };
+type Point = { offset: number; date: string; downloads: number | null; rating?: number | null; crashes?: number | null };
 
-export function ReleaseImpactTrendChart({ data }: { data: Point[] }) {
+export function ReleaseImpactTrendChart({ data, metric = "downloads", beforeLabel = "배포 전", afterLabel = "배포 후" }: { data: Point[]; metric?: "downloads" | "rating" | "crashes"; beforeLabel?: string; afterLabel?: string }) {
   const option = useMemo<EChartsCoreOption>(() => {
-    const before = data.map((point) =>
-      point.offset < 0 ? point.downloads : null,
-    );
-    const after = data.map((point) =>
-      point.offset >= 0 ? point.downloads : null,
-    );
+    const previousPoints = data.filter(point => point.offset < 0).sort((a, b) => a.offset - b.offset);
+    const currentPoints = data.filter(point => point.offset >= 0).sort((a, b) => a.offset - b.offset);
+    const previousStart = previousPoints[0]?.offset ?? 0;
+    const previousByDay = new Map(previousPoints.map(point => [point.offset - previousStart, point[metric] ?? null]));
+    const currentByDay = new Map(currentPoints.map(point => [point.offset, point[metric] ?? null]));
+    const lastDay = Math.max(0, ...previousByDay.keys(), ...currentByDay.keys());
+    const elapsedDays = Array.from({ length: lastDay + 1 }, (_, day) => day);
+    const before = elapsedDays.map(day => previousByDay.get(day) ?? null);
+    const after = elapsedDays.map(day => currentByDay.get(day) ?? null);
 
     return {
       animationDuration: 450,
@@ -35,48 +38,48 @@ export function ReleaseImpactTrendChart({ data }: { data: Point[] }) {
         valueFormatter: (value: unknown) =>
           value == null
             ? "데이터 없음"
-            : `${new Intl.NumberFormat("ko-KR").format(Number(value))}건`,
+            : `${new Intl.NumberFormat("ko-KR").format(Number(value))}${metric === "rating" ? "점" : "건"}`,
       },
       xAxis: {
         type: "category",
         boundaryGap: false,
-        data: data.map((point) =>
-          point.offset > 0 ? `+${point.offset}` : String(point.offset),
-        ),
+        data: elapsedDays.map(day => day === 0 ? "0" : `+${day}`),
         axisLine: { lineStyle: { color: "#dce3ed" } },
         axisTick: { show: false },
         axisLabel: { color: "#758196", fontSize: 10 },
       },
       yAxis: {
         type: "value",
-        min: 0,
+        min: metric === "rating" ? 1 : 0,
+        max: metric === "rating" ? 5 : undefined,
+        minInterval: metric === "rating" ? 1 : undefined,
         splitNumber: 4,
         axisLabel: {
           color: "#758196",
           fontSize: 10,
           formatter: (value: number) =>
-            value === 0 ? "0" : `${Math.round(value / 1000)}K`,
+            new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1 }).format(value),
         },
         splitLine: { lineStyle: { color: "#e9edf4", type: "dashed" } },
       },
       series: [
         {
-          name: "배포 전",
+          name: beforeLabel,
           type: "line",
           data: before,
           connectNulls: false,
-          smooth: 0.22,
+          smooth: false,
           symbol: "circle",
           symbolSize: 6,
           lineStyle: { color: "#8993A7", width: 2 },
           itemStyle: { color: "white", borderColor: "#8993A7", borderWidth: 2 },
         },
         {
-          name: "배포 후",
+          name: afterLabel,
           type: "line",
           data: after,
           connectNulls: false,
-          smooth: 0.22,
+          smooth: false,
           symbol: "circle",
           symbolSize: 7,
           lineStyle: { color: "#4C73EC", width: 2.5 },
@@ -99,13 +102,13 @@ export function ReleaseImpactTrendChart({ data }: { data: Point[] }) {
         },
       ],
     };
-  }, [data]);
+  }, [data, metric, beforeLabel, afterLabel]);
 
   return (
     <EChart
       option={option}
       className="ri-trend-chart"
-      ariaLabel="릴리즈 배포 기간별 다운로드 추이"
+      ariaLabel={metric === "rating" ? "버전별 평균 리뷰 평점 추이" : metric === "crashes" ? "버전별 크래시 보고 건수 추이" : "릴리즈 배포 기간별 다운로드 추이"}
     />
   );
 }

@@ -19,42 +19,57 @@ export function ReleaseImpactAiBriefingCard({
   const [isLoading, setIsLoading] = useState<boolean>(!initialBriefing);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
+  const [refreshError, setRefreshError] = useState(false);
+
   useEffect(() => {
-    let isCancelled = false;
+    const controller = new AbortController();
     async function loadBriefing() {
       setIsLoading(true);
       setBriefing(null);
-      try {
+      setRefreshError(false);
+      const request = async (cacheOnly: boolean) => {
         const response = await fetch("/api/ai/briefing", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            appCode,
-            type: "release_impact",
-            releaseId,
-            refresh: false,
-          }),
+          signal: controller.signal,
+          body: JSON.stringify({ appCode, type: "release_impact", releaseId, cacheOnly, refresh: !cacheOnly }),
         });
-        if (response.ok && !isCancelled) {
-          const json = await response.json();
-          if (json.data) {
-            setBriefing(json.data as ReleaseImpactAiBriefing);
+        if (!response.ok) throw new Error("Briefing request failed");
+        return (await response.json()).data as ReleaseImpactAiBriefing | null;
+      };
+      try {
+        try {
+          const cached = await request(true);
+          if (!controller.signal.aborted && cached) {
+            setBriefing(cached);
+            setIsLoading(false);
           }
+        } catch {
+          // A cache read failure must not prevent a fresh analysis.
+        }
+        if (controller.signal.aborted) return;
+        setIsRefreshing(true);
+        const fresh = await request(false);
+        if (!controller.signal.aborted) {
+          if (fresh) setBriefing(fresh);
+          else setRefreshError(true);
         }
       } catch {
+        if (!controller.signal.aborted) setRefreshError(true);
       } finally {
-        if (!isCancelled) setIsLoading(false);
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
       }
     }
-
     loadBriefing();
-    return () => {
-      isCancelled = true;
-    };
+    return () => controller.abort();
   }, [appCode, releaseId]);
 
   async function handleRefresh() {
     setIsRefreshing(true);
+    setRefreshError(false);
     try {
       const response = await fetch("/api/ai/briefing", {
         method: "POST",
@@ -66,33 +81,49 @@ export function ReleaseImpactAiBriefingCard({
           refresh: true,
         }),
       });
+      if (!response.ok) throw new Error("Briefing request failed");
       if (response.ok) {
         const json = await response.json();
         if (json.data) {
           setBriefing(json.data as ReleaseImpactAiBriefing);
-        }
+        } else setRefreshError(true);
       }
     } catch {
+      setRefreshError(true);
     } finally {
       setIsRefreshing(false);
     }
   }
 
-  if (isLoading) {
+  if (!briefing && (isLoading || isRefreshing)) {
     return (
-      <section className="mi-ai-briefing-card is-loading">
+      <section className="mi-ai-briefing-card mi-ai-release-card is-loading" aria-busy="true" aria-label="AI 배포 영향도 진단 로딩 중">
         <div className="mi-ai-briefing-header">
           <div className="mi-ai-badge">
             <KoboyoIcon name="sparkles" size={14} />
-            <span>AI Release Impact Briefing</span>
+            <span>AI 배포 영향도 진단</span>
           </div>
-          <span className="mi-ai-analyzing-text">배포 전후 영향도 분석 중...</span>
+          <span className="mi-ai-analyzing-text" role="status">{isRefreshing ? "분석을 새로 불러오는 중…" : "배포 전후 영향도 분석 중…"}</span>
+        </div>
+        <div className="ri-ai-skeleton" aria-hidden="true">
+          <div className="ri-skeleton-line is-heading" />
+          <div className="ri-skeleton-line" />
+          <div className="ri-skeleton-line is-short" />
+          <div className="mi-ai-release-columns">
+            {[0, 1].map(column => <div className="mi-ai-release-column" key={column}>
+              <div className="ri-skeleton-line is-label" />
+              {[0, 1, 2].map(line => <div className="ri-skeleton-line" key={line} />)}
+            </div>)}
+          </div>
         </div>
       </section>
     );
   }
 
-  if (!briefing) return <section className="mi-ai-briefing-card">AI 분석 결과가 없습니다. 실제 비교 데이터와 AI 연결 상태를 확인해 주세요.</section>;
+  if (!briefing) return <section className="mi-ai-briefing-card mi-ai-release-card">
+    <div className="mi-ai-briefing-header"><strong>AI 배포 영향도 진단</strong><button type="button" className="mi-ai-refresh-button" onClick={handleRefresh}>다시 시도</button></div>
+    <p role="status">분석 결과를 불러오지 못했거나 비교할 데이터가 부족합니다.</p>
+  </section>;
 
   return (
     <section className="mi-ai-briefing-card mi-ai-release-card">
@@ -123,6 +154,7 @@ export function ReleaseImpactAiBriefingCard({
           </button>
         </div>
       </div>
+      {refreshError && <p role="status">최신 분석을 불러오지 못했습니다. 기존 분석을 표시합니다.</p>}
       <h3 className="mi-ai-headline">{briefing.headline}</h3>
       <p className="mi-ai-summary">{briefing.summary}</p>
       <div className="mi-ai-release-columns">

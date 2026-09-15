@@ -4765,3 +4765,54 @@ body {
   .mi-dashboard-kpi-grid > .mi-store-rating-card { grid-column: 1 / -1; }
   .mi-rating-summary-pair { grid-template-columns: minmax(0, 1fr); }
 }
+
+.mi-review-average-body { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 24px; margin-top: 12px; }
+.mi-review-average-body .mi-review-summary-average { margin-top: 0; }
+.mi-review-average-caption { display: block; margin-top: 8px; color: var(--mi-muted); font-size: 12px; }
+.mi-review-average-trend { min-width: 0; }
+.mi-review-average-chart { width: 100%; height: 130px; }
+@media (max-width: 1100px) { .mi-review-average-body { grid-template-columns: minmax(0, 1fr); gap: 12px; } }
+
+/* Release impact shares dashboard card and typography styles. */
+.ri-workspace { gap: 16px; }
+.ri-workspace .ri-kpi-grid, .ri-workspace .ri-main-grid, .ri-workspace .ri-bottom-grid { gap: 16px; }
+.ri-workspace .ri-card, .ri-workspace .mi-ai-release-card {
+  border: 1px solid var(--mi-border);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 3px 12px rgba(32, 57, 93, 0.045);
+}
+.ri-workspace .ri-kpi { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 18px; padding: 14px 16px 18px; min-height: 160px; }
+.ri-kpi-heading { gap: 6px; min-height: 28px; }
+.ri-kpi-heading h3 { font-size: 14px; font-weight: 700; color: #17233b; }
+.ri-workspace .ri-kpi-icon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 18px; width: 18px; height: 18px; border-radius: 0; background: none; }
+.ri-workspace .ri-kpi-icon .koboyo-icon { width: 17px !important; height: 17px !important; }
+.ri-workspace .ri-kpi-copy > strong { margin-top: 0; color: #141e30; font-size: 28px; font-weight: 750; line-height: 1.2; }
+.ri-workspace .ri-kpi-copy > small { margin-top: 10px; font-size: 12px; font-weight: 500; line-height: 1.7; }
+.ri-workspace .ri-kpi-coverage { display: block; margin-left: 0; font-size: 11px; font-weight: 500; }
+.ri-workspace .ri-card h3 { font-size: 14px; font-weight: 700; letter-spacing: normal; }
+.ri-workspace .ri-card-head { padding: 16px; border-bottom: 1px solid var(--mi-border); }
+.ri-workspace .ri-card-head p { font-size: 12px; line-height: 1.6; }
+.ri-workspace .ri-card-title { padding: 16px; border-bottom-color: var(--mi-border); }
+.ri-workspace .ri-table-head { background: #f3f6fb; color: var(--mi-muted); font-size: 11px; }
+.ri-workspace .ri-table-row { font-size: 12px; border-bottom-color: var(--mi-border); }
+.ri-workspace .mi-ai-release-card { margin-bottom: 0; padding: 16px; }
+.ri-workspace .mi-ai-briefing-header { gap: 12px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--mi-border); }
+.ri-workspace .mi-ai-badge { background: none; color: #17233b; border-radius: 0; padding: 0; font-size: 14px; letter-spacing: normal; }
+.ri-workspace .mi-ai-badge .koboyo-icon { color: var(--mi-brand); }
+.ri-workspace .mi-ai-headline { font-size: 16px; line-height: 1.6; }
+.ri-workspace .mi-ai-summary, .ri-workspace .mi-ai-bullet-list { font-size: 13px; line-height: 1.8; }
+.ri-workspace .mi-ai-release-column { background: #f8fafd; border-color: var(--mi-border); border-radius: 8px; }
+.ri-ai-skeleton { display: grid; gap: 12px; min-height: 220px; }
+.ri-skeleton-line { width: 100%; height: 13px; border-radius: 4px; background: #eaf0f7; animation: ri-skeleton-pulse 1.5s ease-in-out infinite; }
+.ri-skeleton-line.is-heading { width: 65%; height: 20px; }
+.ri-skeleton-line.is-short { width: 78%; }
+.ri-skeleton-line.is-label { width: 40%; height: 16px; margin-bottom: 6px; }
+.ri-ai-skeleton .mi-ai-release-column { display: grid; gap: 14px; }
+@keyframes ri-skeleton-pulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .ri-skeleton-line { animation: none; } }
+@media (max-width: 760px) { .ri-workspace .mi-ai-badge-group { flex-wrap: wrap; } .ri-workspace .mi-ai-analyzing-text { font-size: 12px; } }
+
+.ri-workspace .ri-two-column-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ri-chart-empty { min-height: 286px; display: flex; align-items: center; justify-content: center; padding: 24px; color: var(--mi-muted); font-size: 13px; text-align: center; }
+@media (max-width: 1000px) { .ri-workspace .ri-two-column-grid { grid-template-columns: minmax(0, 1fr); } }

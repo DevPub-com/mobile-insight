@@ -33,7 +33,8 @@ async function handleSync(request: Request) {
   const scope: SyncScope =
     rawType === "voc" || rawType === "metrics" ? rawType : "all";
   try {
-    return NextResponse.json({ data: await syncAllApps(scope) });
+    const data = await syncAllApps(scope);
+    return NextResponse.json({ data }, { status: data.some(result => result.status !== "success") ? 502 : 200 });
   } catch {
     return NextResponse.json(
       { error: "동기화를 시작하지 못했습니다." },
