@@ -1236,6 +1236,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
             <DpLayout>
               <DpText as="h1">{title}</DpText>
               <DpText>{description}</DpText>
+              <DpText className="mi-sync-schedule">정기 갱신 · 전체 데이터 매일 오후 3:30 · 리뷰·평점·버전 3시간마다 (한국시간)</DpText>
             </DpLayout>
           </DpLayout>
           <DpLayout

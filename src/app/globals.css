@@ -4816,3 +4816,10 @@ body {
 .ri-workspace .ri-two-column-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .ri-chart-empty { min-height: 286px; display: flex; align-items: center; justify-content: center; padding: 24px; color: var(--mi-muted); font-size: 13px; text-align: center; }
 @media (max-width: 1000px) { .ri-workspace .ri-two-column-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.mi-header .mi-sync-schedule {
+  margin-top: 6px;
+  color: var(--mi-muted, #718096);
+  font-size: 11px;
+  line-height: 1.5;
+}
