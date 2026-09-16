@@ -1,8 +1,9 @@
 "use client";
+import { NonfatalPanel } from "./nonfatal-panel";
 
 import { displayReleaseVersion } from "@/services/mobile/common/release-version";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { PlatformIcon } from "@/components/dashboard/platform-icon";
 import { ReleaseImpactTrendChart } from "@/components/dashboard/release-impact-trend-chart";
@@ -82,7 +83,7 @@ function KpiCard({
         <DpText as="h3">{title}</DpText>
       </DpLayout>
       <DpLayout className="ri-kpi-copy">
-        <DpText as="strong">{value}</DpText>
+        <DpText as="strong" className={value === "수집 데이터 없음" ? "ri-kpi-no-data" : undefined}>{value}</DpText>
         <DpText as="small">{detail}</DpText>
       </DpLayout>
     </DpCard>
@@ -101,10 +102,24 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
   );
   const [releaseId, setReleaseId] = useState(releases[0]?.id ?? "");
   const release = releases.find((item) => item.id === releaseId) ?? releases[0] ?? null;
-  const view = useMemo(
+  const baseView = useMemo(
     () => (release ? buildReleaseImpactWorkspace(data, release) : null),
     [data, release],
   );
+
+  const syncRevision=data.syncRuns.map(r=>r.finishedAt??'').sort().at(-1)??'';
+  const requestKey=`${release?.id}:${syncRevision}`;
+  const [firebase,setFirebase]=useState<{key:string;view?:NonNullable<typeof baseView>;error?:string}|null>(null);
+  useEffect(()=>{
+    if(!release)return;
+    const controller=new AbortController();
+    const url=`/api/dashboard/${encodeURIComponent(data.app.code)}/release-impact?platform=${release.platform}&version=${encodeURIComponent(release.version)}`;
+    fetch(url,{signal:controller.signal}).then(async response=>{const body=await response.json();if(!response.ok)throw Error(body.error);if(!controller.signal.aborted)setFirebase({key:requestKey,view:body.data});}).catch(()=>{if(!controller.signal.aborted)setFirebase({key:requestKey,error:'Firebase 데이터를 불러오지 못했습니다.'});});
+    return()=>controller.abort();
+  },[data.app.code,release,requestKey]);
+  const firebaseView=firebase?.key===requestKey?firebase.view:undefined;
+  const firebaseError=firebase?.key===requestKey?firebase.error:undefined;
+  const view=firebaseView??(baseView?{...baseView,crashReports:{...baseView.crashReports,before:null,after:null,change:null,latestDate:null,afterDays:0},anrReports:{before:null,after:null},daily:baseView.daily.map(d=>({...d,crashes:null,anrs:null,crashUsers:null,anrUsers:null}))}:null);
 
   if (!view || !release) {
     return (
@@ -269,7 +284,7 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
                   {releases.map((item) => (
                     <Select.Item className="select-item" key={item.id} value={item.id}>
                       <Select.ItemText>
-                        <span className="select-item__app">
+                        <span className={`select-item__app ri-release-option ri-release-option--${item.platform}`}>
                           <PlatformIcon platform={item.platform} size={16} />
                           {item.platform === "android" ? "Android" : "iOS"} · v{item.version.replace(/^v/, "")}
                         </span>
@@ -294,46 +309,44 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
 
       <DpLayout as="section" className="ri-kpi-grid">
         <KpiCard icon={<KoboyoIcon name="star" size={20} />} title="버전 리뷰 평점"
-          value={formatNumber(view.ratings[release.platform].after, 2)}
+          value={view.ratings[release.platform].after === null ? "수집 데이터 없음" : formatNumber(view.ratings[release.platform].after, 2)}
           detail={<><Delta value={view.ratings[release.platform].change} suffix="점" decimals={2} /><span className="ri-kpi-coverage">수집 리뷰 {formatNumber(view.newReviews.after)}건 · 이전버전 대비</span></>} tone="green" />
         <KpiCard icon={<KoboyoIcon name="message-square" size={20} />} title="부정 리뷰 비율"
-          value={formatRate(view.negativeReviews.after)}
+          value={view.negativeReviews.after === null ? "수집 데이터 없음" : formatRate(view.negativeReviews.after)}
           detail={<><Delta value={view.negativeReviews.change} suffix="%p" lowerIsBetter /><span className="ri-kpi-coverage">해당 버전의 1~2점 리뷰 비율</span></>} tone="orange" />
         <KpiCard icon={<KoboyoIcon name="bug" size={20} />} title="배포 후 크래시 보고 건수"
-          value={view.crashReports.after === null ? "미수집" : `${formatNumber(view.crashReports.after)}건`}
-          detail={<>{view.crashReports.scope === "version" ? "선택 버전" : "앱 전체 · 버전 구분 없음"}<span className="ri-kpi-coverage">{view.crashReports.latestDate ? `${shortDate(view.crashReports.latestDate)}까지 · ${view.crashReports.afterDays}일 수집` : "해당 기간 보고서 없음"}</span></>} tone="red" />
+          value={view.crashReports.after === null ? (!firebaseView ? (firebaseError ? "조회 실패" : "불러오는 중…") : "기록 없음") : `${formatNumber(view.crashReports.after)}건`}
+          detail={<>{"Firebase Crashlytics"}<span className="ri-kpi-coverage">{view.crashReports.latestDate ? `${shortDate(view.crashReports.latestDate)}까지 · ${view.crashReports.afterDays}일 수집` : "해당 기간 보고서 없음"}</span></>} tone="red" />
         <KpiCard icon={<KoboyoIcon name="download" size={20} />} title="배포 후 다운로드"
           value={view.downloads.after === null ? "미수집" : formatNumber(view.downloads.after)}
           detail={<>앱 전체 · 일평균 {formatNumber(view.downloadDailyAverage.after, 1)}건<span className="ri-kpi-coverage">{view.coverage.afterDays}/{view.coverage.expectedDays}일 수집 · <Delta value={view.downloadDailyAverage.changePercent} /></span></>} tone="blue" />
       </DpLayout>
 
-      <DpLayout as="section" className="ri-main-grid ri-two-column-grid">
-        {(release.platform === "android" ? ["rating", "crashes", "anrs", "crashUsers", "anrUsers"] as const : ["rating", "crashes"] as const).map(metric => (
+      <DpLayout as="section" className={`ri-main-grid ${release.platform === "android" ? "ri-three-column-grid" : "ri-two-column-grid"}`}>
+        {(release.platform === "android" ? ["rating", "crashes", "anrs"] as const : ["rating", "crashes"] as const).map(metric => (
           <DpCard className="ri-card ri-trend-card" key={metric}>
             <DpLayout className="ri-card-head">
-              <DpText as="h3">{{rating: "평균 리뷰 평점", crashes: "크래시 보고 건수", anrs: "ANR 보고 건수", crashUsers: "크래시 영향받은 사용자", anrUsers: "ANR 영향받은 사용자"}[metric]}</DpText>
-              <DpText>이전 {view.previousRelease ? `v${displayReleaseVersion(release.platform, view.previousRelease.version)}` : "버전 없음"} / 선택 v{displayReleaseVersion(release.platform, release.version)} · 각 버전 배포일 0일 기준</DpText>
+              <DpText as="h3">{{rating: "평균 리뷰 평점", crashes: "크래시 건수 / 영향받은 사용자", anrs: "ANR 건수 / 영향받은 사용자"}[metric]}</DpText>
+              <DpText title={metric === "rating" ? undefined : "Firebase Crashlytics · 사용자: 고유 앱 설치 ID 기준 · 한국시간 일별 집계"}>{metric !== "rating" ? "Firebase · " : ""}이전 {view.previousRelease ? `v${displayReleaseVersion(release.platform, view.previousRelease.version)}` : "버전 없음"} / 선택 v{displayReleaseVersion(release.platform, release.version)} · 각 버전 배포일 0일 기준</DpText>
             </DpLayout>
-            {metric !== "rating" && release.platform === "android" && <DpText>Google Play 전체 보고 · 미국 LA 일별 기준{metric.endsWith('Users') ? ' · 일별 사용자 수, 기간 합산 불가' : ''}</DpText>}
-            {view.daily.some(point => point[metric] !== null) ? (
+            {view.daily.some(point => point[metric] != null || (metric === "crashes" && point.crashUsers != null) || (metric === "anrs" && point.anrUsers != null)) ? (
               <ReleaseImpactTrendChart data={view.daily} metric={metric}
                 beforeLabel={view.previousRelease ? `v${displayReleaseVersion(release.platform, view.previousRelease.version)}` : "이전 버전"}
                 afterLabel={`v${displayReleaseVersion(release.platform, release.version)}`} />
-            ) : <DpText className="ri-chart-empty">{metric === "rating" ? "비교 기간에 해당 버전의 리뷰가 없습니다." : "해당 버전의 보고서가 수집되지 않았습니다."}</DpText>}
+            ) : <DpText className="ri-chart-empty">{metric === "rating" ? "비교 기간에 해당 버전의 리뷰가 없습니다." : (firebaseError ?? (!firebaseView ? "Firebase 데이터를 불러오는 중…" : "해당 기간의 Firebase 기록이 없습니다."))}</DpText>}
           </DpCard>
         ))}
       </DpLayout>
 
-      <DpLayout as="section" className="ri-bottom-grid ri-two-column-grid">
+      <DpLayout as="section" className={`ri-bottom-grid ri-two-column-grid ri-change-grid ri-change-grid--${release.platform}`}>
         <DpCard className="ri-card ri-comparison">
-          <DpText as="h3">최근 업데이트 후 달라진 점</DpText>
+          <div className="ri-change-header"><DpText as="h3">최근 업데이트 후 달라진 점</DpText></div>
           <div className="ri-table-scroll">
             <div className="ri-table ri-table-head">
               <span>지표</span>
-              <span>이전 버전 기간</span>
-              <span>선택 버전 기간</span>
+              <span>이전</span>
+              <span>현재</span>
               <span>변화</span>
-              <span>판단</span>
             </div>
             {comparisonRows.map(
               ({
@@ -350,24 +363,22 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
                   (lowerIsBetter ? direction <= 0 : direction >= 0);
                 return (
                   <div className="ri-table ri-table-row" key={label}>
-                    <strong>{label}</strong>
+                    <strong title={label}>{label.replace(/ \(.*\)$/, "").replace("ANR 보고 건수", "ANR 건수").replace("크래시 보고 건수", "크래시 건수").replace("수집 리뷰 수", "리뷰 수")}</strong>
                     <span>{before}</span>
                     <span>{after}</span>
                     <span
                       className={
-                        direction === null
+                        direction === null || direction === 0
                           ? "ri-muted"
                           : improved
                             ? "ri-good"
                             : "ri-bad"
                       }
+                    title={percent === null ? undefined : `증감률 ${signed(percent, "%", 1)}`}
                     >
                       {change}
-                      {percent === null ? "" : ` (${signed(percent, "%", 1)})`}
                     </span>
-                    <em className={improved ? "is-good" : "is-watch"}>
-                      {direction === null ? "대기" : improved ? "개선" : "확인"}
-                    </em>
+
                   </div>
                 );
               },
@@ -376,12 +387,7 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
         </DpCard>
 
         <DpCard className="ri-card ri-voc">
-          <DpText as="h3">VOC 변화</DpText>
-          <DpLayout className="ri-voc-head">
-            <span>키워드</span>
-            <span>배포 전 / 배포 후</span>
-            <span>변화</span>
-          </DpLayout>
+          <div className="ri-change-header"><DpText as="h3">VOC 변화</DpText><div className="ri-voc-legend"><span><i/>이전</span><span><b/>현재</span></div></div>
           {view.voc.map((item) => (
             <DpLayout
               as="article"
@@ -390,32 +396,22 @@ export function ReleaseImpactWorkspace({ data }: { data: DashboardData }) {
               key={item.label}
             >
               <DpText as="strong">{item.label}</DpText>
-              <DpLayout className="ri-voc-bars">
+              <DpLayout className="ri-voc-bars" title={`이전 ${item.before}건 · 현재 ${item.after}건`} aria-label={`이전 ${item.before}건, 현재 ${item.after}건`}>
                 <i style={{ width: `${(item.before / maxVoc) * 100}%` }} />
                 <b style={{ width: `${(item.after / maxVoc) * 100}%` }} />
               </DpLayout>
               <DpText as="span">
-                <Delta
-                  value={item.changePercent}
-                  lowerIsBetter={item.label === "앱 안정성"}
-                />
+                <span className="ri-voc-change" title={item.changePercent === null ? "비교할 데이터가 없습니다." : undefined}>{item.changePercent === null ? "—" : item.changePercent === 0 ? "0.0%" : signed(item.changePercent,"%",1)}</span>
               </DpText>
             </DpLayout>
           ))}
-          <DpLayout direction="row" className="ri-voc-legend">
-            <span>
-              <i />
-              배포 전
-            </span>
-            <span>
-              <b />
-              배포 후
-            </span>
-          </DpLayout>
+
         </DpCard>
 
 
       </DpLayout>
+
+      <NonfatalPanel key={`${release.id}:${data.syncRuns.map(r=>r.finishedAt??'').sort().at(-1)??''}`} appId={data.app.id} releaseId={release.id} platform={release.platform} releasedAt={release.releasedAt} />
     </DpLayout>
   );
 }

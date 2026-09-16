@@ -1,3 +1,4 @@
+import {loadFirebaseStability} from '@/services/firebase/release-stability';
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
     };
 
     const type = body.type ?? "dashboard_executive";
-    const cacheKey = type === "release_impact" ? `release:${body.releaseId}` : body.cacheKey ?? "default";
+    const cacheKey = type === "release_impact" ? `release:firebase-v1:${body.releaseId}` : body.cacheKey ?? "default";
     const refresh = body.refresh ?? false;
     const appCode = body.appCode ?? getDefaultAppCode();
 
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
         );
       }
 
-      const workspace = buildReleaseImpactWorkspace(data, targetRelease);
+      const workspace = await loadFirebaseStability(data.app.code,buildReleaseImpactWorkspace(data, targetRelease));
       const briefing: ReleaseImpactAiBriefing | null =
         await generateReleaseImpactBriefing(workspace);
 

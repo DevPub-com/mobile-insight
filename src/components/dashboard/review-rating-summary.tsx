@@ -45,7 +45,7 @@ export function ReviewRatingSummary({ reviews }: { reviews: AppReview[]; periodL
   return (
     <section className="mi-review-summary" aria-label="전체 리뷰 평점 요약">
       <article className="mi-review-summary-card">
-        <h3>전체 평균 평점 (Android · iPhone)</h3>
+        <h3>전체 평균 평점 (Android · iOS)</h3>
         <div className="mi-review-average-body">
           <div>
             <strong className="mi-review-summary-average">{summary.average === null ? "—" : summary.average.toFixed(2)} <small>/ 5점</small></strong>

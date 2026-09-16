@@ -317,7 +317,7 @@ export class Ga4Adapter {
     return normalizeGa4Report(app.id, response.data);
   }
 
-  async fetchFirstOpens(app: AppInfo, days = 35): Promise<MetricObservation[]> {
+  private async fetchLifecycleEvent(app: AppInfo, event: "first_open" | "app_remove", days: number): Promise<MetricObservation[]> {
     const client = this.createAuth(app);
     if (!client) return [];
     const { auth, propertyId } = client;
@@ -330,13 +330,24 @@ export class Ga4Adapter {
         metrics: [{ name: "eventCount" }],
         dimensionFilter: { filter: {
           fieldName: "eventName",
-          stringFilter: { matchType: "EXACT", value: "first_open", caseSensitive: true },
+          stringFilter: { matchType: "EXACT", value: event, caseSensitive: true },
         } },
         keepEmptyRows: true,
         orderBys: [{ dimension: { dimensionName: "date" } }],
       },
     );
-    return normalizeGa4FirstOpenReport(app.id, response, new Date().toISOString());
+    return normalizeGa4FirstOpenReport(app.id, response, new Date().toISOString())
+      .filter(row => event === "first_open" || row.platform === "android")
+      .map(row => ({ ...row, metricKey: event, description: event === "first_open" ? row.description :
+        `Firebase Analytics app_remove event count, Android only; package removals from any installation source. Property time zone: ${response.metadata?.timeZone ?? "unknown"}.` }));
+  }
+
+  async fetchFirstOpens(app: AppInfo, days = 35): Promise<MetricObservation[]> {
+    return this.fetchLifecycleEvent(app, "first_open", days);
+  }
+
+  async fetchAppRemoves(app: AppInfo, days = 35): Promise<MetricObservation[]> {
+    return this.fetchLifecycleEvent(app, "app_remove", days);
   }
 
   async fetchDeviceActiveUsers(

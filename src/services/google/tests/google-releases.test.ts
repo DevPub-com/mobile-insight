@@ -147,7 +147,7 @@ describe("normalizeGoogleReleases", () => {
           track: "production",
           activeArtifacts: [{ versionCode: 15000 }],
           releaseLifecycleState: "RELEASE_LIFECYCLE_STATE_PUBLISHED",
-        }] } as T };
+        }, { releaseName: "1.6.1", track: "production", activeArtifacts: [{ versionCode: 16100 }], releaseLifecycleState: "RELEASE_LIFECYCLE_STATE_PUBLISHED" }] } as T };
       }
       return {
         data: {
@@ -205,7 +205,7 @@ describe("normalizeGoogleReleases", () => {
         throw new Error("country endpoint denied");
       }
       if (url.includes("/tracks/production/releases")) {
-        return { data: { releases: [] } as T };
+        return { data: { releases: [{ releaseName: "1.6.1", track: "production", activeArtifacts: [{ versionCode: 16100 }], releaseLifecycleState: "RELEASE_LIFECYCLE_STATE_PUBLISHED" }] } as T };
       }
       return {
         data: {
@@ -227,4 +227,32 @@ describe("normalizeGoogleReleases", () => {
     expect(result.distribution).toBeNull();
     expect(result.distributionError).toContain("country endpoint denied");
   });
+});
+
+
+it.each(["RELEASE_LIFECYCLE_STATE_IN_REVIEW", "RELEASE_LIFECYCLE_STATE_APPROVED_NOT_PUBLISHED", "RELEASE_LIFECYCLE_STATE_DRAFT"])("does not expose completed edits with lifecycle %s", async state => {
+  const request = async <T>({ method, url }: { method?: string; url: string }) => {
+    if (method === "POST") return { data: { id: "edit" } as T };
+    if (method === "DELETE") return { data: {} as T };
+    if (url.endsWith("/tracks/production/releases")) return { data: { releases: [
+      { releaseName: "2.28.00", track: "production", activeArtifacts: [{ versionCode: 2800 }], releaseLifecycleState: state },
+      { releaseName: "2.27.05", track: "production", activeArtifacts: [{ versionCode: 2705 }], releaseLifecycleState: "RELEASE_LIFECYCLE_STATE_PUBLISHED" },
+    ] } as T };
+    return { data: { tracks: [{ track: "production", releases: [{ name: "2.28.00", versionCodes: ["2800"], status: "completed" }] }] } as T };
+  };
+  const result = await fetchGoogleReleaseData({ id: "app", packageName: "test" }, request, new Date(), { includeDistribution: false });
+  expect(result.releases.map(release => release.version)).toEqual(["2.27.05"]);
+});
+
+it("does not fall back to completed edits when lifecycle verification fails", async () => {
+  const methods: (string | undefined)[] = [];
+  const request = async <T>({ method, url }: { method?: string; url: string }) => {
+    methods.push(method);
+    if (method === "POST") return { data: { id: "edit" } as T };
+    if (method === "DELETE") return { data: {} as T };
+    if (url.endsWith("/tracks/production/releases")) throw new Error("lifecycle unavailable");
+    return { data: { tracks: [{ track: "production", releases: [{ name: "2.28.00", status: "completed" }] }] } as T };
+  };
+  await expect(fetchGoogleReleaseData({ id: "app", packageName: "test" }, request, new Date(), { includeDistribution: false })).rejects.toThrow("lifecycle unavailable");
+  expect(methods.at(-1)).toBe("DELETE");
 });

@@ -73,13 +73,14 @@ export function buildFirstOpenTrend(
   observations: MetricObservation[],
   appId: string,
   range: MetricDateRange,
+  event: "first_open" | "app_remove" = "first_open",
 ) {
   const rows = new Map<string, { date: string; android: number | null; ios: number | null }>();
   for (let date = range.startDate; date <= range.endDate; date = shiftDate(date, 1)) {
     rows.set(date, { date, android: null, ios: null });
   }
   for (const observation of [...observations].sort((a, b) => a.observedAt.localeCompare(b.observedAt))) {
-    if (observation.appId !== appId || observation.source !== "firebase" || observation.metricKey !== "first_open" || observation.quality !== "exact" || observation.value === null) continue;
+    if (observation.appId !== appId || observation.source !== "firebase" || observation.metricKey !== event || (event === "app_remove" && observation.platform !== "android") || observation.quality !== "exact" || observation.value === null) continue;
     const row = rows.get(observation.date);
     if (row) row[observation.platform] = observation.value;
   }

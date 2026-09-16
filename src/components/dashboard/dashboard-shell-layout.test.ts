@@ -35,7 +35,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("릴리즈");
     expect(source).toContain("배포 후 변화");
     expect(source).toContain("앱 관리");
-    expect(source).toContain("플랫폼별 일별 상세");
+    expect(source).toContain("<FirebaseAcquisitionPanel");
     expect(source).toContain("수집 리뷰 별점 분포");
     expect(source).toContain("최근 업데이트 후 달라진 점");
     expect(source).toContain("앱 목록");
@@ -44,7 +44,7 @@ describe("Mobile Insight dashboard shell layout", () => {
   it("keeps the real dashboard view builders connected to the redesigned UI", () => {
     expect(source).toContain("buildDashboardSummaryForRange(data, dateRange)");
     expect(source).toContain("buildDateRangeSummary(data, dateRange)");
-    expect(source).toContain("dashboardSummary.charts.downloads");
+    expect(source).toContain("<FirebaseAcquisitionPanel data={data} range={dateRange}");
     expect(source).toContain("dashboardSummary.charts.ratings");
     expect(source).toContain("dashboardSummary.latestReleaseImpact.platforms");
     expect(source).toContain('className="mi-dashboard-kpi-grid"');
@@ -84,7 +84,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).not.toContain('buildRatingTrend(data, "30d")');
     expect(source).not.toContain('buildReviewRateTrend(data, "30d")');
     expect(source).toContain("audience.latest");
-    expect(source).toContain("crashIssue.dailyChange");
+    expect(source).toContain("<FirebaseCrashImpactMetrics appId={data.app.id} range={dateRange} />");
     expect(source).toContain("periodSummary.androidRatingChange");
     expect(source).toContain("periodSummary.iosRatingChange");
     expect(source).toContain("androidNegativeReviews.change");
@@ -154,11 +154,9 @@ describe("Mobile Insight dashboard shell layout", () => {
   });
 
   it("keeps the reference dashboard compact", () => {
-    expect(source).toContain("크래시 발생 건수");
+    expect(source).toContain("크래시 사용자 비율");
     expect(source).not.toContain("<CrashHistory");
-    expect(source).toMatch(
-      /statusLabel=\{\s*crashIssue\.value === null\s*\? "보고서 데이터 없음"/s,
-    );
+    expect(source).toContain("Firebase Crashlytics");
     expect(source).not.toContain("월간 활성 사용자");
     expect(source).not.toContain("activeUserSparkline");
     expect(releaseImpactSource).toContain("비정상 종료율");
@@ -198,14 +196,12 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("<DashboardDateRangePicker");
   });
 
-  it("matches the download reference information architecture", () => {
-    expect(source).toContain("설치 vs 삭제 추이");
-    expect(source).toContain('className="mi-install-bars"');
-    expect(source).toContain("CSV 다운로드");
-    expect(source).toContain("직전 ${dateRangeDays(dateRange)}일 대비");
-    expect(source).toContain("데이터 없음");
-    expect(source).toContain("수집 지연");
-    expect(source).toContain('className={`mi-data-status mi-data-status--${status}`}');
+  it("shows Firebase acquisition and Android-only removal data", () => {
+    const acquisition = readFileSync(new URL("./firebase-acquisition-panel.tsx", import.meta.url), "utf8");
+    expect(source).toContain("<FirebaseAcquisitionPanel");
+    expect(acquisition).toContain("Android 삭제 추이");
+    expect(acquisition).toContain("iOS 삭제는 제공되지 않습니다.");
+    expect(acquisition).toContain("플랫폼별 일별 상세");
   });
 
   it("omits incomparable cross-platform totals and device-model rankings", () => {
@@ -215,13 +211,13 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).not.toContain("모델별 다운로드 · 설치");
     expect(source).not.toContain('label: "전체 다운로드"');
     expect(source).not.toContain('<DpText as="span">합계</DpText>');
-    expect(source).toContain('label: "Android 일별 사용자 설치"');
-    expect(source).toContain('label: "iOS 총 다운로드"');
+    expect(source).not.toContain('label: "Android 일별 사용자 설치"');
+    expect(source).not.toContain('label: "iOS 총 다운로드"');
     expect(downloadChartSource).not.toContain('["전체", "total"');
   });
 
   it("matches the review reference information architecture", () => {
-    expect(source).toContain("VOC 키워드 요약");
+    expect(source).toContain("리뷰 키워드");
     expect(source).toContain('className="mi-voc-summary"');
     expect(source).toContain("설정 기간 리뷰 수");
   });
@@ -345,7 +341,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("releaseImpact.release.version");
     expect(source).toContain("이전버전 대비");
     expect(source).toContain("platformImpacts[platform]");
-    expect(source).toContain("releaseImpact?.crashReports");
+    expect(source).toContain("firebaseReleaseCrashes[platform]");
   });
 
   it("shows current platform impact values together with their absolute changes", () => {

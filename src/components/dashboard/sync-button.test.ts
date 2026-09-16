@@ -11,11 +11,11 @@ vi.mock('react', async importOriginal => ({...await importOriginal<typeof import
 beforeEach(() => { state.refresh.mockClear(); vi.useFakeTimers(); vi.stubGlobal('document', {visibilityState:'visible'}); });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe('sync refresh', () => {
-  it('reloads persisted data even when the POST times out', async () => {
+  it('keeps the current screen when the POST times out', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', {status:504})));
     const button = SyncButton({appId:'app',revision:null});
     await button.props.children[0].props.onClick();
-    expect(state.refresh).toHaveBeenCalledOnce();
+    expect(state.refresh).not.toHaveBeenCalled();
   });
   it('refreshes only on completion changes and stops polling on unmount', async () => {
     const fetcher=vi.fn()
@@ -35,4 +35,31 @@ describe('sync refresh', () => {
     await vi.advanceTimersByTimeAsync(30000);
     expect(fetcher).toHaveBeenCalledTimes(3);
   });
+});
+
+it('waits for all active syncs before refreshing a changed revision',async()=>{
+ const fetcher=vi.fn().mockResolvedValueOnce(Response.json({revision:'partial',running:true})).mockResolvedValueOnce(Response.json({revision:'done',running:false}));
+ vi.stubGlobal('fetch',fetcher);
+ SyncButton({appId:'app',revision:'old'});
+ const cleanup=state.effect!();
+ await vi.advanceTimersByTimeAsync(0);
+ expect(state.refresh).not.toHaveBeenCalled();
+ await vi.advanceTimersByTimeAsync(15000);
+ expect(state.refresh).toHaveBeenCalledOnce();
+ cleanup();
+});
+it('does not poll while a manual sync is in flight and refreshes after success',async()=>{
+ let finish!:(value:Response)=>void;
+ const fetcher=vi.fn().mockImplementation(()=>new Promise<Response>(resolve=>{finish=resolve;}));
+ vi.stubGlobal('fetch',fetcher);
+ const button=SyncButton({appId:'app',revision:null});
+ const work=button.props.children[0].props.onClick();
+ const cleanup=state.effect!();
+ await vi.advanceTimersByTimeAsync(15000);
+ expect(fetcher).toHaveBeenCalledOnce();
+ expect(state.refresh).not.toHaveBeenCalled();
+ finish(Response.json({data:[{status:'success'}]}));
+ await work;
+ expect(state.refresh).toHaveBeenCalledOnce();
+ cleanup();
 });

@@ -60,3 +60,16 @@ describe("Firebase first opens", () => {
     ]);
   });
 });
+
+it("collects Android app_remove without pretending iOS supports removals", async () => {
+  vi.stubEnv("GA4_KIS_PROPERTY_ID", "123");
+  vi.stubEnv("GOOGLE_KIS_SERVICE_ACCOUNT_JSON", JSON.stringify({ client_email: "test@example.com", private_key: "test" }));
+  const request = vi.spyOn(JWT.prototype, "request").mockResolvedValue({ data: { rowCount: 2, rows: [row("20260911", "Android", "40"), row("20260911", "iOS", "0")] } } as never);
+  const result = await new Ga4Adapter().fetchAppRemoves(app);
+  expect(result).toHaveLength(1);
+  expect(result[0]).toMatchObject({ platform: "android", metricKey: "app_remove", value: 40, source: "firebase" });
+  expect(request).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ dimensionFilter: { filter: { fieldName: "eventName", stringFilter: { matchType: "EXACT", value: "app_remove", caseSensitive: true } } } }) }));
+  const trend = buildFirstOpenTrend(result, app.id, { startDate: "2026-09-10", endDate: "2026-09-11" }, "app_remove");
+  expect(trend[0].android).toBeNull();
+  expect(trend[1]).toMatchObject({ android: 40, ios: null });
+});

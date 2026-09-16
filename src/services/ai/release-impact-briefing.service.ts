@@ -36,6 +36,7 @@ export async function generateReleaseImpactBriefing(
     coverage: view.coverage,
     downloads: view.downloads,
     downloadDailyAverage: view.downloadDailyAverage,
+    countSource: "Firebase Crashlytics (FATAL/ANR), Asia/Seoul dates; affected users are distinct app installations. Missing days are unknown, not zero. Google Play rate metrics use a different population.",
     crashReports: view.crashReports,
     anrReports: view.anrReports,
     previousVersion: view.previousRelease?.version ?? null,

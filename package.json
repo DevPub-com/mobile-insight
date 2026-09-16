@@ -33,6 +33,7 @@
     "csv-parse": "^7.0.2",
     "drizzle-orm": "0.45.2",
     "echarts": "^6.1.0",
+    "echarts-wordcloud": "^2.1.0",
     "google-auth-library": "^10.9.1",
     "jose": "^6.2.10",
     "lucide-react": "latest",
@@ -57,5 +58,10 @@
     "tsx": "latest",
     "typescript": "latest",
     "vitest": "latest"
+  },
+  "overrides": {
+    "echarts-wordcloud": {
+      "echarts": "$echarts"
+    }
   }
 }

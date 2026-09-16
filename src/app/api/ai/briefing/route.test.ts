@@ -3,6 +3,7 @@ import { POST } from "./route";
 import { getDashboardData } from "@/db/dashboard.repository";
 import { upsertAiInsightsCache } from "@/db/upsert";
 import { generateReleaseImpactBriefing } from "@/services/ai/release-impact-briefing.service";
+vi.mock("@/services/firebase/release-stability", () => ({loadFirebaseStability: vi.fn(async (_code, view) => ({...view, crashReports:{...view.crashReports,after:123}}))}));
 const cacheRows = vi.hoisted(() => ({ rows: [] as { payload: Record<string, unknown> }[] }));
 vi.mock("@/services/ai/release-impact-briefing.service", () => ({ generateReleaseImpactBriefing: vi.fn() }));
 
@@ -120,6 +121,7 @@ describe("AI Briefing API Route", () => {
 
     const json = await response.json();
     expect(json.data).toEqual(briefing);
-    expect(upsertAiInsightsCache).toHaveBeenCalledWith(expect.anything(), [expect.objectContaining({cacheKey: "release:rel-1", insightType: "release_impact", payload: briefing})]);
+    expect(generateReleaseImpactBriefing).toHaveBeenCalledWith(expect.objectContaining({crashReports:expect.objectContaining({after:123})}));
+    expect(upsertAiInsightsCache).toHaveBeenCalledWith(expect.anything(), [expect.objectContaining({cacheKey: "release:firebase-v1:rel-1", insightType: "release_impact", payload: briefing})]);
   });
 });

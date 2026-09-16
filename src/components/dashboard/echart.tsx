@@ -1,6 +1,6 @@
 "use client";
 
-import { LineChart } from "echarts/charts";
+import { BarChart, LineChart } from "echarts/charts";
 import {
   AriaComponent,
   GridComponent,
@@ -15,6 +15,7 @@ import { useEffect, useRef } from "react";
 
 echarts.use([
   LineChart,
+  BarChart,
   AriaComponent,
   GridComponent,
   LegendComponent,

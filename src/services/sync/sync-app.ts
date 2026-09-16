@@ -116,12 +116,12 @@ export async function syncAllApps(scope: SyncScope = "all", appId?: string) {
       const analytics = await fetchGa4SyncData(ga4Adapter, appInfo);
       analyticsErrors.push(...analytics.errors);
       try {
-        await upsertMetricObservations(db, analytics.firstOpens.map((item) => ({
+        await upsertMetricObservations(db, [...analytics.firstOpens, ...analytics.appRemoves].map((item) => ({
           ...item, observedAt: new Date(item.observedAt),
         })));
       } catch (error) {
         analyticsErrors.push(
-          `analytics_first_opens: ${error instanceof Error ? error.message : "Unknown first_open persistence error"}`,
+          `analytics_lifecycle: ${error instanceof Error ? error.message : "Unknown lifecycle persistence error"}`,
         );
       }
       try {
@@ -150,7 +150,7 @@ export async function syncAllApps(scope: SyncScope = "all", appId?: string) {
         }
       }
       const analyticsRecords =
-        analytics.metrics.length + (analytics.devices?.records.length ?? 0) + analytics.firstOpens.length;
+        analytics.metrics.length + (analytics.devices?.records.length ?? 0) + analytics.firstOpens.length + analytics.appRemoves.length;
       if (analyticsErrors.length) {
         logger.error("ga4_sync_failed", {
           app: app.code,

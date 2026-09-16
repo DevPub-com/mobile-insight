@@ -209,24 +209,22 @@ export async function fetchGoogleReleaseData(
     const tracks = allTracks.filter(
       (track) => track.track === "production",
     );
-    const historyResults = await Promise.allSettled(
-      ["production"].map((track) =>
-        request<{ releases?: GoogleReleaseSummary[] }>({
-          url: `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/tracks/${encodeURIComponent(track)}/releases`,
-        }),
-      ),
-    );
-    const historical = normalizeGoogleReleaseSummaries(
-      app.id,
-      historyResults.flatMap((result) =>
-        result.status === "fulfilled" ? result.value.data.releases ?? [] : [],
-      ),
-      observedAt,
-    );
-    const mergedReleases = mergeGoogleReleaseSources(
-      historical,
-      normalizeGoogleReleases(app.id, tracks, observedAt),
-    ).filter((release) => release.track === "production");
+    // edits.tracks can report "completed" while managed publishing is still
+    // IN_REVIEW/APPROVED_NOT_PUBLISHED. Only the lifecycle API proves publication.
+    // Fail this release fetch if it is unavailable; never promote pending edits.
+    const history = await request<{ releases?: GoogleReleaseSummary[] }>({
+      url: `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/tracks/production/releases`,
+    });
+    const historical = normalizeGoogleReleaseSummaries(app.id, history.data.releases ?? [], observedAt);
+    const published = new Map(historical.map(release => [release.version, release]));
+    const active = normalizeGoogleReleases(app.id, tracks, observedAt).flatMap(release => {
+      const verified = published.get(release.version);
+      // A reused version name with a new pending build must not replace live data.
+      if (!verified || verified.buildNumber !== release.buildNumber) return [];
+      return [{ ...release, status: verified.status }];
+    });
+    const mergedReleases = mergeGoogleReleaseSources(historical, active)
+      .filter(release => release.track === "production");
     const productionByVersion = new Map(
       mergedReleases.map((release) => [release.version, release]),
     );

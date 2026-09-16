@@ -17,6 +17,7 @@ describe("fetchGa4SyncData", () => {
     const result = await fetchGa4SyncData(
       {
         fetch: async () => [{ appId: app.id }] as never[],
+        fetchAppRemoves: async () => [],
         fetchFirstOpens: async () => [{ appId: app.id, metricKey: "first_open" }] as never[],
         fetchDeviceActiveUsers: async () => ({
           configured: true,
@@ -39,6 +40,7 @@ describe("fetchGa4SyncData", () => {
     const result = await fetchGa4SyncData(
       {
         fetch: async () => [{ appId: app.id }] as never[],
+        fetchAppRemoves: async () => [],
         fetchFirstOpens: async () => [{ appId: app.id, metricKey: "first_open" }] as never[],
         fetchDeviceActiveUsers: async () => {
           throw new Error("device quota exceeded");
@@ -59,7 +61,8 @@ describe("fetchGa4SyncData", () => {
    const result = await fetchGa4SyncData({
      fetch: async () => [],
      fetchDeviceActiveUsers: async () => ({configured: false, records: [], startDate: "2026-09-01", endDate: "2026-09-11"}),
-     fetchFirstOpens: async () => { throw new Error("quota exceeded"); },
+     fetchAppRemoves: async () => [],
+        fetchFirstOpens: async () => { throw new Error("quota exceeded"); },
    }, app);
    expect(result.firstOpens).toEqual([]);
    expect(result.errors).toEqual(["analytics_first_opens: quota exceeded"]);

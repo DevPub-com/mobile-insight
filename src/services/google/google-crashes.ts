@@ -12,7 +12,7 @@ const googleDate = (date: Date): GoogleDate => ({ year: date.getUTCFullYear(), m
 export function normalizeGoogleCrashCounts(appId: string, rows: CrashRow[], observedAt: string): MetricObservation[] {
   return rows.flatMap((row) => {
     const type = row.dimensions?.find(d => d.dimension === 'reportType')?.stringValue;
-    if (!row.startTime || (type !== 'CRASH' && type !== 'ANR')) return [];
+    if (!row.startTime || (type !== 'CRASH' && type !== 'ANR' && type !== 'NON_FATAL')) return [];
     const version = row.dimensions?.find(d => d.dimension === 'versionCode')?.stringValue;
     if (version !== undefined && !/^\d+$/.test(version)) return [];
     const {year, month, day} = row.startTime;
@@ -24,7 +24,7 @@ export function normalizeGoogleCrashCounts(appId: string, rows: CrashRow[], obse
       if (value === undefined || value === null || value === '') return [];
       const count = Number(value);
       if (!Number.isSafeInteger(count) || count < 0) return [];
-      const key = `${type === 'CRASH' ? 'crash' : 'anr'}_${metric === 'errorReportCount' ? 'report_count' : 'affected_users'}`;
+      const key = `${type === 'CRASH' ? 'crash' : type === 'ANR' ? 'anr' : 'nonfatal'}_${metric === 'errorReportCount' ? 'report_count' : 'affected_users'}`;
       return [{ appId, platform: 'android' as const, date: date.toISOString().slice(0, 10),
         metricKey: key + (version ? `:version_code:${version}` : ''), value: count,
         source: 'google_play_api' as const, quality: metric === 'distinctUsers' ? 'estimated' as const : 'exact' as const, observedAt,

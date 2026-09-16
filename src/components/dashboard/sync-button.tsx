@@ -21,11 +21,11 @@ export function SyncButton({ appId, revision }: { appId: string; revision: strin
     const controller = new AbortController();
     async function check() {
       try {
-        if (document.visibilityState === "visible") {
+        if (document.visibilityState === "visible" && !inFlight.current) {
           const response = await fetch(`/api/dashboard/${encodeURIComponent(appId)}/sync`, { cache: "no-store", signal: controller.signal });
           if (response.ok) {
-            const result = await response.json() as { revision: string | null };
-            if (!stopped && result.revision !== knownRevision) {
+            const result = await response.json() as { revision: string | null; running?: boolean };
+            if (!stopped && !inFlight.current && !result.running && result.revision !== knownRevision) {
               knownRevision = result.revision;
               startTransition(() => router.refresh());
             }
@@ -53,12 +53,12 @@ export function SyncButton({ appId, revision }: { appId: string; revision: strin
       }
       const result = await response.json() as { data: { status: string }[] };
       const failed = result.data.filter((item) => item.status !== "success").length;
+      startTransition(() => router.refresh());
       setMessage(failed ? "일부 데이터 수집에 실패했습니다. 앱 관리에서 동기화 상태를 확인해주세요." : "데이터 동기화가 완료되었습니다.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "동기화하지 못했습니다.");
     } finally {
-      // A failed HTTP response may still have persisted part of the sync.
-      startTransition(() => router.refresh());
+      // On failure keep the current view; completion polling refreshes persisted data later.
       inFlight.current = false;
       setSyncing(false);
     }

@@ -18,12 +18,29 @@ export function ReleaseImpactTrendChart({ data, metric = "downloads", beforeLabe
     const elapsedDays = Array.from({ length: lastDay + 1 }, (_, day) => day);
     const before = elapsedDays.map(day => previousByDay.get(day) ?? null);
     const after = elapsedDays.map(day => currentByDay.get(day) ?? null);
+    const usersMetric = metric === "crashes" ? "crashUsers" : metric === "anrs" ? "anrUsers" : null;
+    const showUsers = usersMetric !== null && data.some(point => point[usersMetric] != null);
+    const usersSeries = showUsers ? [
+      { points: previousPoints, start: previousStart, label: beforeLabel, color: "#8993A7" },
+      { points: currentPoints, start: 0, label: afterLabel, color: "#4C73EC" },
+    ].map(({points, start, label, color}) => {
+      const values = new Map(points.map(point => [point.offset - start, point[usersMetric!] ?? null]));
+      return {
+        name: `${label} · 영향받은 사용자`, type: "line", data: elapsedDays.map(day => values.get(day) ?? null),
+        connectNulls: false, smooth: false, symbol: "diamond", symbolSize: 6,
+        lineStyle: {color, width: 2, type: "dashed"},
+        itemStyle: {color},
+        tooltip: {valueFormatter: (value: unknown) => value == null ? "데이터 없음" : `${new Intl.NumberFormat("ko-KR").format(Number(value))}명`},
+      };
+    }) : [];
+
 
     return {
       animationDuration: 450,
       aria: { enabled: true },
       grid: { top: 54, right: 22, bottom: 36, left: 48 },
       legend: {
+        type: "scroll",
         top: 10,
         left: 8,
         itemWidth: 16,
@@ -64,7 +81,7 @@ export function ReleaseImpactTrendChart({ data, metric = "downloads", beforeLabe
       },
       series: [
         {
-          name: beforeLabel,
+          name: showUsers ? `${beforeLabel} · 보고 건수` : beforeLabel,
           type: "line",
           data: before,
           connectNulls: false,
@@ -75,7 +92,7 @@ export function ReleaseImpactTrendChart({ data, metric = "downloads", beforeLabe
           itemStyle: { color: "white", borderColor: "#8993A7", borderWidth: 2 },
         },
         {
-          name: afterLabel,
+          name: showUsers ? `${afterLabel} · 보고 건수` : afterLabel,
           type: "line",
           data: after,
           connectNulls: false,
@@ -100,6 +117,7 @@ export function ReleaseImpactTrendChart({ data, metric = "downloads", beforeLabe
             data: [{ xAxis: "0" }],
           },
         },
+        ...usersSeries,
       ],
     };
   }, [data, metric, beforeLabel, afterLabel]);
@@ -108,7 +126,7 @@ export function ReleaseImpactTrendChart({ data, metric = "downloads", beforeLabe
     <EChart
       option={option}
       className="ri-trend-chart"
-      ariaLabel={metric === "rating" ? "버전별 평균 리뷰 평점 추이" : metric === "anrs" ? "버전별 ANR 보고 건수 추이" : metric === "crashUsers" ? "크래시 영향받은 사용자 추이" : metric === "anrUsers" ? "ANR 영향받은 사용자 추이" : metric === "crashes" ? "버전별 크래시 보고 건수 추이" : "릴리즈 배포 기간별 다운로드 추이"}
+      ariaLabel={metric === "rating" ? "버전별 평균 리뷰 평점 추이" : metric === "anrs" ? "버전별 ANR 보고 건수 및 영향받은 사용자 추이" : metric === "crashUsers" ? "크래시 영향받은 사용자 추이" : metric === "anrUsers" ? "ANR 영향받은 사용자 추이" : metric === "crashes" ? "버전별 크래시 보고 건수 및 영향받은 사용자 추이" : "릴리즈 배포 기간별 다운로드 추이"}
     />
   );
 }

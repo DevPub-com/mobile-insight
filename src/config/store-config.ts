@@ -1,4 +1,7 @@
+import type {CrashlyticsConfig} from "@/services/firebase/crashlytics";
+
 type StoreCredentialProfile = {
+  crashlytics?: CrashlyticsConfig;
   google?: {
     serviceAccountJsonEnv: string;
     bucketNameEnv: string;
@@ -17,6 +20,11 @@ type StoreCredentialProfile = {
 
 const profiles: Record<string, StoreCredentialProfile> = {
   kis: {
+    crashlytics: {
+      projectId: "mts-renewal", dataset: "firebase_crashlytics", location: "asia-northeast3",
+      serviceAccountJsonEnv: "GOOGLE_KIS_SERVICE_ACCOUNT_JSON",
+      tables: {android: "com_truefriend_neosmartarenewal_ANDROID_REALTIME", ios: "com_truefriend_neosmartirenewal_IOS_REALTIME"},
+    },
     google: {
       serviceAccountJsonEnv: "GOOGLE_KIS_SERVICE_ACCOUNT_JSON",
       bucketNameEnv: "GOOGLE_KIS_BUCKET_NAME",

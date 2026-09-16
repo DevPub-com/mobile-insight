@@ -94,7 +94,8 @@ function platformNegativeReview(
       : null;
   };
   const value = rate(window.startDate, window.endDate);
-  const previous = rate(window.previousStartDate, window.previousEndDate);
+  // Compare the selected rolling window with the same window one day earlier.
+  const previous = rate(shiftDate(window.startDate, -1), shiftDate(window.endDate, -1));
   const selectedReviews = data.reviews.filter((review) => {
     const date = review.reviewedAt.slice(0, 10);
     return (

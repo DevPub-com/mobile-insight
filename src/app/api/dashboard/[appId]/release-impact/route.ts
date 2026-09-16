@@ -1,3 +1,5 @@
+import {loadFirebaseStability} from '@/services/firebase/release-stability';
+export const maxDuration=60;
 import { NextResponse } from "next/server";
 
 import type { Platform } from "@/domain/types";
@@ -20,7 +22,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ appI
     if (!data) return NextResponse.json({ error: "앱을 찾을 수 없습니다." }, { status: 404 });
     const release = data.releases.find((item) => item.version === version && item.platform === platform);
     if (!release) return NextResponse.json({ error: "릴리즈를 찾을 수 없습니다." }, { status: 404 });
-    return NextResponse.json({ data: buildReleaseImpactWorkspace(data, release) });
+    return NextResponse.json({ data: await loadFirebaseStability(data.app.code,buildReleaseImpactWorkspace(data, release)) });
   } catch {
     return NextResponse.json({ error: "릴리즈 영향을 계산하지 못했습니다." }, { status: 500 });
   }

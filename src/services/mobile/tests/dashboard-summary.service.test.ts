@@ -398,3 +398,14 @@ it("compares current-version reviews against the previous version's operating pe
   expect(impact.reviewCount).toMatchObject({ before: 1, after: 1, change: 0 });
   expect(impact.negativeReviews).toEqual({ before: 0, after: 100, changePoints: 100 });
 });
+
+it("compares negative review ratio to yesterday's rolling window even without the prior month's reviews", () => {
+  const base = demoDashboardData.reviews[0];
+  const data = { ...demoDashboardData, reviews: [
+    { ...base, id: "old", platform: "android" as const, rating: 1, reviewedAt: "2025-05-09T12:00:00Z" },
+    { ...base, id: "new", platform: "android" as const, rating: 5, reviewedAt: "2025-05-10T12:00:00Z" },
+  ] };
+  const result = buildDashboardSummaryForRange(data, { startDate: "2025-04-11", endDate: "2025-05-10" });
+  expect(result.kpis.negativeReviews.android).toMatchObject({ value: 50, changePoints: -50 });
+  expect(result.kpis.negativeReviews.ios.changePoints).toBeNull();
+});
