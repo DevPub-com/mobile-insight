@@ -1,3 +1,6 @@
+import { loadCrashImpact } from '@/services/firebase/crash-impact';
+import { crashImpactObservations } from '@/services/firebase/stored-crash-impact';
+import { rollingDateRange } from '@/lib/date';
 import { isProductionRelease } from "@/services/mobile/common/production-release";
 import { and, eq } from "drizzle-orm";
 
@@ -111,6 +114,19 @@ export async function syncAllApps(scope: SyncScope = "all", appId?: string) {
       iosAppId: app.iosAppId,
       iosBundleId: app.iosBundleId,
     };
+    if (scope === 'all' || scope === 'metrics') {
+      try {
+        // Re-fetch 35 completed days so late arrivals correct saved daily values.
+        const impact=await loadCrashImpact(app.code,rollingDateRange(new Date(),35,'Asia/Seoul'));
+        const observations=crashImpactObservations(app.id,impact,new Date().toISOString());
+        await upsertMetricObservations(db,observations.map(row=>({...row,observedAt:new Date(row.observedAt)})));
+        const failed=Object.values(impact).some(row=>row.status==='error'||row.status==='not_configured');
+        results.push({app:app.code,platform:'crash-impact',status:failed?'failed':'success',recordsCount:observations.length});
+      } catch {
+        logger.error('crash_impact_sync_failed',{app:app.code,error:'Crash ratio collection failed; existing values retained'});
+        results.push({app:app.code,platform:'crash-impact',status:'failed',recordsCount:0});
+      }
+    }
     const analyticsErrors: string[] = [];
     if (scope === "all") {
       const analytics = await fetchGa4SyncData(ga4Adapter, appInfo);

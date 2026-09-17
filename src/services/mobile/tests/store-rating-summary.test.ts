@@ -43,3 +43,25 @@ it('preserves missing calendar days and small real rating changes', () => {
  expect(result.ios?.trend).toEqual([2.94467,null,null,2.94562]);
  expect(result.ios?.change).toBeCloseTo(0.00095,5);
 });
+
+it('fills only missing report dates with the latest valid public store observation', async () => {
+ const {ratingPoints}=await import('../common/metrics-calculator');
+ const publicRow={...confirmed,metricKey:'google_play_public_rating_kr',source:'mobile_insight' as const};
+ const result=ratingPoints({...data,metricObservations:[{...publicRow,date:'2026-09-02',value:4.4},{...publicRow,date:'2026-09-10',value:4.1},{...publicRow,date:'2026-09-10',value:4.2,observedAt:'2026-09-10T23:00:00Z'},{...publicRow,date:'2026-09-11',value:0}]});
+ expect(result.find(r=>r.platform==='android'&&r.date==='2026-09-02')?.rating).toBe(3.8258);
+ expect(result.find(r=>r.platform==='android'&&r.date==='2026-09-10')).toMatchObject({rating:4.2,ratingSource:expect.stringContaining('공개 평점')});
+ expect(result.some(r=>r.date==='2026-09-11')).toBe(false);
+});
+
+it('fills iOS from saved daily metrics and labels carried values only in the chart', async()=>{
+ const {ratingPoints}=await import('../common/metrics-calculator');
+ const {buildRatingTrendForRange}=await import('../tabs/overview.service');
+ const metric={appId:'kis',platform:'ios' as const,date:'2026-09-07',rating:2.93,downloads:null,ratingCount:null,reviewCount:null,active1DayUsers:null,active7DayUsers:null,active28DayUsers:null,sessions:null};
+ const input={...data,metrics:[metric]};
+ const points=buildRatingTrendForRange(input,{startDate:'2026-09-06',endDate:'2026-09-10'});
+ expect(points.find(r=>r.date==='2026-09-06')?.ios??null).toBeNull();
+ expect(points.find(r=>r.date==='2026-09-07')?.ios).toBe(2.93);
+ expect(points.find(r=>r.date==='2026-09-08')).toMatchObject({ios:2.93,iosSource:'최근 확인 평점 유지 · 2026-09-07 기준'});
+ expect(points.find(r=>r.date==='2026-09-09')?.ios).toBe(2.94);
+ expect(ratingPoints(input).some(r=>r.platform==='ios'&&r.date==='2026-09-08')).toBe(false);
+});

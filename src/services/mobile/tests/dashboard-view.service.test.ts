@@ -163,7 +163,7 @@ describe("rating KPI fallbacks", () => {
     expect(buildPeriodSummary(data, "7d").iosRatingChange).toBe(0);
   });
 
-  it("ignores daily metric ratings when the production snapshot source has no evidence", () => {
+  it("uses saved iOS daily ratings when the snapshot source has no evidence", () => {
     const data: DashboardData = {
       apps: [app], app,
       metrics: [{ ...platformMetrics("ios", "2026-08-30", 1)[13], date: "2026-08-30", rating: 5 }],
@@ -171,8 +171,8 @@ describe("rating KPI fallbacks", () => {
       reviews: [], releases: [], syncRuns: [], source: "database",
     };
 
-    expect(buildPeriodSummary(data, "7d").iosRating).toBeNull();
-    expect(buildRatingTrend(data, "7d")).toEqual([]);
+    expect(buildPeriodSummary(data, "7d").iosRating).toBe(5);
+    expect(buildRatingTrend(data, "7d")).toContainEqual(expect.objectContaining({date:"2026-08-30",ios:5}));
   });
 
   it("does not present a stale snapshot from outside the selected period as current", () => {

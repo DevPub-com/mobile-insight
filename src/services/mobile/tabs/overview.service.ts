@@ -186,7 +186,7 @@ export function buildRatingTrendForRange(
 ) {
   const byDate = new Map<
     string,
-    { date: string; android: number | null; ios: number | null }
+    { date: string; android: number | null; ios: number | null; androidSource?:string; iosSource?:string }
   >();
   for (const metric of ratingPoints(data).filter(
     (item) => item.date >= range.startDate && item.date <= range.endDate,
@@ -197,9 +197,26 @@ export function buildRatingTrendForRange(
       ios: null,
     };
     row[metric.platform] = metric.rating;
+    Object.assign(row,{[`${metric.platform}Source`]:metric.ratingSource});
     byDate.set(metric.date, row);
   }
-  return [...byDate.values()];
+  // Display the last observed iOS store rating across collection gaps;
+  // keep this out of ratingPoints so it never becomes a collected daily value.
+  const iosPoints=ratingPoints(data).filter(point=>point.platform==='ios'&&point.rating!==null&&point.date<=range.endDate);
+  let previous=iosPoints.filter(point=>point.date<range.startDate).at(-1);
+  const iosByDate=new Map(iosPoints.map(point=>[point.date,point]));
+  for(let date=range.startDate;date<=range.endDate;date=shiftDate(date,1)) {
+    const observed=iosByDate.get(date);
+    if(observed) previous=observed;
+    if(!previous) continue;
+    const row=byDate.get(date)??{date,android:null,ios:null};
+    if(row.ios===null) {
+      row.ios=previous.rating;
+      Object.assign(row,{iosSource:`최근 확인 평점 유지 · ${previous.date} 기준`});
+    }
+    byDate.set(date,row);
+  }
+  return [...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date));
 }
 
 export function buildReviewRateTrend(data: DashboardData, period: Period) {

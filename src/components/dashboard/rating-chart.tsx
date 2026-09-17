@@ -6,7 +6,7 @@ import { useMemo } from "react";
 import { EChart } from "@/components/dashboard/echart";
 import { DpLayout } from "@/components/ui/dp/DpLayout";
 
-type RatingPoint = { date: string; android: number | null; ios: number | null };
+type RatingPoint = { date: string; android: number | null; ios: number | null; androidSource?:string; iosSource?:string };
 
 export function RatingChart({ data }: { data: RatingPoint[] }) {
   const option = useMemo<EChartsCoreOption>(
@@ -25,6 +25,14 @@ export function RatingChart({ data }: { data: RatingPoint[] }) {
       },
       tooltip: {
         trigger: "axis",
+        formatter: (params: unknown) => {
+          const items=params as Array<{dataIndex:number;seriesName:string;value:number|null}>;
+          const row=data[items[0]?.dataIndex];
+          return [row?.date??'',...items.map(item=>{
+            const source=item.seriesName==='Android'?row?.androidSource:row?.iosSource;
+            return `${item.seriesName}: ${item.value==null?'수집 데이터 없음':Number(item.value).toFixed(2)}${source?` · ${source}`:''}`;
+          })].join('<br/>');
+        },
         borderColor: "#dfe4ec",
         borderWidth: 1,
         backgroundColor: "rgba(255,255,255,.96)",

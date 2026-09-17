@@ -226,18 +226,27 @@ export function latestActive28DayUsers(
 }
 
 export function ratingPoints(data: DashboardData) {
-  if (data.ratingSnapshots !== undefined) {
-    return data.ratingSnapshots.map((snapshot) => ({
-      platform: snapshot.platform,
-      date: snapshot.date,
-      rating: snapshot.averageRating,
-    }));
+  const points = new Map<string,{platform:Platform;date:string;rating:number|null;ratingSource?:string}>();
+  const base = data.ratingSnapshots !== undefined
+    ? data.ratingSnapshots.map(row=>({platform:row.platform,date:row.date,rating:row.averageRating}))
+    : data.metrics.map(row=>({platform:row.platform,date:row.date,rating:row.rating}));
+  for(const row of base) points.set(`${row.date}:${row.platform}`,row);
+  for(const row of data.metrics) {
+    if(row.appId!==data.app.id||row.platform!=='ios'||row.rating===null||!Number.isFinite(row.rating)||row.rating<1||row.rating>5) continue;
+    const key=`${row.date}:ios`;
+    if(points.get(key)?.rating==null) points.set(key,{platform:'ios',date:row.date,rating:row.rating,ratingSource:'App Store 일별 수집 평점'});
   }
-  return data.metrics.map((metric) => ({
-    platform: metric.platform,
-    date: metric.date,
-    rating: metric.rating,
-  }));
+  const observations=[...(data.metricObservations??[])].sort((a,b)=>a.observedAt.localeCompare(b.observedAt));
+  const fallback=new Map<string,typeof observations[number]>();
+  for(const row of observations) {
+    if(row.appId!==data.app.id||row.platform!=='android'||row.metricKey!=='google_play_public_rating_kr'||row.source!=='mobile_insight'||row.quality==='unavailable'||row.value===null||!Number.isFinite(row.value)||row.value<1||row.value>5) continue;
+    fallback.set(row.date,row);
+  }
+  for(const row of fallback.values()) {
+    const key=`${row.date}:android`;
+    if(points.get(key)?.rating==null) points.set(key,{platform:'android',date:row.date,rating:row.value,ratingSource:'Google Play 공개 평점 · KR (보고서 미수집)'});
+  }
+  return [...points.values()].sort((a,b)=>a.date.localeCompare(b.date));
 }
 
 export function latestRating(

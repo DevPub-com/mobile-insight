@@ -1266,7 +1266,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
                   direction="row"
                   className="mi-dashboard-platform-split"
                 >
-                  <FirebaseCrashImpactMetrics appId={data.app.id} range={dateRange} />
+                  <FirebaseCrashImpactMetrics appId={data.app.id} range={dateRange} observations={data.metricObservations ?? []} />
                 </DpLayout>
               </DpCard>
                 <DpCard className="mi-dashboard-kpi-card mi-dashboard-overall-card mi-store-rating-card">

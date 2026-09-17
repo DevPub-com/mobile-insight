@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import type { Platform } from '@/domain/types';
+import { storedCrashImpact } from '@/services/firebase/stored-crash-impact';
+import type { MetricObservation, Platform } from '@/domain/types';
 import type { CrashImpactData, CrashImpactMetric } from '@/services/firebase/crash-impact';
 import type { MetricDateRange } from '@/services/mobile/common/metrics-calculator';
 import { PlatformIcon } from './platform-icon';
@@ -44,28 +44,7 @@ export function FirebaseCrashImpactMetric({platform,metric,loading=false}:{platf
   </DpLayout>;
 }
 
-export function FirebaseCrashImpactMetrics({appId,range}:{appId:string;range:MetricDateRange}) {
-  const [result,setResult] = useState<{key:string;data:Record<Platform,DisplayImpactMetric>|null}|null>(null);
-  const key = `${appId}:${range.startDate}:${range.endDate}`;
-  useEffect(()=>{
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    async function refresh() {
-      try {
-        const query = new URLSearchParams({from:range.startDate,to:range.endDate});
-        const response = await fetch(`/api/dashboard/${encodeURIComponent(appId)}/crash-impact?${query}`,{signal:controller.signal,cache:'no-store'});
-        if(!response.ok) throw Error('Firebase request failed');
-        const body = await response.json() as {data:CrashImpactData};
-        if(!controller.signal.aborted) setResult(previous=>({key,data:retainImpactValues(previous?.key===key?previous.data:null,body.data)}));
-      } catch {
-        if(!controller.signal.aborted) setResult(previous=>({key,data:retainImpactValues(previous?.key===key?previous.data:null,null)}));
-      } finally {
-        if(!controller.signal.aborted) timer = setTimeout(refresh,60000);
-      }
-    }
-    void refresh();
-    return ()=>{controller.abort();clearTimeout(timer);};
-  },[appId,range.startDate,range.endDate,key]);
-  const current = result?.key === key ? result : null;
-  return <>{(['android','ios'] as const).map(platform=><FirebaseCrashImpactMetric key={platform} platform={platform} metric={current?.data?.[platform]} loading={!current}/>)}</>;
+export function FirebaseCrashImpactMetrics({appId,range,observations}:{appId:string;range:MetricDateRange;observations:MetricObservation[]}) {
+  const data=storedCrashImpact(appId,observations,range);
+  return <>{(['android','ios'] as const).map(platform=><FirebaseCrashImpactMetric key={platform} platform={platform} metric={data[platform]}/>)}</>;
 }

@@ -84,7 +84,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).not.toContain('buildRatingTrend(data, "30d")');
     expect(source).not.toContain('buildReviewRateTrend(data, "30d")');
     expect(source).toContain("audience.latest");
-    expect(source).toContain("<FirebaseCrashImpactMetrics appId={data.app.id} range={dateRange} />");
+    expect(source).toContain("<FirebaseCrashImpactMetrics appId={data.app.id} range={dateRange} observations={data.metricObservations ?? []} />");
     expect(source).toContain("periodSummary.androidRatingChange");
     expect(source).toContain("periodSummary.iosRatingChange");
     expect(source).toContain("androidNegativeReviews.change");
