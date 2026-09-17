@@ -4928,7 +4928,7 @@ button.ri-heatmap-name { border: 0; color: #465674; cursor: pointer; }
 
 .mi-voc-toolbar .mi-voc-filters { margin-bottom: 0; }
 
-.mi-firebase-acquisition-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.mi-firebase-acquisition-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .mi-firebase-acquisition-summary small { color: var(--mi-muted); font-size: 12px; }
 .mi-acquisition-table-scroll { overflow: auto; max-height: 440px; }
 .mi-acquisition-table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
@@ -4936,3 +4936,24 @@ button.ri-heatmap-name { border: 0; color: #465674; cursor: pointer; }
 .mi-acquisition-table th { background: #f4f7fc; color: var(--mi-muted); position: sticky; top: 0; }
 .mi-acquisition-table th:first-child, .mi-acquisition-table td:first-child { text-align: left; }
 @media (max-width: 700px) { .mi-firebase-acquisition-summary { grid-template-columns: 1fr; } }
+
+.mi-acquisition-platform { display: inline-flex; align-items: center; gap: 7px; }
+.mi-acquisition-usage-summary, .mi-acquisition-usage-charts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+.mi-acquisition-usage-card { padding: 20px; }
+.mi-acquisition-usage-card h3 { font-size: 14px; font-weight: 700; margin: 0 0 18px; }
+.mi-acquisition-usage-platforms { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.mi-acquisition-usage-platforms > div + div { border-left: 1px solid var(--mi-border); padding-left: 16px; }
+.mi-acquisition-usage-platforms strong { display: block; font-size: 25px; font-weight: 700; margin: 10px 0; }
+.mi-acquisition-usage-card small, .mi-acquisition-usage-card p { font-size: 11px; color: var(--mi-muted); }
+.mi-acquisition-usage-card p { margin: 16px 0 0; }
+.mi-acquisition-table tbody tr:nth-child(2n) { border-bottom: 2px solid var(--mi-border); }
+@media (max-width: 1200px) { .mi-acquisition-usage-summary, .mi-acquisition-usage-charts { grid-template-columns: 1fr; } .mi-firebase-acquisition-summary { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 700px) { .mi-firebase-acquisition-summary { grid-template-columns: 1fr; } }
+
+.mi-acquisition-platform .mi-platform-glyph--android { color: #22a447; }
+.mi-acquisition-platform .mi-platform-glyph--ios { color: #8b5cf6; }
+
+.mi-acquisition-usage-summary { grid-template-columns: repeat(4,minmax(0,1fr)); }
+.mi-acquisition-usage-charts { grid-template-columns: repeat(2,minmax(0,1fr)); }
+@media (max-width: 1400px) { .mi-acquisition-usage-summary { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 800px) { .mi-acquisition-usage-summary, .mi-acquisition-usage-charts { grid-template-columns: 1fr; } }

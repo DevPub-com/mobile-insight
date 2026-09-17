@@ -40,13 +40,8 @@ jobs:
           fi
 
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-      - run: npm ci
-      - name: Synchronize directly on the runner
-        env:
+      - name: Validate synchronization secrets
+        env: &sync-env
           SYNC_SCOPE: ${{ steps.determine-scope.outputs.scope }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GOOGLE_KIS_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_KIS_SERVICE_ACCOUNT_JSON }}
@@ -57,4 +52,12 @@ jobs:
           APPLE_KIS_VENDOR_NUMBER: ${{ secrets.APPLE_KIS_VENDOR_NUMBER }}
           GA4_KIS_PROPERTY_ID: ${{ secrets.GA4_KIS_PROPERTY_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node scripts/check-sync-env.mjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Synchronize directly on the runner
+        env: *sync-env
         run: node --import tsx scripts/sync.ts

@@ -196,11 +196,16 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("<DashboardDateRangePicker");
   });
 
-  it("shows Firebase acquisition and Android-only removal data", () => {
+  it("shows acquisition, Apple removals and engagement data", () => {
     const acquisition = readFileSync(new URL("./firebase-acquisition-panel.tsx", import.meta.url), "utf8");
     expect(source).toContain("<FirebaseAcquisitionPanel");
-    expect(acquisition).toContain("Android 삭제 추이");
-    expect(acquisition).toContain("iOS 삭제는 제공되지 않습니다.");
+    expect(acquisition).toContain("삭제 사용자");
+    expect(acquisition).toContain("iOS는 Apple 데이터 공유 동의 사용자 표본");
+    expect(acquisition).not.toContain("미지원");
+    expect(acquisition).toContain("신규 사용자");
+    expect(acquisition).toContain("참여율");
+    expect(acquisition).not.toContain("areaStyle");
+    expect(acquisition).not.toContain("최초 실행");
     expect(acquisition).toContain("플랫폼별 일별 상세");
   });
 

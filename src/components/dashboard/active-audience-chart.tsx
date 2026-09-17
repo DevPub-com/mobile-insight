@@ -8,7 +8,7 @@ export function ActiveAudienceChart({ data }: { data: AudiencePoint[] }) {
   const option = useMemo<EChartsCoreOption>(() => ({
     aria: { enabled: true },
     grid: { top: 76, right: 22, bottom: 38, left: 62 },
-    legend: { top: 12, left: 12, textStyle: { fontSize: 10 } },
+    legend: { top: 12, left: 12, itemWidth: 20, itemHeight: 6, itemGap: 20, textStyle: { color: "#465267", fontSize: 11 } },
     tooltip: { trigger: "axis", valueFormatter: (value: unknown) => value == null ? "—" : `${Number(value).toLocaleString("ko-KR")}명` },
     xAxis: { type: "category", boundaryGap: false, data: data.map(row => row.date.slice(5).replace("-", ".")), axisLabel: { hideOverlap: true, interval: Math.max(0, Math.ceil(data.length / 8) - 1) } },
     yAxis: { type: "value", min: 0, axisLabel: { formatter: (value: number) => value >= 10000 ? `${Number((value / 10000).toFixed(1))}만` : value.toLocaleString("ko-KR") }, splitLine: { lineStyle: { type: "dashed", color: "#e8edf5" } } },

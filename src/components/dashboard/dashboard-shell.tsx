@@ -57,7 +57,7 @@ type View =
 
 const viewCopy: Record<View, [string, string]> = {
   dashboard: ["대시보드", "앱 상태와 최신 배포 이후 변화를 한눈에 확인하세요."],
-  downloads: ["다운로드", "Firebase 기준 최초 실행 및 앱 삭제 추이를 확인하세요."],
+  downloads: ["다운로드", "앱의 활성 사용자, 신규 사용자, 삭제 및 참여율을 확인하세요."],
   reviews: ["평점 & 리뷰", "앱의 평점과 리뷰 데이터를 종합적으로 확인하세요."],
   releases: ["릴리즈", "앱의 버전 배포 현황과 변경사항을 한눈에 확인하세요."],
   impact: [
