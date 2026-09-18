@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import { databaseClientOptions } from "./index";
 
 describe("databaseClientOptions", () => {
-  it("uses eight connections and disables prepared statements for the Supabase pooler", () => {
+  it("limits each Supabase pool to one short-lived connection without prepared statements", () => {
     expect(
       databaseClientOptions(
         "postgresql://postgres.example:secret@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres",
       ),
-    ).toMatchObject({ max: 8, prepare: false });
+    ).toMatchObject({ max: 1, idle_timeout: 5, prepare: false });
   });
 
   it("keeps prepared statements for a direct PostgreSQL connection", () => {

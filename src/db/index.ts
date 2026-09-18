@@ -17,9 +17,10 @@ export function databaseClientOptions(databaseUrl: string) {
     ".pooler.supabase.com",
   );
   return {
-    max: 8,
+    // Each serverless instance owns a pool; avoid exhausting the shared pooler.
+    max: isSupabasePooler ? 1 : 8,
     prepare: !isSupabasePooler,
-    idle_timeout: 20,
+    idle_timeout: isSupabasePooler ? 5 : 20,
     connect_timeout: 10,
   };
 }

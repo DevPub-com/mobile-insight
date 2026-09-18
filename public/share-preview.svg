@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+<rect width="1200" height="630" fill="#f4f7ff"/>
+<rect x="64" y="54" width="58" height="58" rx="14" fill="#3564ed"/>
+<g fill="white"><rect x="77" y="85" width="7" height="15" rx="2"/><rect x="90" y="77" width="7" height="23" rx="2"/><rect x="103" y="68" width="7" height="32" rx="2"/></g>
+<g font-family="Arial, sans-serif" fill="#172238">
+<text x="138" y="92" font-size="26" font-weight="700">Mobile Insight</text>
+<text x="1136" y="90" text-anchor="end" font-size="17" fill="#61728f">ANDROID + iOS</text>
+<text x="64" y="191" font-size="17" letter-spacing="2" fill="#3564ed" font-weight="700">APP PERFORMANCE INTELLIGENCE</text>
+<text x="64" y="272" font-size="64" font-weight="700" letter-spacing="-2">Your app.</text>
+<text x="64" y="345" font-size="64" font-weight="700" letter-spacing="-2">The whole picture.</text>
+<text x="64" y="409" font-size="23" fill="#61728f">Users, reviews and release impact.</text>
+<text x="64" y="445" font-size="23" fill="#61728f">Together in one dashboard.</text>
+<rect x="674" y="173" width="462" height="300" rx="20" fill="white" stroke="#dce5f7"/>
+<text x="702" y="215" font-size="20" font-weight="700">Performance overview</text>
+<text x="702" y="246" font-size="14" fill="#22a447">Android</text><text x="785" y="246" font-size="14" fill="#8b5cf6">iOS</text>
+<g transform="translate(707 275)"><path d="M0 30H390 M0 70H390 M0 110H390 M0 150H390" fill="none" stroke="#e9eef8" stroke-dasharray="4 4"/><path d="M0 125 L35 111 L70 116 L105 84 L140 94 L175 69 L210 75 L245 48 L280 54 L315 24 L350 33 L386 12" fill="none" stroke="#22a447" stroke-width="4"/><path d="M0 148 L35 144 L70 137 L105 141 L140 118 L175 126 L210 105 L245 113 L280 91 L315 98 L350 76 L386 81" fill="none" stroke="#8b5cf6" stroke-width="4"/></g>
+<path d="M64 526H1136" stroke="#dce5f7"/>
+<g font-size="16" fill="#52617b" letter-spacing="1"><text x="64" y="571">ACTIVE USERS</text><text x="268" y="571">RATINGS &amp; REVIEWS</text><text x="536" y="571">CRASH INSIGHTS</text><text x="778" y="571">RELEASE IMPACT</text></g>
+</g></svg>
