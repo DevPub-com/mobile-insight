@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { DashboardShell } from './dashboard-shell';
+import { buildDashboardView, defaultDashboardRange } from '@/services/mobile/dashboard-view';
 import { demoDashboardData } from '@/data/demo';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
@@ -26,4 +27,11 @@ describe('dashboard metric presentation', () => {
     expect(card).not.toContain('수집 리뷰 중 1~2점');
     expect(html).not.toContain('AI Executive Briefing');
   });
+});
+
+ it('preserves the initial dashboard markup when reviews move into the server view', () => {
+  const initialView = buildDashboardView(demoDashboardData, defaultDashboardRange(demoDashboardData));
+  const before = renderToStaticMarkup(createElement(DashboardShell, { data: demoDashboardData }));
+  const after = renderToStaticMarkup(createElement(DashboardShell, { data: { ...demoDashboardData, reviews: [], reviewsDeferred: true }, initialView }));
+  expect(after).toEqual(before);
 });

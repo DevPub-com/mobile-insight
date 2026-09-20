@@ -140,7 +140,7 @@ export function AiExecutiveBriefing({
                 {item.category === "growth" && "성장 신호"}
                 {item.category === "risk" && "리스크"}
                 {item.category === "voc" && "사용자 반응"}
-                {item.category === "quality" && "품질 및 릴리즈"}
+                {item.category === "quality" && "품질 및 릴리스"}
               </span>
               <strong className="mi-ai-highlight-title">{item.title}</strong>
               <p className="mi-ai-highlight-description">{item.description}</p>

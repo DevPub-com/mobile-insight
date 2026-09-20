@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import type { EChartsCoreOption } from 'echarts/core';
 import type { DashboardData } from "@/domain/types";
 import type { MetricDateRange } from "@/services/mobile/common/metrics-calculator";
@@ -50,7 +50,7 @@ export function FirebaseAcquisitionPanel({ data, range }: { data: DashboardData;
    {definitions.map(item=><AcquisitionChart key={item.key} rows={rows} metric={item.key} title={`${item.title} 추이`} description={item.help} bar={item.key==='removals'}/>)}
   </section>
   <DpCard className="mi-panel mi-daily-table"><div className="mi-panel-head"><h3>플랫폼별 일별 상세</h3></div>
-   <div className="mi-acquisition-table-scroll"><table className="mi-acquisition-table"><thead><tr><th>날짜</th><th>플랫폼</th><th>DAU</th><th>신규 사용자</th><th title={definitions[2].help}>삭제 사용자</th><th>참여율</th></tr></thead><tbody>{[...rows].reverse().flatMap(row=>acquisitionPlatforms.map(p=><tr key={`${row.date}:${p}`}><td>{row.date}</td><td><span className="mi-acquisition-platform"><PlatformIcon platform={p} size={14}/>{names[p]}</span></td><td>{count(row[p].dau)}</td><td>{count(row[p].newUsers)}</td><td>{count(row[p].removals)}</td><td>{percent(row[p].engagement)}</td></tr>))}</tbody></table></div>
+   <div className="mi-acquisition-table-scroll"><table className="mi-acquisition-table"><thead><tr><th>날짜</th><th>플랫폼</th><th>DAU</th><th>신규 사용자</th><th title={definitions[2].help}>삭제 사용자</th><th>참여율</th></tr></thead><tbody>{[...rows].reverse().map(row=><Fragment key={row.date}>{acquisitionPlatforms.map((p,index)=><tr key={`${row.date}:${p}`} className={index===0?'mi-acquisition-day-start':'mi-acquisition-day-end'}>{index===0&&<td rowSpan={2} className="mi-acquisition-date">{row.date}</td>}<td><span className="mi-acquisition-platform"><PlatformIcon platform={p} size={14}/>{names[p]}</span></td><td>{count(row[p].dau)}</td><td>{count(row[p].newUsers)}</td><td>{count(row[p].removals)}</td><td>{percent(row[p].engagement)}</td></tr>)}</Fragment>)}</tbody></table></div>
   </DpCard>
  </>;
 }

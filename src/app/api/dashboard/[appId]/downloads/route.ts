@@ -19,7 +19,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ appI
     return NextResponse.json({ error: "지원하지 않는 기간입니다." }, { status: 400 });
   }
   try {
-    const data = await loadDashboardData(appId);
+    const data = await loadDashboardData(appId, "downloads");
     if (!data) return NextResponse.json({ error: "앱을 찾을 수 없습니다." }, { status: 404 });
     const period = rawPeriod as Period;
     return NextResponse.json({

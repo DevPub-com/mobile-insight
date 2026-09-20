@@ -128,7 +128,7 @@ export async function syncAllApps(scope: SyncScope = "all", appId?: string) {
       }
     }
     const analyticsErrors: string[] = [];
-    if (scope === "all") {
+    if (scope === "all" || scope === "metrics") {
       const analytics = await fetchGa4SyncData(ga4Adapter, appInfo);
       analyticsErrors.push(...analytics.errors);
       try {

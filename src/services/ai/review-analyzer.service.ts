@@ -10,6 +10,7 @@ import type {
   ReviewSentiment,
   ReviewTopicPath,
 } from "@/domain/types";
+import { refineGeneralOpinionPaths } from "@/domain/reviews/general-opinion";
 import { generateStructuredContent } from "./gemini-client";
 
 const MODEL_BATCH_SIZE = 15;
@@ -99,8 +100,8 @@ async function analyzeChunk(
 각 리뷰에 감성, 최대 2개의 계층형 관심사 경로, 한 줄 요약을 부여하라.
 대분류(major)는 다음 taxonomy에서 의미에 가장 가까운 값을 선택한다: ${JSON.stringify(taxonomy)}
 중분류(middle)는 대분류 안의 기능 영역이나 사용자 과업을, 소분류(minor)는 그보다 구체적인 기능이나 대상을 20자 이내의 간결한 한국어로 작성한다. 소분류에 오류·불편·불가처럼 여러 기능에 반복되는 일반 증상만 쓰지 말고, 구체적인 하위 기능이나 대상을 판별할 근거가 없으면 null로 둔다. 같은 개념에는 리뷰마다 동일한 명칭을 사용한다.
-일반적인 평가에는 {"major":"기타","middle":"일반","minor":"일반 의견"}을 사용하고, 근거가 없어 정말 분류할 수 없을 때만 {"major":"기타","middle":null,"minor":null}을 사용한다.
-관심사에 긍정·불만 같은 감성을 섞지 마라. sentiment는 "positive", "neutral", "negative" 중 하나다.
+일반적인 반응에는 major "기타", middle "사용자 반응"을 사용하고 minor는 반드시 "감사", "좋아요", "최고", "만족", "괜찮음", "아쉬움", "불만", "보통" 중 가장 구체적인 하나를 선택한다. 예를 들어 감사 표현은 "감사", 좋다는 짧은 평가는 "좋아요"로 분류한다. 근거가 없어 정말 분류할 수 없을 때만 {"major":"기타","middle":null,"minor":null}을 사용한다.
+기능 관심사에는 긍정·불만 같은 감성을 섞지 마라. 단, 위 사용자 반응 경로는 예외다. sentiment는 "positive", "neutral", "negative" 중 하나다.
 반드시 {"results":[{"externalId":"...","sentiment":"...","topicPaths":[{"major":"...","middle":"... 또는 null","minor":"... 또는 null"}],"summary":"..."}]} JSON만 반환하라.`;
   const prompt = `다음 리뷰를 분류하라:\n${JSON.stringify(promptPayload)}`;
   const rawResponse = await generateStructuredContent<unknown>(
@@ -115,11 +116,13 @@ async function analyzeChunk(
       const item = modelResultSchema.safeParse(rawItem);
       if (!item.success || results.has(item.data.externalId)) continue;
       if (!reviewByExternalId.has(item.data.externalId)) continue;
+      const review = reviewByExternalId.get(item.data.externalId)!;
+      const topicPaths = refineGeneralOpinionPaths({ ...review, aiTopicPaths: item.data.topicPaths }) ?? item.data.topicPaths;
       results.set(item.data.externalId, {
         externalId: item.data.externalId,
         sentiment: item.data.sentiment,
-        topics: compatibilityTopics(item.data.topicPaths),
-        topicPaths: item.data.topicPaths,
+        topics: compatibilityTopics(topicPaths),
+        topicPaths,
         taxonomyVersion: REVIEW_TAXONOMY_VERSION,
         summary: item.data.summary,
       });

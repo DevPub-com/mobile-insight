@@ -60,7 +60,7 @@ export async function GET(
 
   const { appId } = await params;
   try {
-    const data = await loadDashboardData(appId);
+    const data = await loadDashboardData(appId, "summary");
     if (!data) {
       return NextResponse.json(
         { error: "앱을 찾을 수 없습니다." },

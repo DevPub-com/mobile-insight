@@ -53,7 +53,7 @@ function newDownloadValue(
         observation.platform === platform &&
         observation.date === date &&
         observation.metricKey === metricKey,
-    )?.value ?? null
+    )?.value ?? fallback
   );
 }
 
@@ -159,20 +159,28 @@ export function buildReleaseImpactWorkspace(
   const matchesVersion = (review: AppReview, version: string) => displayReleaseVersion(review.platform, review.version!) === displayReleaseVersion(release.platform, version);
   const beforeReviews = previous ? reviewsIn(windows.before.from, windows.before.to).filter(review => matchesVersion(review, previous.version)) : [];
   const afterReviews = reviewsIn(windows.after.from, windows.after.to).filter(review => matchesVersion(review, release.version));
+  const downloadValue = (item: (typeof data.metrics)[number]) =>
+    newDownloadValue(data, release.platform, item.date, item.downloads);
+  const collectedDownloadDates = [...beforeMetrics, ...afterMetrics]
+    .filter((item) => downloadValue(item) !== null)
+    .map((item) => item.date)
+    .sort();
   const coverage = {
-    beforeDays: new Set(beforeMetrics.filter((item) => item.downloads !== null).map((item) => item.date)).size,
-    afterDays: new Set(afterMetrics.filter((item) => item.downloads !== null).map((item) => item.date)).size,
+    beforeDays: new Set(beforeMetrics.filter((item) => downloadValue(item) !== null).map((item) => item.date)).size,
+    afterDays: new Set(afterMetrics.filter((item) => downloadValue(item) !== null).map((item) => item.date)).size,
     expectedDays: expectedAfterDays,
     expectedBeforeDays,
+    latestDownloadDate: collectedDownloadDates.at(-1) ?? null,
   };
   const hasCompleteMetricWindows =
     expectedBeforeDays > 0 && expectedAfterDays > 0 &&
     coverage.beforeDays === expectedBeforeDays && coverage.afterDays === expectedAfterDays;
 
   const downloadTotal = (rows: typeof data.metrics) => {
-    const values = rows.flatMap((item) =>
-      item.downloads === null ? [] : [item.downloads],
-    );
+    const values = rows.flatMap((item) => {
+      const value = downloadValue(item);
+      return value === null ? [] : [value];
+    });
     return values.length
       ? values.reduce((total, value) => total + value, 0)
       : null;

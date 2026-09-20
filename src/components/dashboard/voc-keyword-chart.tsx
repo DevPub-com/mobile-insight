@@ -6,7 +6,7 @@ import { keywordChartRows, keywordGradeLabel, type KeywordFilter, type KeywordSe
 import { VocWordCloud } from "./voc-wordcloud";
 
 export function VocKeywordChart({ groups, onSelect }: {
-  groups: ReturnType<typeof summarizeReviewKeywords>;
+  groups: Array<Omit<ReturnType<typeof summarizeReviewKeywords>[number], "review">>;
   onSelect: (selection: KeywordSelection) => void;
 }) {
   const [filter, setFilter] = useState<KeywordFilter>("all");

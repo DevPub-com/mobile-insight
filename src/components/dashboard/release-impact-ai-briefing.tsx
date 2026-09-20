@@ -32,7 +32,7 @@ export function ReleaseImpactAiBriefingCard({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           signal: controller.signal,
-          body: JSON.stringify({ appCode, type: "release_impact", releaseId, cacheOnly, refresh: !cacheOnly }),
+          body: JSON.stringify({ appCode, type: "release_impact", releaseId, cacheOnly }),
         });
         if (!response.ok) throw new Error("Briefing request failed");
         return (await response.json()).data as ReleaseImpactAiBriefing | null;

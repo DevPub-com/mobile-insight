@@ -3,18 +3,12 @@
 import type { EChartsCoreOption } from "echarts/core";
 import { EChart } from "@/components/dashboard/echart";
 import type { AppReview } from "@/domain/types";
-import { summarizeReviewRatings } from "@/domain/reviews/review.service";
+import { buildReviewRatingSummary } from "@/domain/reviews/review-presentation";
 
-export function ReviewRatingSummary({ reviews }: { reviews: AppReview[]; periodLabel?: string }) {
-  const summary = summarizeReviewRatings(reviews.map((review) => review.rating));
-  const daily = new Map<string, { sum: number; count: number }>();
-  for (const review of reviews) {
-    const day = review.reviewedAt.slice(0, 10);
-    const point = daily.get(day) ?? { sum: 0, count: 0 };
-    point.sum += review.rating;
-    point.count++;
-    daily.set(day, point);
-  }
+export function ReviewRatingSummary({ reviews = [], model }: { reviews?: AppReview[]; model?: ReturnType<typeof buildReviewRatingSummary>; periodLabel?: string }) {
+  const aggregated = model ?? buildReviewRatingSummary(reviews);
+  const summary = aggregated.summary;
+  const daily = new Map(aggregated.daily.map(({ date, ...value }) => [date, value]));
   const days = [...daily.keys()].sort();
   const dates: string[] = [];
   if (days.length) {

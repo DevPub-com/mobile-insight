@@ -46,7 +46,7 @@ function fallbackDashboardSummary(
   if (activeReleases.length > 0) {
     highlights.push({
       category: "quality",
-      title: "최신 릴리즈 상태",
+      title: "최신 릴리스 상태",
       description: `최근 배포된 버전(${activeReleases.map((item) => item.version).join(", ")})의 안정성 및 피드백을 실시간 추적 중입니다.`,
     });
   }
@@ -66,7 +66,7 @@ export async function generateDashboardSummaryBriefing(
   periodLabel: string,
 ): Promise<DashboardExecutiveAiBriefing> {
   const systemInstruction = `너는 B2B SaaS 모바일 인텔리전스 최고 분석관이다.
-앱의 통합 다운로드 지표, 평점, 최근 부정 리뷰 목록, 릴리즈 상태를 종합 분석하여 경영진을 위한 '일일 핵심 브리핑'을 작성하라.
+앱의 통합 다운로드 지표, 평점, 최근 부정 리뷰 목록, 릴리스 상태를 종합 분석하여 경영진을 위한 '일일 핵심 브리핑'을 작성하라.
 
 출력 규칙:
 1. headline: 전체 비즈니스/운영 상태를 직관적으로 꿰뚫는 핵심 1문장

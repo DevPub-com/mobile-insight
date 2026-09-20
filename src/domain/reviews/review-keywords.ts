@@ -1,4 +1,5 @@
 import { normalizeReviewKeyword } from "./keyword-normalization";
+import { refineGeneralOpinionPaths } from "./general-opinion";
 import type { AppReview, ReviewSentiment } from "@/domain/types";
 
 export const keywordGradeLabel: Record<ReviewSentiment, string> = {
@@ -13,7 +14,7 @@ export function matchesKeyword(review: AppReview, selection: KeywordSelection | 
     (selection.key ? key === selection.key : label === normalizeReviewKeyword(selection.label)) && (selection.grade === "all" || grade === selection.grade));
 }
 
-export function keywordChartRows(groups: ReturnType<typeof summarizeReviewKeywords>, filter: KeywordFilter) {
+export function keywordChartRows(groups: Array<Omit<ReturnType<typeof summarizeReviewKeywords>[number], "review">>, filter: KeywordFilter) {
   const rows = new Map<string, { label: string; key: string; total: number; positive: number; neutral: number; negative: number }>();
   for (const group of groups) {
     if (filter !== "all" && group.grade !== filter) continue;
@@ -31,7 +32,8 @@ export function reviewKeywords(review: AppReview) {
 
 export function reviewTopicChips(review: AppReview) {
   const grade: ReviewSentiment = review.aiSentiment ?? (review.rating <= 2 ? "negative" : review.rating >= 4 ? "positive" : "neutral");
-  const paths = review.aiTopicPaths?.length ? review.aiTopicPaths : [{ major: "기타", middle: null, minor: null }];
+  const refinedPaths = refineGeneralOpinionPaths(review);
+  const paths = refinedPaths?.length ? refinedPaths : [{ major: "기타", middle: null, minor: null }];
   const chips = paths.flatMap(path => (["major", "middle", "minor"] as const).flatMap((level, index) => {
     const label = path[level];
     if (typeof label !== "string" || !label.trim()) return [];

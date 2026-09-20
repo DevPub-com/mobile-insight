@@ -211,6 +211,7 @@ export type DashboardData = {
   metrics: DailyMetric[];
   reviews: AppReview[];
   reviewDataTruncated?: boolean;
+  reviewsDeferred?: boolean;
   releases: AppRelease[];
   releaseVersionMappings?: ReleaseVersionMapping[];
   metricObservations?: MetricObservation[];

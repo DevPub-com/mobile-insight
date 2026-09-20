@@ -1,47 +1,32 @@
-import { NextRequest } from "next/server";
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { proxy } from "./proxy";
+import { config, proxy } from "./proxy";
 
-afterEach(() => {
-  vi.unstubAllEnvs();
-});
+afterEach(() => vi.unstubAllEnvs());
 
-describe("dashboard proxy authentication", () => {
-  it("allows access in production when authentication credentials are not set", () => {
-    vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("DASHBOARD_BASIC_USER", "");
-    vi.stubEnv("DASHBOARD_BASIC_PASSWORD", "");
+describe("public dashboard access before account registration", () => {
+  it.each([
+    ["production", "", ""],
+    ["production", "viewer", ""],
+    ["production", "viewer", "configured-password"],
+    ["development", "", ""],
+  ])("allows access in %s regardless of legacy Basic Auth settings", (environment, username, password) => {
+    vi.stubEnv("NODE_ENV", environment);
+    vi.stubEnv("DASHBOARD_BASIC_USER", username);
+    vi.stubEnv("DASHBOARD_BASIC_PASSWORD", password);
     vi.stubEnv("TRUST_REVERSE_PROXY", "");
-
-    expect(proxy(new NextRequest("https://example.test/dashboard/kis")).status).toBe(200);
+    const response = proxy();
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.headers.has("www-authenticate")).toBe(false);
   });
 
-  it("blocks with 503 when only username is supplied without password", () => {
-    vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("DASHBOARD_BASIC_USER", "admin");
-    vi.stubEnv("DASHBOARD_BASIC_PASSWORD", "");
-
-    expect(proxy(new NextRequest("https://example.test/dashboard/kis")).status).toBe(503);
+  it.each(["/dashboard/kis", "/api/apps", "/api/dashboard/kis/summary", "/api/ai/briefing"])("matches the public dashboard route %s", (url) => {
+    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url })).toBe(true);
   });
 
-  it("allows an explicitly trusted reverse proxy", () => {
-    vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("TRUST_REVERSE_PROXY", "true");
-
-    expect(proxy(new NextRequest("https://example.test/dashboard/kis")).status).toBe(200);
-  });
-
-  it("challenges invalid basic credentials", () => {
-    vi.stubEnv("DASHBOARD_BASIC_USER", "viewer");
-    vi.stubEnv("DASHBOARD_BASIC_PASSWORD", "secret");
-    vi.stubEnv("TRUST_REVERSE_PROXY", "");
-
-    const response = proxy(
-      new NextRequest("https://example.test/dashboard/kis", {
-        headers: { authorization: `Basic ${btoa("viewer:wrong")}` },
-      }),
-    );
-    expect(response.status).toBe(401);
+  it("leaves batch synchronization to its existing bearer authentication", () => {
+    expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/api/sync" })).toBe(false);
   });
 });

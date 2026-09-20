@@ -82,6 +82,7 @@ describe("Release Impact Briefing Service", () => {
       afterDays: 7,
       expectedDays: 7,
       expectedBeforeDays: 7,
+      latestDownloadDate: "2026-08-31",
     },
   };
 
@@ -117,6 +118,32 @@ describe("Release Impact Briefing Service", () => {
     delete process.env.GEMINI_API_KEY;
 
     const briefing = await generateReleaseImpactBriefing(mockView);
-    expect(briefing).toBeNull();
+    expect(briefing.headline).toContain("데이터 수집 상태");
+    expect(briefing.keyChanges).toContain("다운로드: 배포 전 1,000건, 배포 후 1,200");
+  });
+
+  it("still requests an AI briefing when comparison values are unavailable", async () => {
+    const mockAiResponse = {
+      headline: "배포 후 데이터 수집 중",
+      summary: "확보된 표본을 기준으로 추가 모니터링이 필요합니다.",
+      riskLevel: "medium",
+      keyChanges: ["배포 후 리뷰 0건"],
+      recommendations: ["데이터 수집 후 재확인"],
+    };
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(mockAiResponse) }] } }] }),
+    } as Response);
+    const incomplete = {
+      ...mockView,
+      downloads: { before: 1000, after: null, change: null, changePercent: null },
+      ratings: { ...mockView.ratings, android: { before: 4.2, after: null, change: null, changePercent: null } },
+      negativeReviews: { before: 10, after: null, change: null, changePercent: null },
+      newReviews: { before: 20, after: 0, change: -20, changePercent: -100 },
+    };
+
+    const briefing = await generateReleaseImpactBriefing(incomplete);
+    expect(globalThis.fetch).toHaveBeenCalled();
+    expect(briefing.headline).toBe("배포 후 데이터 수집 중");
   });
 });

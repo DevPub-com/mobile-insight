@@ -126,7 +126,7 @@ export function ReleaseImpactTrendChart({ data, metric = "downloads", beforeLabe
     <EChart
       option={option}
       className="ri-trend-chart"
-      ariaLabel={metric === "rating" ? "버전별 평균 리뷰 평점 추이" : metric === "anrs" ? "버전별 ANR 보고 건수 및 영향받은 사용자 추이" : metric === "crashUsers" ? "크래시 영향받은 사용자 추이" : metric === "anrUsers" ? "ANR 영향받은 사용자 추이" : metric === "crashes" ? "버전별 크래시 보고 건수 및 영향받은 사용자 추이" : "릴리즈 배포 기간별 다운로드 추이"}
+      ariaLabel={metric === "rating" ? "버전별 평균 리뷰 평점 추이" : metric === "anrs" ? "버전별 ANR 보고 건수 및 영향받은 사용자 추이" : metric === "crashUsers" ? "크래시 영향받은 사용자 추이" : metric === "anrUsers" ? "ANR 영향받은 사용자 추이" : metric === "crashes" ? "버전별 크래시 보고 건수 및 영향받은 사용자 추이" : "릴리스 배포 기간별 다운로드 추이"}
     />
   );
 }

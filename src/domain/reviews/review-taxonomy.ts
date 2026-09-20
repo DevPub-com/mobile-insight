@@ -12,7 +12,7 @@ export const REVIEW_TOPIC_LABELS = [
   "기타",
 ] as const;
 
-export const REVIEW_TAXONOMY_VERSION = 2;
+export const REVIEW_TAXONOMY_VERSION = 3;
 
 export type ReviewTopicLabel = (typeof REVIEW_TOPIC_LABELS)[number];
 

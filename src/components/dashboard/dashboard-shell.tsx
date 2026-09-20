@@ -1,5 +1,9 @@
 "use client";
 
+import { useDashboardView } from "./use-dashboard-view";
+import { useReviewPage } from "./use-review-page";
+import type { DashboardView } from "@/services/mobile/dashboard-view";
+
 import { displayReleaseVersion } from "@/services/mobile/common/release-version";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -38,11 +42,8 @@ import {
 import type { DashboardData, Platform } from "@/domain/types";
 import {
   availableMetricDateRange,
-  buildDashboardSummaryForRange,
-  buildDateRangeSummary,
   buildReleaseCadence,
   buildStoreRatingSummary,
-  buildRatingDistribution,
   compareVersionsDescending,
   dateRangeDays,
   periodStart,
@@ -50,7 +51,7 @@ import {
   type ReviewRatingGroup,
 } from "@/services/mobile";
 
-import { keywordGradeLabel, reviewTopicChips, summarizeReviewKeywords, matchesKeyword, type KeywordSelection } from "@/domain/reviews/review-keywords";
+import { keywordGradeLabel, reviewTopicChips, matchesKeyword, type KeywordSelection } from "@/domain/reviews/review-keywords";
 
 type View =
   "dashboard" | "downloads" | "reviews" | "releases" | "impact" | "apps";
@@ -59,7 +60,7 @@ const viewCopy: Record<View, [string, string]> = {
   dashboard: ["대시보드", "앱 상태와 최신 배포 이후 변화를 한눈에 확인하세요."],
   downloads: ["다운로드", "앱의 활성 사용자, 신규 사용자, 삭제 및 참여율을 확인하세요."],
   reviews: ["평점 & 리뷰", "앱의 평점과 리뷰 데이터를 종합적으로 확인하세요."],
-  releases: ["릴리즈", "앱의 버전 배포 현황과 변경사항을 한눈에 확인하세요."],
+  releases: ["릴리스", "앱의 버전 배포 현황과 변경사항을 한눈에 확인하세요."],
   impact: [
     "배포 후 변화",
     "특정 버전의 배포 전후 성과 변화를 한눈에 분석하세요.",
@@ -123,7 +124,7 @@ const syncDate = (value: string | null) =>
       }).format(new Date(value))
     : "기록 없음";
 
-function Change({
+export function Change({
   value,
   suffix = "%",
   decimals = 1,
@@ -288,7 +289,7 @@ function ReviewDevice({
   );
 }
 
-export function DashboardShell({ data }: { data: DashboardData }) {
+export function DashboardShell({ data, initialView }: { data: DashboardData; initialView?: DashboardView }) {
   const [view, setView] = useState<View>("dashboard");
   const availableDateRange = availableMetricDateRange(data);
   const latestDate =
@@ -314,19 +315,15 @@ export function DashboardShell({ data }: { data: DashboardData }) {
   const [timelineScale, setTimelineScale] = useState<
     "week" | "month" | "quarter"
   >("month");
-  const dashboardSummary = useMemo(
-    () => buildDashboardSummaryForRange(data, dateRange),
-    [data, dateRange],
-  );
+  const rangeQuery = useDashboardView(data, dateRange, initialView);
+  const { loading: rangeLoading, error: rangeError } = rangeQuery;
+  const dashboardSummary = rangeQuery.view.dashboardSummary;
   const storeRatings = useMemo(() => buildStoreRatingSummary(data, dateRange), [data, dateRange]);
   const audience = useMemo(() => buildActiveAudience(data.metrics, data.app.id, dateRange), [data, dateRange]);
   const combinedAudience = [...audience.trend].reverse().find(row =>
     row.androidDau !== null && row.iosDau !== null && row.androidMau !== null && row.iosMau !== null,
   );
-  const periodSummary = useMemo(
-    () => buildDateRangeSummary(data, dateRange),
-    [data, dateRange],
-  );
+  const periodSummary = rangeQuery.view.periodSummary;
   const ratingTrend = dashboardSummary.charts.ratings;
   const releases = useMemo(
     () =>
@@ -404,52 +401,38 @@ export function DashboardShell({ data }: { data: DashboardData }) {
     () => latestNegativeReviews(data.reviews),
     [data.reviews],
   );
-  const periodReviews = data.reviews.filter((item) => {
-    const reviewedAt = item.reviewedAt.slice(0, 10);
-    return reviewedAt >= dateRange.startDate && reviewedAt <= dateRange.endDate;
-  });
-  const vocKeywords = summarizeReviewKeywords(periodReviews);
-  const notableReviews = vocKeywords.filter((item) => item.count >= 2).slice(0, 3);
-  const platformReviewSummaries = (["android", "ios"] as Platform[]).map((platform) => {
-    const reviews = periodReviews.filter((review) => review.platform === platform);
-    const days = new Map<string, number[]>();
-    for (const review of reviews) {
-      const day = review.reviewedAt.slice(0, 10);
-      days.set(day, [...(days.get(day) ?? []), review.rating]);
-    }
-    const dailyRatings = [...days.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, ratings]) => ratings);
-    return {
-      platform,
-      count: reviews.length,
-      average: reviews.length ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length : null,
-      counts: dailyRatings.map((ratings) => ratings.length),
-      ratings: dailyRatings.map((ratings) => ratings.reduce((sum, value) => sum + value, 0) / ratings.length),
-    };
-  });
+  const { vocKeywords, notableReviews, platformReviewSummaries, ratingDistribution, reviewRatingSummary } = rangeQuery.view;
+  const reviewQuery = new URLSearchParams({ from: dateRange.startDate, to: dateRange.endDate,
+    platform: reviewPlatform, ratingGroup: reviewRating, pageSize: "8",
+    revision: data.syncRuns.map(run => run.finishedAt ?? "").sort().at(-1) ?? "" });
+  if (reviewKeyword) reviewQuery.set("keyword", JSON.stringify(reviewKeyword));
+  const remoteReviews = useReviewPage(data.app.code, reviewQuery.toString(), !!initialView && view === "reviews");
+  const { hasMore, loading: reviewsLoading, error: reviewsError, loadMore } = remoteReviews;
   const pageSize = 8;
   const totalPages = Math.max(1, Math.ceil(filteredReviews.length / pageSize));
   const visibleReviews =
     view === "reviews"
-      ? filteredReviews.slice(0, reviewPage * pageSize)
+      ? initialView ? remoteReviews.items : filteredReviews.slice(0, reviewPage * pageSize)
       : dashboardNegativeReviews;
 
   useEffect(() => {
     const loadMoreTarget = reviewLoadMoreRef.current;
-    if (view !== "reviews" || reviewPage >= totalPages || !loadMoreTarget) {
+    if (view !== "reviews" || rangeLoading || rangeError || !loadMoreTarget || (initialView ? !hasMore || reviewsLoading || !!reviewsError : reviewPage >= totalPages)) {
       return;
     }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          setReviewPage((page) => Math.min(page + 1, totalPages));
+          if (initialView) loadMore();
+          else setReviewPage((page) => Math.min(page + 1, totalPages));
         }
       },
       { rootMargin: "160px 0px" },
     );
     observer.observe(loadMoreTarget);
     return () => observer.disconnect();
-  }, [reviewPage, totalPages, view]);
+  }, [reviewPage, totalPages, view, initialView, hasMore, reviewsLoading, reviewsError, loadMore, rangeLoading, rangeError]);
   const latestSync = (platform: Platform) =>
     data.syncRuns.find(
       (item) => item.platform === platform && item.syncType === "all",
@@ -471,7 +454,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
   const connectionRatio = connectedPlatforms.length
     ? (healthyPlatforms.length / connectedPlatforms.length) * 100
     : null;
-  const ratingDistribution = buildRatingDistribution(periodReviews);
+
 
 
   const nav: Array<[View, string, ReactNode]> = [
@@ -492,7 +475,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
     ],
     [
       "releases",
-      "릴리즈",
+      "릴리스",
       <KoboyoIcon name="rocket" size={17} key="release" />,
     ],
     [
@@ -621,7 +604,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
         </DpLayout>
       )}
       {view === "reviews" && reviewKeyword && <div className="mi-voc-active-filter" aria-live="polite">
-        <span>{reviewKeyword.label} · {reviewKeyword.grade === "all" ? "전체 감정" : keywordGradeLabel[reviewKeyword.grade]} · {filteredReviews.length}개 리뷰</span>
+        <span>{reviewKeyword.label} · {reviewKeyword.grade === "all" ? "전체 감정" : keywordGradeLabel[reviewKeyword.grade]} · {initialView ? remoteReviews.total : filteredReviews.length}개 리뷰</span>
         <button type="button" onClick={() => { setReviewKeyword(null); setReviewPage(1); }}>키워드 필터 해제</button>
       </div>}
       <DpLayout className="mi-review-list">
@@ -678,10 +661,11 @@ export function DashboardShell({ data }: { data: DashboardData }) {
             </DpLayout>
           ))
         ) : (
-          <DpText className="mi-empty">조건에 맞는 리뷰가 없습니다.</DpText>
+          <DpText className="mi-empty">{initialView && remoteReviews.loading ? "리뷰를 불러오는 중…" : initialView && remoteReviews.error ? remoteReviews.error : "조건에 맞는 리뷰가 없습니다."}</DpText>
         )}
       </DpLayout>
-      {view === "reviews" && reviewPage < totalPages && (
+      {view === "reviews" && initialView && remoteReviews.error && <DpButton onClick={remoteReviews.retry}>리뷰 다시 불러오기</DpButton>}
+      {view === "reviews" && (initialView ? remoteReviews.hasMore : reviewPage < totalPages) && (
         <DpLayout
           ref={reviewLoadMoreRef}
           className="mi-review-load-more"
@@ -701,7 +685,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
               latestRelease("android")?.version ?? "—",
               latestRelease("android")
                 ? `${releaseDate(latestRelease("android")!)} 출시`
-                : "릴리즈 없음",
+                : "릴리스 없음",
               "android",
               <PlatformIcon platform="android" size={26} key="android" />,
             ],
@@ -710,7 +694,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
               latestRelease("ios")?.version ?? "—",
               latestRelease("ios")
                 ? `${releaseDate(latestRelease("ios")!)} 출시`
-                : "릴리즈 없음",
+                : "릴리스 없음",
               "ios",
               <PlatformIcon platform="ios" size={25} key="ios" />,
             ],
@@ -767,7 +751,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
           className="mi-release-section-head"
         >
           <DpLayout>
-            <DpText as="h3">릴리즈 타임라인</DpText>
+            <DpText as="h3">릴리스 타임라인</DpText>
             <DpLayout direction="row" className="mi-release-legend">
               <DpText as="span">
                 <i className="android" />
@@ -822,7 +806,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
             ))}
           </DpLayout>
         ) : (
-          <DpText className="mi-empty">릴리즈 이력이 없습니다.</DpText>
+          <DpText className="mi-empty">릴리스 이력이 없습니다.</DpText>
         )}
       </DpCard>
 
@@ -914,7 +898,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
               </DpLayout>
             ))
           ) : (
-            <DpText className="mi-empty">조건에 맞는 릴리즈가 없습니다.</DpText>
+            <DpText className="mi-empty">조건에 맞는 릴리스가 없습니다.</DpText>
           )}
         </DpLayout>
         <DpLayout
@@ -923,7 +907,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
           justify="between"
           className="mi-release-table-foot"
         >
-          <DpText as="span">총 {filteredReleases.length}개 릴리즈</DpText>
+          <DpText as="span">총 {filteredReleases.length}개 릴리스</DpText>
           <DpText as="span">최신순</DpText>
         </DpLayout>
       </DpCard>
@@ -1164,7 +1148,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
           </DpLayout>
         </>
       ) : (
-        <DpText className="mi-empty">표시할 릴리즈가 없습니다.</DpText>
+        <DpText className="mi-empty">표시할 릴리스가 없습니다.</DpText>
       )}
     </DpCard>
   );
@@ -1239,6 +1223,9 @@ export function DashboardShell({ data }: { data: DashboardData }) {
           </DpLayout>
         </DpLayout>
         <DpLayout className="mi-content">
+          {performancePeriodViews.has(view) && rangeQuery.loading && <p role="status">선택한 기간의 데이터를 불러오는 중…</p>}
+          {performancePeriodViews.has(view) && rangeQuery.error && <div role="alert">{rangeQuery.error} <DpButton onClick={rangeQuery.retry}>다시 불러오기</DpButton></div>}
+          {(!performancePeriodViews.has(view) || (!rangeQuery.loading && !rangeQuery.error)) && <>
           {view === "dashboard" && (
             <>
               <DpLayout as="section" className="mi-dashboard-kpi-grid">
@@ -1353,7 +1340,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
               </DpCard>
               <DpCard className="mi-dashboard-kpi-card">
                 <DashboardCardTitle
-                  icon={<KoboyoIcon name="message-square" size={17} />}
+                  icon={<KoboyoIcon name="shield-alert" size={17} />}
                   tone="red"
                   tooltip="선택 기간에 수집된 플랫폼별 작성 리뷰 중 1~2점 리뷰 수 ÷ 전체 작성 리뷰 수 × 100. 선택 기간을 하루 앞당긴 전날 기준 동일 길이 기간과 비교합니다. 별점만 남긴 평가는 포함하지 않습니다."
                 >
@@ -1385,7 +1372,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
               </DpLayout>
           </>
         )}
-          {view === "reviews" && <ReviewRatingSummary reviews={periodReviews} />}
+          {view === "reviews" && <ReviewRatingSummary model={reviewRatingSummary} />}
           {view === "reviews" && (
             <DpLayout as="section" className="mi-review-summary-grid">
               <DpCard className="mi-dashboard-kpi-card mi-review-platform-card">
@@ -1457,7 +1444,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
             <>
               <DpLayout className="mi-rating-distributions">
                 <DpLayout className="mi-rating-distribution-stack">
-                  {ratingDistribution.map(({ platform, rows, total }) => (
+                  {ratingDistribution.map(({ platform, rows }) => (
                     <DpCard key={platform} className="mi-rating-card">
                       <DpLayout
                         direction="row"
@@ -1637,6 +1624,7 @@ export function DashboardShell({ data }: { data: DashboardData }) {
               </DpCard>
             </>
           )}
+          </>}
         </DpLayout>
       </DpLayout>
     </DpLayout>

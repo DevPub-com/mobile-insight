@@ -6,9 +6,10 @@ import { getDb } from "@/db";
 import { aiInsightsCache, apps } from "@/db/schema";
 import { upsertAiInsightsCache } from "@/db/upsert";
 import { getDefaultAppCode } from "@/lib/env";
-import { getDashboardData } from "@/db/dashboard.repository";
+import { getDashboardData, getReleaseImpactData } from "@/db/dashboard.repository";
 import { generateDashboardSummaryBriefing } from "@/services/ai/dashboard-summary-briefing.service";
 import { generateReleaseImpactBriefing } from "@/services/ai/release-impact-briefing.service";
+import { releaseBriefingFingerprint, shareReleaseBriefing } from "@/services/ai/release-briefing-cache";
 import { buildReleaseImpactWorkspace } from "@/services/mobile/tabs/release-impact.service";
 import { buildDateRangeSummary } from "@/services/mobile/tabs/downloads.service";
 import {
@@ -23,6 +24,10 @@ import type {
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  // Browser mutations must originate from the dashboard itself.
+  if (request.headers.get("origin") !== new URL(request.url).origin) {
+    return NextResponse.json({ error: "허용되지 않은 요청입니다." }, { status: 403 });
+  }
   try {
     const body = (await request.json()) as {
       appId?: string;
@@ -47,10 +52,15 @@ export async function POST(request: Request) {
       const [cached] = await db.select({ payload: aiInsightsCache.payload })
         .from(aiInsightsCache).innerJoin(apps, eq(apps.id, aiInsightsCache.appId))
         .where(and(eq(apps.code, appCode), eq(aiInsightsCache.insightType, type), eq(aiInsightsCache.cacheKey, cacheKey)));
-      return NextResponse.json({ data: cached?.payload ?? null, cached: !!cached });
+      const payload = cached?.payload ? { ...cached.payload } : null;
+      if (payload) {
+        delete payload._inputHash;
+        delete payload._expiresAt;
+      }
+      return NextResponse.json({ data: payload, cached: !!cached });
     }
 
-    const data = await getDashboardData(appCode);
+    const data = await getDashboardData(appCode, type === "release_impact" ? "releases" : "full");
     if (!data) {
       return NextResponse.json(
         { error: "Application data not found" },
@@ -86,13 +96,28 @@ export async function POST(request: Request) {
         );
       }
 
-      const workspace = await loadFirebaseStability(data.app.code,buildReleaseImpactWorkspace(data, targetRelease));
-      const briefing: ReleaseImpactAiBriefing | null =
-        await generateReleaseImpactBriefing(workspace);
-
-      if (briefing) {
-        await upsertAiInsightsCache(db, [{ appId: data.app.id, insightType: type, cacheKey, payload: { ...briefing } }]);
+      const impactData = await getReleaseImpactData(appCode, targetRelease.platform, targetRelease.version, data);
+      if (!impactData) {
+        return NextResponse.json({ error: "Application data not found" }, { status: 404 });
       }
+      const workspace = await loadFirebaseStability(impactData.app.code, buildReleaseImpactWorkspace(impactData, targetRelease));
+      const inputHash = releaseBriefingFingerprint(workspace);
+      if (!refresh) {
+        const [cached] = await db.select({ payload: aiInsightsCache.payload }).from(aiInsightsCache).where(and(
+          eq(aiInsightsCache.appId, data.app.id), eq(aiInsightsCache.insightType, type), eq(aiInsightsCache.cacheKey, cacheKey),
+        ));
+        if (cached?.payload?._inputHash === inputHash && typeof cached.payload._expiresAt === "number" && cached.payload._expiresAt > Date.now()) {
+          const payload = { ...cached.payload };
+          delete payload._inputHash;
+          delete payload._expiresAt;
+          return NextResponse.json({ data: payload, cached: true });
+        }
+      }
+      const briefing: ReleaseImpactAiBriefing = await shareReleaseBriefing(JSON.stringify([data.app.id, cacheKey, inputHash]), async () => {
+        const generated = await generateReleaseImpactBriefing(workspace);
+        await upsertAiInsightsCache(db, [{ appId: data.app.id, insightType: type, cacheKey, payload: { ...generated, _inputHash: inputHash, _expiresAt: Date.now() + 30 * 60 * 1000 } }]);
+        return generated;
+      });
       return NextResponse.json({ data: briefing, cached: false });
     }
 

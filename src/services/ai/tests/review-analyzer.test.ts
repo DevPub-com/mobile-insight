@@ -46,9 +46,9 @@ describe("Review Analyzer Service", () => {
 
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({
-      topics: ["일반 의견"],
-      topicPaths: [{ major: "기타", middle: "일반", minor: "일반 의견" }],
-      taxonomyVersion: 2,
+      topics: ["좋아요"],
+      topicPaths: [{ major: "기타", middle: "사용자 반응", minor: "좋아요" }],
+      taxonomyVersion: 3,
     });
   });
 
@@ -73,7 +73,7 @@ describe("Review Analyzer Service", () => {
         { major: "시세·차트", middle: "해외 상품", minor: "실시간 시세" },
         { major: "기능 요청", middle: "데이터 제공", minor: null },
       ],
-      taxonomyVersion: 2,
+      taxonomyVersion: 3,
       summary: "해외 시세 조회 및 데이터 제공 요청",
     });
   });
@@ -150,7 +150,7 @@ describe("Review Analyzer Service", () => {
 
     const result = await analyzeReviewsBatch([review("known", "전반적으로 보통입니다")]);
     expect(result.has("forged")).toBe(false);
-    expect(result.get("known")?.taxonomyVersion).toBe(2);
+    expect(result.get("known")?.taxonomyVersion).toBe(3);
   });
 
   it("analyzes model input in chunks of at most fifteen reviews", async () => {

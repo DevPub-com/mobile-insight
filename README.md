@@ -1,6 +1,6 @@
 # Mobile Insight
 
-`Mobile Insight`는 회사가 운영하는 Android/iOS 앱의 다운로드, 평점, 리뷰, 릴리즈 이후 반응을 한 화면에서 연결하는 사내용 운영 대시보드입니다. 첫 등록 앱은 **한국투자 앱**이며, 앱별 UI를 복제하지 않고 `app_master` row와 credential profile을 추가하는 방식으로 확장합니다. 현재 seed의 Store 식별자는 의도적으로 비워 두었으므로 실제 package/app ID를 등록해야 live sync가 실행됩니다.
+`Mobile Insight`는 회사가 운영하는 Android/iOS 앱의 다운로드, 평점, 리뷰, 릴리스 이후 반응을 한 화면에서 연결하는 사내용 운영 대시보드입니다. 첫 등록 앱은 **한국투자 앱**이며, 앱별 UI를 복제하지 않고 `app_master` row와 credential profile을 추가하는 방식으로 확장합니다. 현재 seed의 Store 식별자는 의도적으로 비워 두었으므로 실제 package/app ID를 등록해야 live sync가 실행됩니다.
 
 ## Architecture
 
@@ -30,7 +30,7 @@ Dashboard / Route Handlers ← Query service ← PostgreSQL (DATABASE_URL)
 | `_records` | 출처 또는 분석 기준을 보존한 기록 | `usage_daily_records`, `rating_daily_records`, `review_records`, `app_version_daily_records`, `os_version_daily_records`, `device_daily_records` |
 | `_runs`    | 작업 실행 결과                    | `sync_runs`                                                                                                                                      |
 
-앱 버전·OS 버전·기기별 GA4 일별 분포는 향후 분석을 위해 `_daily_records`로 유지합니다. 현재 사용 계획이 없는 지역별 GA4 분포와 릴리즈 상태 관측 이력은 저장하지 않습니다.
+앱 버전·OS 버전·기기별 GA4 일별 분포는 향후 분석을 위해 `_daily_records`로 유지합니다. 현재 사용 계획이 없는 지역별 GA4 분포와 릴리스 상태 관측 이력은 저장하지 않습니다.
 
 ## Local setup
 
@@ -58,7 +58,7 @@ npm run db:generate
 # 미적용 migration 실행
 npm run db:migrate
 
-# 한국투자 90일 지표, 리뷰 42건, 릴리즈 4개 seed
+# 한국투자 90일 지표, 리뷰 42건, 릴리스 4개 seed
 npm run db:seed
 ```
 
@@ -129,10 +129,10 @@ npm run db:backfill -- --app=kis --platform=android
 - Android: GCS에 존재하는 설치, 평점, 리뷰 월별 보고서 전체. Review Link로 개별 API 조회가 가능한 과거 리뷰는 작성자명도 보완합니다.
 - iOS Sales: 실행일 전날부터 최근 365일의 일별 최초 다운로드
 - iOS Analytics: `ONE_TIME_SNAPSHOT`에서 제공하는 전체 설치·삭제 이력. 최초 요청에는 Admin 권한이 필요하며 보고서 생성까지 1~2일 걸릴 수 있음
-- iOS Reviews/Releases: App Store 버전별 리뷰 전체 페이지와 릴리즈 상태·현지화 노트·build number·배포 방식·단계 배포 정보
-- 릴리즈 날짜 정확도: Apple의 `earliestReleaseDate`가 없으면 버전 `createdDate`, Google Play는 production track의 최초 관측 시각을 사용하며 UI에 `추정`으로 표시합니다. 최초 관측일은 이후 동기화에서도 보존됩니다.
-- Android Releases: Google Play production 트랙의 활성 릴리즈와 production 비폐기 릴리즈 목록만 병합합니다. versionCode, 상태, 활성 릴리즈 노트, 단계 배포율을 저장하며 internal/alpha/beta/커스텀 트랙은 수집하지 않습니다.
-- 릴리즈 유형: Production/track과 Apple 배포 방식은 Store 원본값으로 표시하고, Major/Minor/Patch는 같은 플랫폼의 직전 버전과 비교한 별도 분류로 표시합니다.
+- iOS Reviews/Releases: App Store 버전별 리뷰 전체 페이지와 릴리스 상태·현지화 노트·build number·배포 방식·단계 배포 정보
+- 릴리스 날짜 정확도: Apple의 `earliestReleaseDate`가 없으면 버전 `createdDate`, Google Play는 production track의 최초 관측 시각을 사용하며 UI에 `추정`으로 표시합니다. 최초 관측일은 이후 동기화에서도 보존됩니다.
+- Android Releases: Google Play production 트랙의 활성 릴리스와 production 비폐기 릴리스 목록만 병합합니다. versionCode, 상태, 활성 릴리스 노트, 단계 배포율을 저장하며 internal/alpha/beta/커스텀 트랙은 수집하지 않습니다.
+- 릴리스 유형: Production/track과 Apple 배포 방식은 Store 원본값으로 표시하고, Major/Minor/Patch는 같은 플랫폼의 직전 버전과 비교한 별도 분류로 표시합니다.
 - GA4: 최근 365일의 Android/iOS 1일·7일·28일 활성 사용자와 세션
 - 각 데이터 묶음은 즉시 upsert하므로 중간 실패 후 같은 명령을 다시 실행해도 중복되지 않습니다.
 - Apple 요청은 앱당 최대 365회 순차 실행하므로 수 분 이상 걸릴 수 있습니다.
@@ -147,20 +147,17 @@ curl -X POST https://mobile-insight.company.internal/api/sync \
   -H "Authorization: Bearer $SYNC_SECRET"
 ```
 
-사내 scheduler, Vercel Cron, GitHub Actions 중 배포 환경에 맞는 도구에서 하루 한 번 호출합니다. 이 엔드포인트는 Android 최신 월간 보고서와 새 리뷰, iOS 최신 일별 보고서와 현재 리뷰·평점·릴리즈, GA4 최근 35일 활성 지표를 갱신합니다. Store 하나가 실패해도 다른 Store 및 GA4 결과는 저장됩니다.
+사내 scheduler, Vercel Cron, GitHub Actions 중 배포 환경에 맞는 도구에서 하루 한 번 호출합니다. 이 엔드포인트는 Android 최신 월간 보고서와 새 리뷰, iOS 최신 일별 보고서와 현재 리뷰·평점·릴리스, GA4 최근 35일 활성 지표를 갱신합니다. Store 하나가 실패해도 다른 Store 및 GA4 결과는 저장됩니다.
 
 ## Access control
 
 대시보드 한 화면에 필요한 집계 데이터는 `GET /api/dashboard/{appId}/summary?period=30d`에서 제공합니다. 기본 기간은 `7d`, `30d`, `3m`이며, 커스텀 기간은 `?from=2025-04-20&to=2025-04-24`처럼 시작일과 종료일을 함께 전달합니다(양끝 날짜 포함, 최대 366일). `from/to`를 지정하면 `period`보다 우선합니다. 응답의 `availableDateRange`가 실제 선택 가능한 최초일·최종일과 포함 일수를 제공하며, 데이터보다 긴 프리셋이나 이 범위를 벗어난 커스텀 요청은 `422`와 함께 가능한 범위를 반환합니다. 상세 계약은 [`docs/api/dashboard-summary.openapi.yaml`](docs/api/dashboard-summary.openapi.yaml)을 기준으로 하며, 값이 수집되지 않은 지표는 필드를 생략하지 않고 `null`과 `unavailable` 품질 상태를 반환합니다.
 
-회사 SSO 또는 사내 reverse proxy가 있으면 그 계층을 우선 사용합니다. 없는 MVP 배포에서는 아래 두 값을 모두 설정하면 브라우저 Basic Auth가 `/dashboard`, 앱 목록과 Dashboard API를 보호합니다.
+회원가입과 사용자 인증을 도입하기 전까지 대시보드, 앱 목록, Dashboard API와 AI API를 개발·운영 환경 모두에서 인증 없이 공개합니다. UI의 수동 동기화와 AI 브리핑도 로그인 없이 사용할 수 있습니다.
 
-```text
-DASHBOARD_BASIC_USER=
-DASHBOARD_BASIC_PASSWORD=
-```
+현재 `DASHBOARD_BASIC_USER`, `DASHBOARD_BASIC_PASSWORD`, `TRUST_REVERSE_PROXY` 값은 앱의 접근 허용 여부에 영향을 주지 않습니다. 별도 reverse proxy가 적용하는 접근 정책은 해당 배포 설정을 따릅니다.
 
-운영 환경에서 두 값이 모두 없거나 하나만 있으면 보호 경로는 `503`으로 닫힙니다. 인증을 이미 끝낸 reverse proxy 뒤에서만 `TRUST_REVERSE_PROXY=true`를 명시하십시오. 로컬 development에서는 두 값을 비운 접근을 허용합니다. `/api/sync`는 별도의 `SYNC_SECRET`으로 보호됩니다.
+AI 브리핑 POST와 대시보드 수동 동기화 POST는 요청 URL과 동일한 `Origin` 헤더가 필요합니다. 이는 로그인 인증과 별개인 브라우저 요청 출처 검사입니다. `/api/sync`는 기존 `SYNC_SECRET` bearer 인증을 유지하며 GitHub Actions 및 CLI 수집 방식도 변경하지 않습니다.
 
 ## Add another app
 

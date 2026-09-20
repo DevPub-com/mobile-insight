@@ -202,6 +202,28 @@ describe("buildReleaseImpactWorkspace", () => {
     expect(view.daily.at(-1)?.downloads).toBeNull();
   });
 
+  it("uses exact store download observations when they are available", () => {
+    const observations = metrics
+      .filter((item) => item.platform === "android")
+      .map((item) => ({
+        appId: app.id,
+        platform: "android" as const,
+        date: item.date,
+        metricKey: "daily_user_installs",
+        value: 5,
+        source: "google_play_api" as const,
+        quality: "exact" as const,
+        observedAt: `${item.date}T12:00:00.000Z`,
+      }));
+    const view = buildReleaseImpactWorkspace(
+      { ...actual, metricObservations: [...(actual.metricObservations ?? []), ...observations] },
+      release,
+      day(10),
+    );
+    expect(view.downloads).toMatchObject({ before: 35, after: 40, change: 5 });
+    expect(view.coverage).toMatchObject({ beforeDays: 7, afterDays: 8 });
+  });
+
   it("does not invent a comparison period without a previous release", () => {
     const view = buildReleaseImpactWorkspace(data, release, day(2));
     expect(view.coverage.expectedBeforeDays).toBe(0);

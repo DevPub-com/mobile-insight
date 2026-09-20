@@ -4934,7 +4934,11 @@ button.ri-heatmap-name { border: 0; color: #465674; cursor: pointer; }
 .mi-acquisition-table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
 .mi-acquisition-table th, .mi-acquisition-table td { padding: 14px 18px; text-align: right; border-bottom: 1px solid var(--mi-border); }
 .mi-acquisition-table th { background: #f4f7fc; color: var(--mi-muted); position: sticky; top: 0; }
-.mi-acquisition-table th:first-child, .mi-acquisition-table td:first-child { text-align: left; }
+.mi-acquisition-table th:first-child,
+.mi-acquisition-table th:nth-child(2),
+.mi-acquisition-table .mi-acquisition-date,
+.mi-acquisition-table td:has(> .mi-acquisition-platform) { text-align: left; }
+.mi-acquisition-table .mi-acquisition-date { vertical-align: middle; border-bottom-width: 2px; }
 @media (max-width: 700px) { .mi-firebase-acquisition-summary { grid-template-columns: 1fr; } }
 
 .mi-acquisition-platform { display: inline-flex; align-items: center; gap: 7px; }

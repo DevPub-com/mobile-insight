@@ -15,7 +15,7 @@ export function buildAcquisitionDays(data:Pick<DashboardData,'app'|'metrics'|'me
   if(!apple.has(row.date)||row.observedAt>apple.get(row.date)!.observedAt) apple.set(row.date,{value:valid(row.value),observedAt:row.observedAt});
  }
  const metrics=new Map(data.metrics.filter(row=>row.appId===data.app.id).map(row=>[`${row.date}:${row.platform}`,row]));
- return first.map(row=>{
+ const days = first.map(row=>{
   const platform=(p:Platform):AcquisitionValues=>{
    const m=metrics.get(`${row.date}:${p}`),sessions=valid(m?.sessions),engaged=valid(m?.engagedSessions);
    const paired=sessions!==null&&sessions>0&&engaged!==null&&engaged<=sessions;
@@ -23,6 +23,10 @@ export function buildAcquisitionDays(data:Pick<DashboardData,'app'|'metrics'|'me
   };
   return {date:row.date,android:platform('android'),ios:platform('ios')};
  });
+ const displayed = (values: AcquisitionValues) =>
+  values.dau !== null || values.newUsers !== null || values.removals !== null || values.engagement !== null;
+ const lastCollected = days.findLastIndex(row => displayed(row.android) || displayed(row.ios));
+ return lastCollected < 0 ? [] : days.slice(0, lastCollected + 1);
 }
 export function acquisitionSummary(rows:AcquisitionDay[],platform:Platform) {
  const values=rows.map(row=>row[platform]);

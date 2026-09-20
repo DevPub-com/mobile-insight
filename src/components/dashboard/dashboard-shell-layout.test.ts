@@ -5,6 +5,7 @@ const source = readFileSync(
   new URL("./dashboard-shell.tsx", import.meta.url),
   "utf8",
 );
+const viewBuilderSource = readFileSync(new URL("../../services/mobile/dashboard-view.ts", import.meta.url), "utf8");
 const platformIconSource = readFileSync(
   new URL("./platform-icon.tsx", import.meta.url),
   "utf8",
@@ -32,7 +33,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("대시보드");
     expect(source).toContain("다운로드");
     expect(source).toContain("평점 & 리뷰");
-    expect(source).toContain("릴리즈");
+    expect(source).toContain("릴리스");
     expect(source).toContain("배포 후 변화");
     expect(source).toContain("앱 관리");
     expect(source).toContain("<FirebaseAcquisitionPanel");
@@ -42,8 +43,9 @@ describe("Mobile Insight dashboard shell layout", () => {
   });
 
   it("keeps the real dashboard view builders connected to the redesigned UI", () => {
-    expect(source).toContain("buildDashboardSummaryForRange(data, dateRange)");
-    expect(source).toContain("buildDateRangeSummary(data, dateRange)");
+    expect(source).toContain("useDashboardView(data, dateRange, initialView)");
+    expect(viewBuilderSource).toContain("buildDashboardSummaryForRange(data, range)");
+    expect(viewBuilderSource).toContain("buildDateRangeSummary(data, range)");
     expect(source).toContain("<FirebaseAcquisitionPanel data={data} range={dateRange}");
     expect(source).toContain("dashboardSummary.charts.ratings");
     expect(source).toContain("dashboardSummary.latestReleaseImpact.platforms");
@@ -132,7 +134,8 @@ describe("Mobile Insight dashboard shell layout", () => {
   it("uses one global performance period control instead of per-chart controls", () => {
     expect(source).not.toContain("<PeriodTabs");
     expect(source).toContain("<DashboardDateRangePicker");
-    expect(source).toContain("buildDashboardSummaryForRange(data, dateRange)");
+    expect(source).toContain("useDashboardView(data, dateRange, initialView)");
+    expect(viewBuilderSource).toContain("buildDashboardSummaryForRange(data, range)");
     expect(dateRangePickerSource).toContain('className="mi-global-date-range"');
     expect(source).toContain("performancePeriodViews.has(view)");
     expect(source).toContain("reviewedAt >= dateRange.startDate");
@@ -231,11 +234,11 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).not.toContain('className={`mi-ai-sentiment-badge');
     expect(source).toContain('className={`mi-review-ai-tags is-${item.aiSentiment');
     expect(source).toContain("reviewTopicChips(item)");
-    expect(source).toContain("summarizeReviewKeywords(periodReviews)");
+    expect(viewBuilderSource).toContain("summarizeReviewKeywords(periodReviews)");
     expect(source).toContain("설정 기간 리뷰 수");
     expect(source).toContain("설정 기간 평점");
     expect(source).toContain("주목할 만한 리뷰");
-    expect(source).toContain("item.count >= 2");
+    expect(viewBuilderSource).toContain("item.count >= 2");
     expect(source).toContain("<ReviewDevice review={item} />");
   });
 
@@ -295,7 +298,8 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("filteredReviews.slice(0, reviewPage * pageSize)");
     expect(source).not.toContain('className="mi-pagination"');
     expect(source).toContain('aria-hidden="true"');
-    expect(source).not.toContain('role="status"');
+    expect(source).toContain("remoteReviews.items");
+    expect(source).toContain("remoteReviews.retry");
     expect(source).not.toContain("리뷰 더 불러오는 중");
   });
 
@@ -314,7 +318,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).toContain("최신 iOS 버전");
     expect(source).toContain("최근 30일 배포 수");
     expect(source).toContain("평균 배포 주기");
-    expect(source).toContain("릴리즈 타임라인");
+    expect(source).toContain("릴리스 타임라인");
     expect(source).toContain("item.releaseNotes");
     expect(source).not.toContain("item.phasedReleaseState");
     expect(source).not.toContain('className="mi-release-complete"');
@@ -339,7 +343,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     expect(source).not.toContain("impactPlatform");
     expect(source).not.toContain("releaseKey");
     expect(source).not.toContain('className="mi-impact-platform-tabs"');
-    expect(source).not.toContain("릴리즈 선택");
+    expect(source).not.toContain("릴리스 선택");
     expect(source).toContain("최근 업데이트 후 달라진 점");
     expect(source).toContain('label: "배포 후 크래시 발생 건수"');
     expect(source).not.toContain("새 충돌 문제");
@@ -399,7 +403,7 @@ describe("Mobile Insight dashboard shell layout", () => {
     );
     expect(workspace).toContain("평균 리뷰 평점");
     expect(workspace).not.toContain("핵심 인사이트");
-    expect(workspace).not.toContain("릴리즈 요약");
+    expect(workspace).not.toContain("릴리스 요약");
     expect(workspace).toContain("최근 업데이트 후 달라진 점");
     expect(workspace).toContain("VOC 변화");
     expect(workspace).not.toContain("대표 리뷰");

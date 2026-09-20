@@ -1,5 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "./route";
+import { getDb } from "@/db";
+import { loadFirebaseStability } from "@/services/firebase/release-stability";
 import { getDashboardData } from "@/db/dashboard.repository";
 import { upsertAiInsightsCache } from "@/db/upsert";
 import { generateReleaseImpactBriefing } from "@/services/ai/release-impact-briefing.service";
@@ -11,7 +13,7 @@ vi.mock("@/db", () => ({
   getDb: vi.fn(() => ({
     select: vi.fn(() => ({
       from: vi.fn(() => ({
-        where: vi.fn(() => Promise.resolve([])),
+        where: vi.fn(() => Promise.resolve(cacheRows.rows)),
         innerJoin: vi.fn(() => ({ where: vi.fn(() => Promise.resolve(cacheRows.rows)) })),
       })),
     })),
@@ -27,9 +29,8 @@ vi.mock("@/db/upsert", () => ({
   upsertAiInsightsCache: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock("@/db/dashboard.repository", () => ({
-  getDashboardData: vi.fn(() =>
-    Promise.resolve({
+vi.mock("@/db/dashboard.repository", () => {
+  const data = {
       apps: [],
       app: {
         id: "app-1",
@@ -65,16 +66,38 @@ vi.mock("@/db/dashboard.repository", () => ({
         },
       ],
       syncRuns: [],
-      source: "demo",
-    }),
-  ),
-}));
+      source: "demo" as const,
+    };
+  return {
+    getDashboardData: vi.fn(() => Promise.resolve(data)),
+    getReleaseImpactData: vi.fn(() => Promise.resolve(data)),
+  };
+});
 
 describe("AI Briefing API Route", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cacheRows.rows = [];
+  });
+
+  it.each([undefined, "null", "https://other.test"])("rejects an absent or untrusted origin before any work: %s", async (origin) => {
+    const response = await POST(new Request("http://localhost/api/ai/briefing", {
+      method: "POST",
+      headers: origin ? { Origin: origin } : {},
+      body: "invalid JSON must not be parsed",
+    }));
+    expect(response.status).toBe(403);
+    expect(getDb).not.toHaveBeenCalled();
+    expect(getDashboardData).not.toHaveBeenCalled();
+    expect(loadFirebaseStability).not.toHaveBeenCalled();
+    expect(generateReleaseImpactBriefing).not.toHaveBeenCalled();
+    expect(upsertAiInsightsCache).not.toHaveBeenCalled();
+  });
+
   it("handles dashboard executive briefing request", async () => {
     const request = new Request("http://localhost/api/ai/briefing", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Origin: "http://localhost" },
       body: JSON.stringify({
         appCode: "kis",
         type: "dashboard_executive",
@@ -95,7 +118,7 @@ describe("AI Briefing API Route", () => {
     vi.mocked(getDashboardData).mockClear();
     vi.mocked(generateReleaseImpactBriefing).mockClear();
     const response = await POST(new Request("http://localhost/api/ai/briefing", {
-      method: "POST", body: JSON.stringify({appCode: "kis", type: "release_impact", releaseId: "rel-1", cacheOnly: true}),
+      method: "POST", headers: { Origin: "http://localhost" }, body: JSON.stringify({appCode: "kis", type: "release_impact", releaseId: "rel-1", cacheOnly: true}),
     }));
     expect(await response.json()).toEqual({data: {headline: "Saved analysis"}, cached: true});
     expect(getDashboardData).not.toHaveBeenCalled();
@@ -108,7 +131,7 @@ describe("AI Briefing API Route", () => {
     vi.mocked(generateReleaseImpactBriefing).mockResolvedValue(briefing);
     const request = new Request("http://localhost/api/ai/briefing", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Origin: "http://localhost" },
       body: JSON.stringify({
         appCode: "kis",
         type: "release_impact",
@@ -122,6 +145,27 @@ describe("AI Briefing API Route", () => {
     const json = await response.json();
     expect(json.data).toEqual(briefing);
     expect(generateReleaseImpactBriefing).toHaveBeenCalledWith(expect.objectContaining({crashReports:expect.objectContaining({after:123})}));
-    expect(upsertAiInsightsCache).toHaveBeenCalledWith(expect.anything(), [expect.objectContaining({cacheKey: "release:firebase-v1:rel-1", insightType: "release_impact", payload: briefing})]);
+    expect(upsertAiInsightsCache).toHaveBeenCalledWith(expect.anything(), [expect.objectContaining({cacheKey: "release:firebase-v1:rel-1", insightType: "release_impact", payload: {...briefing, _inputHash: expect.any(String), _expiresAt: expect.any(Number)}})]);
+  });
+
+  it("reuses unchanged analysis, invalidates changed metrics and honors explicit refresh", async () => {
+    const briefing = {headline: "Fresh", summary: "Summary", riskLevel: "low" as const, keyChanges: [], recommendations: [], analyzedAt: "2026-09-14"};
+    vi.mocked(generateReleaseImpactBriefing).mockResolvedValue(briefing);
+    const request = (refresh = false) => POST(new Request("http://localhost/api/ai/briefing", {
+      method: "POST", headers: { Origin: "http://localhost" },
+      body: JSON.stringify({ appCode: "kis", type: "release_impact", releaseId: "rel-1", refresh }),
+    }));
+    await request();
+    cacheRows.rows = [{ payload: vi.mocked(upsertAiInsightsCache).mock.calls.at(-1)![1][0].payload }];
+    expect(await (await request()).json()).toEqual({ data: briefing, cached: true });
+    expect(generateReleaseImpactBriefing).toHaveBeenCalledTimes(1);
+    await request(true);
+    expect(generateReleaseImpactBriefing).toHaveBeenCalledTimes(2);
+    vi.mocked(loadFirebaseStability).mockImplementationOnce(async (_code, view) => ({ ...view, crashReports: { ...view.crashReports, after: 999 } }));
+    expect((await (await request()).json()).cached).toBe(false);
+    expect(generateReleaseImpactBriefing).toHaveBeenCalledTimes(3);
+    cacheRows.rows[0].payload._expiresAt = 0;
+    expect((await (await request()).json()).cached).toBe(false);
+    expect(generateReleaseImpactBriefing).toHaveBeenCalledTimes(4);
   });
 });

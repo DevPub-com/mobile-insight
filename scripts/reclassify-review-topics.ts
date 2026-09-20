@@ -4,6 +4,7 @@ import { getDb } from "../src/db";
 import { reviews } from "../src/db/schema";
 import { analyzeReviewsBatch } from "../src/services/ai/review-analyzer.service";
 import type { AppReview } from "../src/domain/types";
+import { REVIEW_TAXONOMY_VERSION } from "../src/domain/reviews/review-taxonomy";
 
 loadScriptEnv();
 const apply = process.argv.includes("--apply");
@@ -11,7 +12,11 @@ const limitArgument = process.argv.find(value => value.startsWith("--limit="));
 const limit = Number(limitArgument?.split("=")[1] ?? 100);
 if (!Number.isInteger(limit) || limit < 1 || limit > 5000) throw new Error("limit must be 1–5000");
 const db = getDb();
-const pending = or(isNull(reviews.aiTopicPaths), sql`jsonb_array_length(${reviews.aiTopicPaths}) = 0`);
+const pending = or(
+  isNull(reviews.aiTopicPaths),
+  sql`jsonb_array_length(${reviews.aiTopicPaths}) = 0`,
+  sql`${reviews.aiTopicPaths} @> '[{"major":"기타","middle":"일반","minor":"일반 의견"}]'::jsonb`,
+);
 const rows = await db.select().from(reviews).where(pending)
   .orderBy(desc(reviews.reviewedAt), desc(reviews.id)).limit(limit);
 console.info(`Pending selection: ${rows.length}; apply=${apply}`);
@@ -26,7 +31,7 @@ if (apply) {
     })) as AppReview[]);
     for (const row of batch) {
       const result = results.get(row.id);
-      if (result?.taxonomyVersion !== 2 || !result.topicPaths?.length) continue;
+      if (result?.taxonomyVersion !== REVIEW_TAXONOMY_VERSION || !result.topicPaths?.length) continue;
       const saved = await db.update(reviews).set({
         aiTopicPaths: result.topicPaths,
         aiTopics: result.topics,

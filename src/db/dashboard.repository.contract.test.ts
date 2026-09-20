@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 const source = readFileSync(
   new URL("./dashboard.repository.ts", import.meta.url),
   "utf8",
-);
+) + readFileSync(new URL("./review.repository.ts", import.meta.url), "utf8");
 
 describe("dashboard review repository contract", () => {
   it("keeps review device fields in the dashboard response", () => {
