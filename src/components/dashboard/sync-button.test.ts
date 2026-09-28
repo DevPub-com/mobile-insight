@@ -8,22 +8,24 @@ vi.mock('react', async importOriginal => ({...await importOriginal<typeof import
   useTransition: () => [false, (callback: () => void) => callback()],
   useEffect: (effect: () => () => void) => { state.effect = effect; },
 }));
-beforeEach(() => { state.refresh.mockClear(); vi.useFakeTimers(); vi.stubGlobal('document', {visibilityState:'visible'}); });
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+beforeEach(() => { vi.stubEnv('NODE_ENV', 'development'); state.refresh.mockClear(); vi.useFakeTimers(); vi.stubGlobal('document', {visibilityState:'visible'}); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 describe('sync refresh', () => {
   it('keeps the current screen when the POST times out', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', {status:504})));
     const button = SyncButton({appId:'app',revision:null});
+    if (!button) throw new Error('Manual sync must be visible in development');
     await button.props.children[0].props.onClick();
     expect(state.refresh).not.toHaveBeenCalled();
   });
   it('refreshes only on completion changes and stops polling on unmount', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
     const fetcher=vi.fn()
       .mockResolvedValueOnce(Response.json({revision:'old'}))
       .mockResolvedValueOnce(Response.json({revision:'new'}))
       .mockResolvedValueOnce(Response.json({revision:'new'}));
     vi.stubGlobal('fetch', fetcher);
-    SyncButton({appId:'app',revision:'old'});
+    expect(SyncButton({appId:'app',revision:'old'})).toBeNull();
     const cleanup=state.effect!();
     await vi.advanceTimersByTimeAsync(0);
     expect(state.refresh).not.toHaveBeenCalled();
@@ -53,6 +55,7 @@ it('does not poll while a manual sync is in flight and refreshes after success',
  const fetcher=vi.fn().mockImplementation(()=>new Promise<Response>(resolve=>{finish=resolve;}));
  vi.stubGlobal('fetch',fetcher);
  const button=SyncButton({appId:'app',revision:null});
+ if (!button) throw new Error('Manual sync must be visible in development');
  const work=button.props.children[0].props.onClick();
  const cleanup=state.effect!();
  await vi.advanceTimersByTimeAsync(15000);
