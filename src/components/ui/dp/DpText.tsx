@@ -21,12 +21,14 @@ const sizeClassNames: Record<TextSize, string> = {
 export type DpTextProperties<Element extends ElementType = "p"> = {
   as?: Element;
   size?: TextSize;
+  wrap?: "keep" | "inherit";
   children?: ReactNode;
-} & Omit<ComponentPropsWithoutRef<Element>, "as" | "size" | "children">;
+} & Omit<ComponentPropsWithoutRef<Element>, "as" | "size" | "wrap" | "children">;
 
 export function DpText<Element extends ElementType = "p">({
   as,
   size,
+  wrap = "keep",
   children,
   className,
   ...properties
@@ -35,7 +37,12 @@ export function DpText<Element extends ElementType = "p">({
 
   return (
     <Component
-      className={cn("m-0 break-keep", size ? sizeClassNames[size] : undefined, className)}
+      className={cn(
+        "m-0",
+        wrap === "keep" ? "break-keep" : "[word-break:inherit]",
+        size ? sizeClassNames[size] : undefined,
+        className,
+      )}
       {...properties}
     >
       {children}

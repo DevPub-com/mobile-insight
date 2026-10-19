@@ -176,7 +176,6 @@ AI 브리핑 POST와 대시보드 수동 동기화 POST는 요청 URL과 동일�
 | Command               | Purpose                          |
 | --------------------- | -------------------------------- |
 | `npm run dev`         | 로컬 개발 서버                   |
-| `npm test`            | 핵심 도메인 테스트               |
 | `npm run typecheck`   | TypeScript 검사                  |
 | `npm run lint`        | ESLint 검사                      |
 | `npm run build`       | production build                 |

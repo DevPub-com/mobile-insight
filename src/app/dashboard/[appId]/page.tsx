@@ -1,3 +1,4 @@
+import { DpText } from "@/components/ui/dp/DpText";
 import type { Metadata } from "next";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { loadDashboardPage } from "@/services/mobile/dashboard-page.service";
@@ -29,9 +30,9 @@ function SetupState({ title, detail }: { title: string; detail: string }) {
   return (
     <main className="setup-state">
       <div className="brand-mark">MI</div>
-      <p>MOBILE INSIGHT</p>
-      <h1>{title}</h1>
-      <span>{detail}</span>
+      <DpText as="p" wrap="inherit">MOBILE INSIGHT</DpText>
+      <DpText as="h1" wrap="inherit">{title}</DpText>
+      <DpText as="span" wrap="inherit">{detail}</DpText>
       <code>cp .env.example .env.local</code>
     </main>
   );

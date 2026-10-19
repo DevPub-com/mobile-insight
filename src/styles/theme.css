@@ -1,0 +1,45 @@
+/* Shared values retain the existing light theme. */
+:root {
+  --ink: #111a22;
+  --muted: #6f7673;
+  --line: #dcd9d2;
+  --line-soft: #ebe8e1;
+  --paper: #f4f2ed;
+  --paper-strong: #ebe8e1;
+  --blue: #2864dc;
+  --orange: #e8752b;
+  --green: #1d8b63;
+  --red: #cc4a3d;
+  --chart-total: #8993a7;
+}
+
+:root {
+  --mi-bg: #f7f9fc;
+  --mi-surface: #ffffff;
+  --mi-brand: #4c73ec;
+  --mi-brand-strong: #3f6aeb;
+  --mi-brand-soft: #eef3fe;
+  --mi-brand-border: #e3eafd;
+  --mi-ink: #101622;
+  --mi-text-secondary: #566178;
+  --mi-muted: #8993a7;
+  --mi-border: #e3e8f0;
+  --mi-android: #22a447;
+  --mi-android-soft: #ecf8f0;
+  --mi-ios: #8b5cf6;
+  --mi-ios-soft: #f5f0ff;
+  --mi-success: #16a34a;
+  --mi-success-soft: #ecfdf3;
+  --mi-warning: #f59e0b;
+  --mi-warning-soft: #fff7e6;
+  --mi-danger: #ef4444;
+  --mi-danger-soft: #fef2f2;
+  --mi-green: var(--mi-android);
+  --mi-violet: var(--mi-ios);
+  --mi-orange: var(--mi-warning);
+}
+:root {
+  --mi-font-body: "Pretendard", "SUIT", "Noto Sans KR", sans-serif;
+  --mi-radius-card: 16px;
+  --mi-radius-control: 8px;
+}

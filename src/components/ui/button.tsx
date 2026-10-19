@@ -1,3 +1,4 @@
+import { DpButton } from "./dp/DpButton";
 import { cva, type VariantProps } from "class-variance-authority";
 import type { ButtonHTMLAttributes } from "react";
 
@@ -20,9 +21,10 @@ const buttonVariants = cva(
 
 export function Button({
   className,
+  children,
   variant,
   size,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof buttonVariants>) {
-  return <button className={cn(buttonVariants({ variant, size }), className)} {...props} />;
+  return <DpButton variant="custom" className={cn(buttonVariants({ variant, size }), className)} {...props}>{children}</DpButton>;
 }

@@ -1,0 +1,300 @@
+"use client";
+import { DpButton } from "@/components/ui/dp/DpButton";
+import { DpLayout } from "@/components/ui/dp/DpLayout";
+import { DpText } from "@/components/ui/dp/DpText";
+
+import { DayPicker, type DateRange } from "@daypicker/react";
+import { ko } from "@daypicker/react/locale";
+import { useEffect, useRef, useState } from "react";
+
+import {
+  dateFromIso,
+  isoFromDate,
+  MAX_DATE_RANGE_DAYS,
+  metricRangeFromCalendar,
+  normalizeDateRangeBoundary,
+  presetDateRange,
+} from "@/components/dashboard/layout/date-range-picker.logic";
+import {
+  dateRangeDays,
+  type MetricDateRange,
+} from "@/services/mobile/common/metrics-calculator";
+import { KoboyoIcon } from "@/components/ui/koboyo-icon";
+
+const presets = [7, 30, 90] as const;
+const displayDate = (value: string) => value.replaceAll("-", ".");
+
+export function DashboardDateRangePicker({
+  value,
+  minDate,
+  maxDate,
+  disabled = false,
+  onChange,
+}: {
+  value: MetricDateRange;
+  minDate: string;
+  maxDate: string;
+  disabled?: boolean;
+  onChange: (value: MetricDateRange) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [visibleMonth, setVisibleMonth] = useState(value.endDate);
+  const [appliedPreset, setAppliedPreset] = useState<number | null>(() =>
+    value.endDate === maxDate &&
+    presets.includes(dateRangeDays(value) as 7 | 30 | 90)
+      ? dateRangeDays(value)
+      : null,
+  );
+  const [draftPreset, setDraftPreset] = useState<number | null>(appliedPreset);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const days = dateRangeDays(value);
+  const availableDays = dateRangeDays({ startDate: minDate, endDate: maxDate });
+  const draftIsComplete = Boolean(draft.startDate && draft.endDate);
+  const draftIsValid =
+    draftIsComplete &&
+    draft.startDate >= minDate &&
+    draft.endDate <= maxDate &&
+    draft.startDate <= draft.endDate &&
+    dateRangeDays(draft) >= 1 &&
+    dateRangeDays(draft) <= MAX_DATE_RANGE_DAYS;
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setDraftPreset(appliedPreset);
+        setDraft(value);
+        setOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setDraftPreset(appliedPreset);
+        setDraft(value);
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open, appliedPreset, value]);
+
+  const selectPreset = (presetDays: (typeof presets)[number]) => {
+    const next = presetDateRange(presetDays, minDate, maxDate);
+    setDraft(next);
+    setDraftPreset(presetDays);
+    setVisibleMonth(next.endDate);
+  };
+  const selectedRange: DateRange | undefined = draft.startDate
+    ? {
+        from: dateFromIso(draft.startDate),
+        to: draft.endDate ? dateFromIso(draft.endDate) : undefined,
+      }
+    : undefined;
+  const selectDateRange = (range: DateRange | undefined) => {
+    const nextRange = metricRangeFromCalendar(range ?? {});
+    if (!nextRange) return;
+    setDraftPreset(null);
+    setDraft(nextRange);
+  };
+
+  return (
+    <div className="mi-global-date-range" ref={rootRef}>
+      <DpButton
+        variant="custom"
+        type="button"
+        className="mi-date-range-trigger"
+        aria-label="분석 기간 선택"
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={() => {
+          if (disabled) return;
+          setDraft(value);
+          setVisibleMonth(value.endDate);
+          setDraftPreset(appliedPreset);
+          setOpen((current) => !current);
+        }}
+      >
+        <KoboyoIcon name="calendar" size={17} />
+        <DpLayout
+          as="span"
+          display="inline-flex"
+          direction="row"
+          className="mi-date-range-copy"
+        >
+          {displayDate(value.startDate)} ~ {displayDate(value.endDate)}
+          <DpText as="small" wrap="inherit">
+            ({days}일)
+          </DpText>
+        </DpLayout>
+        <KoboyoIcon
+          name="chevron-down"
+          size={10}
+          className="mi-date-range-chevron"
+        />
+      </DpButton>
+
+      {open && (
+        <DpLayout
+          display="grid"
+          className="mi-date-range-popover"
+          role="dialog"
+          aria-label="날짜 범위 설정"
+        >
+          <div className="mi-date-range-fields">
+            <DpText as="strong" wrap="inherit">
+              조회할 기간
+            </DpText>
+            <DpText
+              as="p"
+              wrap="inherit"
+              className="mi-date-range-availability"
+            >
+              조회 가능 {displayDate(minDate)} ~ {displayDate(maxDate)} (
+              {availableDays}일)
+            </DpText>
+            <DpLayout display="grid" className="mi-date-range-inputs">
+              <label>
+                시작일
+                <input
+                  type="date"
+                  min={minDate}
+                  max={maxDate}
+                  value={draft.startDate}
+                  onChange={(event) => {
+                    setDraftPreset(null);
+                    setDraft((current) =>
+                      normalizeDateRangeBoundary(
+                        current,
+                        "startDate",
+                        event.target.value,
+                        minDate,
+                        maxDate,
+                      ),
+                    );
+                  }}
+                />
+              </label>
+              <DpText as="span" wrap="inherit">
+                ~
+              </DpText>
+              <label>
+                종료일
+                <input
+                  type="date"
+                  min={minDate}
+                  max={maxDate}
+                  value={draft.endDate}
+                  onChange={(event) => {
+                    setDraftPreset(null);
+                    setDraft((current) =>
+                      normalizeDateRangeBoundary(
+                        current,
+                        "endDate",
+                        event.target.value,
+                        minDate,
+                        maxDate,
+                      ),
+                    );
+                  }}
+                />
+              </label>
+            </DpLayout>
+
+            <div className="mi-date-range-calendar">
+              <DayPicker
+                mode="range"
+                locale={ko}
+                navLayout="around"
+                weekStartsOn={1}
+                showOutsideDays
+                fixedWeeks
+                resetOnSelect
+                excludeDisabled
+                max={MAX_DATE_RANGE_DAYS - 1}
+                month={dateFromIso(visibleMonth)}
+                startMonth={dateFromIso(minDate)}
+                endMonth={dateFromIso(maxDate)}
+                disabled={[
+                  { before: dateFromIso(minDate) },
+                  { after: dateFromIso(maxDate) },
+                ]}
+                selected={selectedRange}
+                onMonthChange={(month) => setVisibleMonth(isoFromDate(month))}
+                onSelect={selectDateRange}
+              />
+            </div>
+
+            {!draftIsComplete && (
+              <DpText
+                as="p"
+                wrap="inherit"
+                className="mi-date-range-help"
+                aria-live="polite"
+              >
+                {draft.startDate
+                  ? "종료일을 선택해 주세요."
+                  : "시작일과 종료일을 선택해 주세요."}
+              </DpText>
+            )}
+            {draftIsComplete && !draftIsValid && (
+              <DpText as="p" wrap="inherit" role="alert">
+                조회 가능 기간 안에서 최대 {MAX_DATE_RANGE_DAYS}일까지 선택해
+                주세요.
+              </DpText>
+            )}
+            <DpLayout as="footer" direction="row">
+              <DpButton
+                variant="custom"
+                type="button"
+                onClick={() => {
+                  setDraftPreset(appliedPreset);
+                  setDraft(value);
+                  setOpen(false);
+                }}
+              >
+                취소
+              </DpButton>
+              <DpButton
+                variant="custom"
+                type="button"
+                className="is-primary"
+                disabled={!draftIsValid}
+                onClick={() => {
+                  setAppliedPreset(draftPreset);
+                  onChange(draft);
+                  setOpen(false);
+                }}
+              >
+                적용
+              </DpButton>
+            </DpLayout>
+          </div>
+          <DpLayout as="nav" display="grid" aria-label="빠른 기간 선택">
+            {presets.map((presetDays) => (
+              <DpButton
+                variant="custom"
+                type="button"
+                key={presetDays}
+                disabled={presetDays > availableDays}
+                title={
+                  presetDays > availableDays
+                    ? `${presetDays}일을 선택하려면 데이터가 더 필요합니다.`
+                    : undefined
+                }
+                className={draftPreset === presetDays ? "is-active" : ""}
+                onClick={() => selectPreset(presetDays)}
+              >
+                최근 {presetDays}일
+              </DpButton>
+            ))}
+          </DpLayout>
+        </DpLayout>
+      )}
+    </div>
+  );
+}
