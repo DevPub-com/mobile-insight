@@ -101,6 +101,9 @@ export function SyncButton({
     }
   }
 
+  // Keep automatic refresh polling active while exposing manual sync only in development.
+  if (process.env.NODE_ENV !== "development") return null;
+
   return (
     <div className="mi-sync-control">
       <DpButton
